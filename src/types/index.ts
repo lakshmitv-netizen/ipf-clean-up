@@ -39,6 +39,8 @@ export interface GridRow {
     oct2026: number;
     nov2026: number;
     dec2026: number;
+    // Weekly columns (week1_2026 .. week52_2026), derived from monthly values.
+    [weekKey: `week${number}_2026`]: number;
   };
 }
 
@@ -63,6 +65,8 @@ export interface MeasureData {
     oct2026: number;
     nov2026: number;
     dec2026: number;
+    // Weekly columns (week1_2026 .. week52_2026), derived from monthly values.
+    [weekKey: `week${number}_2026`]: number;
   };
   children: GridRow[];
   groupContext?: string; // Which measure group this instance belongs to (for duplicated measures)

@@ -100,7 +100,8 @@ interface TimeGranularity {
 const timeGranularities: TimeGranularity[] = [
   { id: 'year', name: 'Years' },
   { id: 'quarter', name: 'Quarters' },
-  { id: 'month', name: 'Months' }
+  { id: 'month', name: 'Months' },
+  { id: 'week', name: 'Weeks' }
 ];
 
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ 

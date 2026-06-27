@@ -26,6 +26,7 @@ import { ApprovalRequest } from '../types';
 import type { PlanningGridCellMapsSnapshot } from '../contexts/PlanningGridSessionContext';
 import { SearchHighlight } from './SearchHighlight';
 import ColumnFilterPopover, { ColumnFilter } from './ColumnFilterPopover';
+import { buildWeekHeaders, deriveWeekValues, weekOverlapsRange } from '../utils/weekColumns';
 import '../styles/components/Grid.css';
 
 type HierarchyDim = 'account' | 'category' | 'product';
@@ -1375,6 +1376,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         if (!isCellLocked(rowId, 'year')) {
           row.values.year = row.values.q1 + row.values.q2 + row.values.q3 + row.values.q4;
         }
+        // Derive weekly columns from months (once); preserves any edited week values.
+        deriveWeekValues(row.values as Record<string, number>);
       }
     };
     
@@ -1862,7 +1865,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
   // Get visible time headers with labels (filtered by granularity and search) - memoized
   const visibleTimeHeaders = useMemo(() => {
-    const allTimeKeys: { key: keyof GridRowType['values']; granularity: string; label: string }[] = [
+    const allTimeKeys: { key: keyof GridRowType['values']; granularity: string; label: string; shortLabel?: string }[] = [
       { key: 'year', granularity: 'year', label: 'FY26' },
       { key: 'q1', granularity: 'quarter', label: 'Q1' },
       { key: 'q2', granularity: 'quarter', label: 'Q2' },
@@ -1880,6 +1883,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       { key: 'oct2026', granularity: 'month', label: 'Oct' },
       { key: 'nov2026', granularity: 'month', label: 'Nov' },
       { key: 'dec2026', granularity: 'month', label: 'Dec' },
+      ...buildWeekHeaders(),
     ];
 
     // Filter by granularity first
@@ -1890,11 +1894,24 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
     // Apply date range filter if showAllPeriods is false
     if (!showAllPeriods && (startPeriod || endPeriod)) {
+      // Parse YYYY-MM-DD as local calendar dates so boundary weeks are inclusive.
+      const parseLocal = (s: string): Date | null => {
+        if (!s) return null;
+        const p = s.split('-');
+        if (p.length !== 3) return null;
+        return new Date(+p[0], +p[1] - 1, +p[2]);
+      };
+      const rangeStart = parseLocal(startPeriod);
+      const rangeEnd = parseLocal(endPeriod);
       filteredKeys = filteredKeys.filter(tk => {
         if (tk.granularity === 'month') {
           return isMonthInRange(tk.key as string, startPeriod, endPeriod);
         } else if (tk.granularity === 'quarter') {
           return isQuarterInRange(tk.key as string, startPeriod, endPeriod);
+        } else if (tk.granularity === 'week') {
+          const m = /^week(\d+)_/.exec(tk.key as string);
+          if (!m) return true;
+          return weekOverlapsRange(parseInt(m[1], 10), rangeStart, rangeEnd);
         } else if (tk.granularity === 'year') {
           // Show year if any months are visible
           return true;
@@ -1927,6 +1944,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     return filteredKeys.map(tk => ({
       key: tk.key,
       label: tk.label,
+      granularity: tk.granularity,
+      shortLabel: tk.shortLabel,
     }));
   }, [selectedTimeGranularities, searchTerm, showAllPeriods, startPeriod, endPeriod, isMonthInRange, isQuarterInRange]);
 
@@ -4775,6 +4794,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                 const sortDir = isActiveSort ? sortConfig!.direction : null;
                 const subColCount = subColumns.length > 0 ? 1 + subColumns.length : 1;
                 const isLastColumnGroup = headerIndex === visibleTimeHeaders.length - 1;
+                const isCompactWeek = header.granularity === 'week' && !!header.shortLabel && dynamicWidth < 170;
                 return (
                   <th
                     key={header.key}
@@ -4783,10 +4803,29 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     className={isLastColumnGroup ? 'sub-col-last-column-group' : ''}
                     style={{ minWidth: `${dynamicWidth * subColCount}px`, width: `${dynamicWidth * subColCount}px` }}
                     ref={headerIndex === 0 ? mainHeaderCellRef : undefined}
+                    onMouseEnter={isCompactWeek ? (ev) => {
+                      let tip = document.getElementById('__wkTip');
+                      if (!tip) {
+                        tip = document.createElement('div');
+                        tip.id = '__wkTip';
+                        document.body.appendChild(tip);
+                      }
+                      tip.textContent = header.label;
+                      tip.style.cssText = 'position:fixed;z-index:99999;display:block;background:#16325c;color:#fff;font-size:12px;line-height:1.3;padding:6px 9px;border-radius:5px;white-space:nowrap;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));';
+                      const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
+                      tip.style.left = `${Math.round(r.left + r.width / 2 - tip.offsetWidth / 2)}px`;
+                      tip.style.top = `${Math.round(r.bottom + 8)}px`;
+                    } : undefined}
+                    onMouseLeave={isCompactWeek ? () => {
+                      const t = document.getElementById('__wkTip');
+                      if (t) t.style.display = 'none';
+                    } : undefined}
                   >
                     <div className="col-header-content">
                       <span className="col-header-label">
-                        {searchTerms.length > 0 ? (
+                        {isCompactWeek ? (
+                          header.shortLabel
+                        ) : searchTerms.length > 0 ? (
                           <SearchHighlight text={header.label} searchTerms={searchTerms} />
                         ) : (
                           header.label
