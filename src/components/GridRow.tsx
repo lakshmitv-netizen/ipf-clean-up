@@ -3922,7 +3922,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 }}
                 aria-expanded={showReadonlyWarning}
                 aria-haspopup="dialog"
-                aria-label="Measure category options"
+                aria-label="Measure subsets options"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowReadonlyWarning(!showReadonlyWarning);

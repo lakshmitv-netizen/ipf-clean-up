@@ -1537,12 +1537,6 @@ const PlanningForecastingListPage: React.FC = () => {
                     </svg>
                   </th>
                   <th className="list-page-th">
-                    <span>Root Record</span>
-                    <svg className="list-page-sort-icon" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M7 10l5 5 5-5H7z"/>
-                    </svg>
-                  </th>
-                  <th className="list-page-th">
                     <span>Plan Status</span>
                     <svg className="list-page-sort-icon" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M7 10l5 5 5-5H7z"/>
@@ -1572,7 +1566,6 @@ const PlanningForecastingListPage: React.FC = () => {
                     </td>
                     <td className="list-page-td">{record.fiscalYear}</td>
                     <td className="list-page-td">{record.adminTemplate}</td>
-                    <td className="list-page-td">{record.rootRecord}</td>
                     <td className="list-page-td">{record.status}</td>
                     <td className="list-page-td-actions">
                       <button

@@ -11,7 +11,7 @@ export type CellDeltaSignIconProps = {
 };
 
 /**
- * Solid ▲ / ▼ triangles only: hot orange 60 (increase), palette blue 40 (decrease).
+ * Up / down arrow marks: hot orange 60 (increase), palette blue 40 (decrease).
  * Use `deltaPercent` in the % badge, or `variant` after save (no % shown).
  */
 export function CellDeltaSignIcon({
@@ -40,9 +40,13 @@ export function CellDeltaSignIcon({
         xmlns="http://www.w3.org/2000/svg"
         aria-hidden
       >
-        <polygon
-          points="7,2.35 12.35,11.9 1.65,11.9"
-          fill="var(--slds-g-color-palette-hot-orange-60)"
+        <path
+          d="M7 12.5V2.2M3 6.5L7 2.2L11 6.5"
+          stroke="var(--slds-g-color-palette-hot-orange-60)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          fill="none"
         />
       </svg>
     );
@@ -58,9 +62,13 @@ export function CellDeltaSignIcon({
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden
     >
-      <polygon
-        points="7,11.65 1.65,2.1 12.35,2.1"
-        fill="var(--slds-g-color-palette-blue-40)"
+      <path
+        d="M7 1.5V11.8M3 7.5L7 11.8L11 7.5"
+        stroke="var(--slds-g-color-palette-blue-40)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
       />
     </svg>
   );

@@ -471,7 +471,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
                 <div className="settings-field">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <label className="settings-field-label" style={{ marginBottom: 0 }}>Measure category</label>
+                    <label className="settings-field-label" style={{ marginBottom: 0 }}>Measure subsets</label>
                     <a
                       href="#"
                       className="settings-link"
@@ -487,7 +487,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       onClick={() => setIsMeasureSubgroupDropdownOpen(!isMeasureSubgroupDropdownOpen)}
                     >
                       <span className={getMeasureSubgroupSelectedCount() > 0 ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
-                        {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Categor${getMeasureSubgroupSelectedCount() !== 1 ? 'ies' : 'y'} Selected` : 'Select Measure Category'}
+                        {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Subset${getMeasureSubgroupSelectedCount() !== 1 ? 's' : ''} Selected` : 'Select Measure Subset'}
                       </span>
                       <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
