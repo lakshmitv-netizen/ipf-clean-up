@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReviewMeasuresModal, { Measure } from '../components/ReviewMeasuresModal';
+import ManageUserAccessModal from '../components/ManageUserAccessModal';
 import '../styles/pages/CpmFeaturePage.css';
 
 /* Assets captured from the Figma design (served from /public). */
@@ -381,6 +382,7 @@ const CpmFeaturePage: React.FC = () => {
   const [step11Done, setStep11Done] = useState(false);
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
+  const [userAccessModalOpen, setUserAccessModalOpen] = useState(false);
   const [measures, setMeasures] = useState<Measure[]>(INITIAL_MEASURES);
   const [hierarchyTab, setHierarchyTab] = useState<'existing' | 'new'>('existing');
   const [hierarchyDimension, setHierarchyDimension] = useState('All');
@@ -1190,7 +1192,7 @@ const CpmFeaturePage: React.FC = () => {
                             Review and make any changes if required to out of the box settings
                           </p>
                         </div>
-                        <button className="cpm-btn cpm-btn--outline" type="button">Manage</button>
+                        <button className="cpm-btn cpm-btn--outline" type="button" onClick={() => setUserAccessModalOpen(true)}>Manage</button>
                       </div>
 
                       {/* 5. Setup Plan Configurations */}
@@ -1202,7 +1204,7 @@ const CpmFeaturePage: React.FC = () => {
                             Create your own and modify reuse out of the box plan configuration
                           </p>
                         </div>
-                        <button className="cpm-btn cpm-btn--outline" type="button">
+                        <button className="cpm-btn cpm-btn--outline" type="button" onClick={() => navigate('/setup/plan-configuration-list')}>
                           Go to Plan Configuration List
                           <ExternalLinkIcon />
                         </button>
@@ -1978,6 +1980,10 @@ const CpmFeaturePage: React.FC = () => {
         measures={measures}
         setMeasures={setMeasures}
       />
+
+      {userAccessModalOpen && (
+        <ManageUserAccessModal onClose={() => setUserAccessModalOpen(false)} />
+      )}
     </div>
   );
 };

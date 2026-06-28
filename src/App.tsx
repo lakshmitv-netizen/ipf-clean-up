@@ -12,6 +12,7 @@ import SetupSalesforceGoPage from './pages/SetupSalesforceGoPage';
 import CpmFeatureSetPage from './pages/CpmFeatureSetPage';
 import CpmFeaturePage from './pages/CpmFeaturePage';
 import DpeDefinitionPage from './pages/DpeDefinitionPage';
+import PlanConfigurationListPage from './pages/PlanConfigurationListPage';
 import HomePage from './pages/HomePage';
 import IndustryUrlSync from './components/IndustryUrlSync';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -37,7 +38,7 @@ function App() {
       <IndustryProvider>
         <PlanningGridSessionProvider>
         <PlanWorkflowProvider>
-        <Router>
+        <Router basename={import.meta.env.BASE_URL}>
           <IndustryUrlSync />
           <Routes>
             <Route path="/home" element={<HomePage />} />
@@ -50,6 +51,7 @@ function App() {
             <Route path="/setup/cpm-feature-set" element={<CpmFeatureSetPage />} />
             <Route path="/setup/cpm-feature-page" element={<CpmFeaturePage />} />
             <Route path="/setup/dpe-definition" element={<DpeDefinitionPage />} />
+            <Route path="/setup/plan-configuration-list" element={<PlanConfigurationListPage />} />
             <Route path="/grid" element={<GridPage />} />
             <Route path="/" element={<Navigate to="/home" replace />} />
           </Routes>
