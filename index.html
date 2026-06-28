@@ -5,6 +5,23 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Forecasting & Planning</title>
+    <script>
+      // Restore path encoded by 404.html for GitHub Pages SPA routing.
+      (function (l) {
+        if (l.search[1] === 'p' && l.search.indexOf('?p=/') === 0) {
+          var decoded = l.search.slice(1).split('&').reduce(function (acc, part) {
+            var kv = part.split('=');
+            if (kv[0] === 'p') acc.path = '/' + kv.slice(1).join('=').replace(/~and~/g, '&');
+            if (kv[0] === 'q') acc.query = '?' + kv.slice(1).join('=').replace(/~and~/g, '&');
+            return acc;
+          }, { path: '', query: '' });
+          window.history.replaceState(
+            null, null,
+            l.pathname + decoded.path + decoded.query + l.hash
+          );
+        }
+      }(window.location));
+    </script>
   </head>
   <body>
     <div id="root"></div>
