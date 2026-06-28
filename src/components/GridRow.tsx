@@ -22,7 +22,7 @@ const PENDING_SUBMISSION_EDIT_TOOLTIP =
 
 /** Tooltip when plan submitter hovers grid cells while plan is in Submitted review. */
 const PLAN_REVIEW_REQUESTER_TOOLTIP =
-  'You cannot edit this plan since review is in progress.';
+  'You cannot edit this plan while approval is in progress.';
 
 /** True when this cell is pending approval and the current user may not edit the value (requester / non-approver). Approvers on the request and override-unlock still edit. */
 function pendingSubmissionLocksPlanningValueCell(
@@ -144,6 +144,7 @@ function CellApprovalStampButton({
 
 import { ConditionalFormattingRule } from '../types/conditionalFormatting';
 import { evaluateCellFormatting, getIndicatorIcon, evaluateFormulaExpression, formatFormulaResult, getAccessibleTextColor } from '../utils/conditionalFormattingUtils';
+import { evaluateCellInput } from '../utils/cellFormula';
 import { useCurrentUser } from '../contexts/UserContext';
 /** Walk parentId chain until measure; names from immediate parent → root (excludes measure). */
 function getDimensionAncestorNamesForFlatSortHint(
@@ -1980,49 +1981,39 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       return;
     }
     
-    // Check if input is a formula (starts with =)
+    // Evaluate input: plain number, "+N%/-N%" delta, or "=" arithmetic formula.
     let roundedValue: number;
-    if (inputValue.trim().startsWith('=')) {
-      const formula = inputValue.trim().substring(1); // Remove the = sign
-      const currentValue = row.values[monthKey] || 0;
-      const evaluated = evaluateFormulaExpression(formula, currentValue, [currentValue], currentRowId, String(monthKey));
-      
-      if (evaluated !== null && !isNaN(evaluated)) {
-        roundedValue = Math.round(evaluated * 100) / 100;
-        console.log('[GridRow] Formula evaluated in handleCellBlur:', { formula, result: roundedValue });
-      } else {
-        console.log('[GridRow] Invalid formula in handleCellBlur:', formula);
-        alert('Invalid formula. Please check your formula and try again.');
-        // Exit editing mode but don't save
-        if (editingCell?.monthKey === monthKey) {
-          setEditingCell(null);
-          setEditValue('');
-          setAdjustmentNote('');
-          setPlanReviewPencilSessionCellKey(null);
-          if (onCellEditStateChange) {
-            onCellEditStateChange(false, currentRowId, monthKey);
-          }
+    const currentValue = row.values[monthKey] || 0;
+    const evalResult = evaluateCellInput(inputValue, currentValue);
+    if (evalResult.value !== null && !isNaN(evalResult.value)) {
+      roundedValue = Math.round(evalResult.value * 100) / 100;
+    } else if (evalResult.isFormula && evalResult.error) {
+      console.log('[GridRow] Invalid formula in handleCellBlur:', inputValue);
+      alert('Invalid formula. Please check your formula and try again.');
+      // Exit editing mode but don't save
+      if (editingCell?.monthKey === monthKey) {
+        setEditingCell(null);
+        setEditValue('');
+        setAdjustmentNote('');
+        setPlanReviewPencilSessionCellKey(null);
+        if (onCellEditStateChange) {
+          onCellEditStateChange(false, currentRowId, monthKey);
         }
-        return;
       }
+      return;
     } else {
-      // Regular number input
-      const numValue = parseFloat(inputValue.replace(/,/g, ''));
-      if (isNaN(numValue)) {
-        console.log('[GridRow] ✗ Cannot save from blur - invalid number:', { numValue, isNaN: isNaN(numValue) });
-        // Exit editing mode but don't save
-        if (editingCell?.monthKey === monthKey) {
-          setEditingCell(null);
-          setEditValue('');
-          setAdjustmentNote('');
-          setPlanReviewPencilSessionCellKey(null);
-          if (onCellEditStateChange) {
-            onCellEditStateChange(false, currentRowId, monthKey);
-          }
+      console.log('[GridRow] ✗ Cannot save from blur - invalid number:', { inputValue });
+      // Exit editing mode but don't save
+      if (editingCell?.monthKey === monthKey) {
+        setEditingCell(null);
+        setEditValue('');
+        setAdjustmentNote('');
+        setPlanReviewPencilSessionCellKey(null);
+        if (onCellEditStateChange) {
+          onCellEditStateChange(false, currentRowId, monthKey);
         }
-        return;
       }
-      roundedValue = Math.round(numValue * 100) / 100;
+      return;
     }
     
     // Read value directly from the input element, not from state (which might be stale)
@@ -2128,28 +2119,18 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     // Set flag to prevent blur handler from double-saving
     savedByEnterRef.current = true;
 
-    // Check if input is a formula (starts with =)
+    // Evaluate input: plain number, "+N%/-N%" delta, or "=" arithmetic formula.
     let roundedValue: number;
-    if (valueToSave.trim().startsWith('=')) {
-      const formula = valueToSave.trim().substring(1); // Remove the = sign
-      const currentValue = row.values[monthKey] || 0;
-      const evaluated = evaluateFormulaExpression(formula, currentValue, [currentValue], row.id, String(monthKey));
-      
-      if (evaluated !== null && !isNaN(evaluated)) {
-        roundedValue = Math.round(evaluated * 100) / 100;
-        console.log('[GridRow] Formula evaluated in handleSaveCell:', { formula, result: roundedValue });
-      } else {
-        console.log('[GridRow] Invalid formula in handleSaveCell:', formula);
-        alert('Invalid formula. Please check your formula and try again.');
-        return;
-      }
+    const currentValueSave = row.values[monthKey] || 0;
+    const evalResultSave = evaluateCellInput(valueToSave, currentValueSave);
+    if (evalResultSave.value !== null && !isNaN(evalResultSave.value)) {
+      roundedValue = Math.round(evalResultSave.value * 100) / 100;
+    } else if (evalResultSave.isFormula && evalResultSave.error) {
+      console.log('[GridRow] Invalid formula in handleSaveCell:', valueToSave);
+      alert('Invalid formula. Please check your formula and try again.');
+      return;
     } else {
-      // Regular number input
-      const numValue = parseFloat(valueToSave.replace(/,/g, ''));
-      if (isNaN(numValue)) {
-        return;
-      }
-      roundedValue = Math.round(numValue * 100) / 100;
+      return;
     }
 
     if (onCellChange) {
@@ -2614,10 +2595,13 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                   const oldValue = isApprovalRequestedForEditing
                     ? (approvalForEditing?.oldValue ?? row.values[monthKey])
                     : row.values[monthKey];
-                  const parsedNewValue = editValue ? parseFloat(editValue.replace(/,/g, '')) : null;
+                  const previewEval = editValue ? evaluateCellInput(editValue, oldValue) : null;
+                  const parsedNewValue = previewEval && previewEval.value !== null && !isNaN(previewEval.value)
+                    ? previewEval.value
+                    : null;
                   const newValue = isApprovalRequestedForEditing
                     ? (approvalForEditing?.newValue ?? oldValue)
-                    : (!isNaN(parsedNewValue || NaN) ? parsedNewValue! : oldValue);
+                    : (parsedNewValue !== null ? parsedNewValue : oldValue);
                   const hasValueChanged = isApprovalRequestedForEditing || Math.abs(newValue - oldValue) > 0.01; // Account for floating point precision
                   const hasNotes = adjustmentNote.trim().length > 0;
                   const hasExtraMoreAction = moreAction !== '';
@@ -2788,6 +2772,15 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                             color: 'var(--color-interactive-border)'
                           }}>{formatValue(oldValue, isQuantity, row.name)}</span>
                           <span style={{ color: 'var(--color-interactive-border)' }}>→</span>
+                          {previewEval && previewEval.isFormula && (
+                            <>
+                              <span style={{
+                                fontWeight: '600',
+                                color: 'var(--color-on-surface-strong)'
+                              }}>{previewEval.expression.replace(/^=\s*/, '')}</span>
+                              <span style={{ color: 'var(--color-interactive-border)' }}>=</span>
+                            </>
+                          )}
                           <span style={{
                             fontWeight: '600',
                             color: 'var(--color-on-surface-strong)'
@@ -3502,7 +3495,10 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                       {`${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(2)}%`}
                     </>
                   ) : (
-                    `${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`
+                    <>
+                      <CellDeltaSignIcon deltaPercent={deltaPercent} />
+                      {`${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`}
+                    </>
                   )}
                 </div>
               )}
@@ -3552,7 +3548,10 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                       {`${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(2)}%`}
                     </>
                   ) : (
-                    `${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`
+                    <>
+                      <CellDeltaSignIcon deltaPercent={deltaPercent} />
+                      {`${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`}
+                    </>
                   )}
                 </div>
               )}

@@ -11,7 +11,30 @@ import { APPROVER_ROSTER } from '../types/approvalRequest';
 
 const PLAN_APPROVER_ROLES = ['Finance', 'Supply Chain', 'Sales Ops', 'Product Management'] as const;
 
-export type HeaderNotificationKind = 'plan_approval_request' | 'plan_approver_decision';
+export type HeaderNotificationKind =
+  | 'plan_approval_request'
+  | 'plan_approver_decision'
+  | 'cell_approval_request'
+  | 'cell_approver_decision';
+
+/** Focus/navigation context carried on a cell-approval notification so clicking it can
+ *  deep-link into the grid, open the review card, and focus the requested section. */
+export interface ApprovalNotificationFocusContext {
+  searchTerm?: string;
+  startPeriod?: string;
+  endPeriod?: string;
+  measureSummary?: string;
+  dimensionSummary?: string;
+  selectedCellKeys?: string[];
+}
+
+export interface ApprovalNotificationPayload {
+  requesterUserId?: string;
+  requesterName: string;
+  cellKey?: string;
+  summary?: string;
+  focusContext?: ApprovalNotificationFocusContext;
+}
 
 export interface HeaderNotification {
   id: string;
@@ -21,6 +44,8 @@ export interface HeaderNotification {
   body: string;
   createdAt: Date;
   read: boolean;
+  /** Present on cell-approval notifications — used to deep-link into the grid on click. */
+  payload?: ApprovalNotificationPayload;
 }
 
 function approverNameToUserId(name: string): string | undefined {
@@ -29,8 +54,12 @@ function approverNameToUserId(name: string): string | undefined {
 
 export type PublishPlanApprovalParams = {
   requesterName: string;
+  requesterUserId?: string;
   planLabel?: string;
   notes?: string;
+  /** Focus context derived from the requester's edits, so the approver's review
+   *  card can focus the grid on the cells the requester actually changed. */
+  focusContext?: ApprovalNotificationFocusContext;
 };
 
 export type PlanApproverDecisionOutcome = 'approved' | 'approvedWithCondition' | 'rejected';
@@ -43,6 +72,28 @@ export type PublishPlanApproverDecisionForRequesterParams = {
   notes?: string;
 };
 
+export type PublishCellApprovalRequestedParams = {
+  requesterUserId?: string;
+  requesterName: string;
+  /** User ids of the approvers who should be notified. */
+  recipientUserIds: string[];
+  /** Short human label for the cell, e.g. "Order Quantity · Apr 2026 · Engine Components". */
+  summary?: string;
+  notes?: string;
+  /** The cell key + focus context, so clicking the notification deep-links into the grid. */
+  cellKey?: string;
+  focusContext?: ApprovalNotificationFocusContext;
+};
+
+export type PublishCellApproverDecisionParams = {
+  /** User id of the original requester who should be notified of the outcome. */
+  requesterUserId: string;
+  approverName: string;
+  outcome: PlanApproverDecisionOutcome;
+  summary?: string;
+  notes?: string;
+};
+
 type NotificationsPanelOpenRequest = { userId: string; nonce: number };
 
 type NotificationsContextValue = {
@@ -51,6 +102,10 @@ type NotificationsContextValue = {
   publishPlanApprovalRequested: (params: PublishPlanApprovalParams) => void;
   /** When an approver records a decision — notify the plan submitter (bell + optional panel open). */
   publishPlanApproverDecisionForRequester: (params: PublishPlanApproverDecisionForRequesterParams) => void;
+  /** When a user requests approval on a cell — notify the targeted approver(s). */
+  publishCellApprovalRequested: (params: PublishCellApprovalRequestedParams) => void;
+  /** When an approver records a decision on a cell — notify the original requester (bell + panel open). */
+  publishCellApproverDecision: (params: PublishCellApproverDecisionParams) => void;
   /** When plan returns to Draft and requests are withdrawn. */
   withdrawPlanApprovalNotifications: () => void;
   markNotificationRead: (id: string) => void;
@@ -87,7 +142,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const publishPlanApprovalRequested = useCallback(
-    ({ requesterName, planLabel = DEFAULT_PLAN_LABEL, notes }: PublishPlanApprovalParams) => {
+    ({ requesterName, requesterUserId, planLabel = DEFAULT_PLAN_LABEL, notes, focusContext }: PublishPlanApprovalParams) => {
       const createdAt = new Date();
       const batchKey = `plan-appr-${createdAt.getTime()}`;
       setNotifications((prev) => {
@@ -113,6 +168,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             body: bodyLines.join('\n\n'),
             createdAt,
             read: false,
+            // Carry a payload so clicking the bell deep-links into the grid and
+            // injects the "Review approval request from <requester>" card. Plan-level
+            // submits aren't tied to one cell, but we attach a focusContext built
+            // from the requester's edits so the approver can focus the changed cells.
+            payload: {
+              requesterUserId,
+              requesterName,
+              summary: planLabel,
+              focusContext,
+            },
           });
         }
         return [...rest, ...added];
@@ -163,6 +228,85 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const publishCellApprovalRequested = useCallback(
+    ({ requesterUserId, requesterName, recipientUserIds, summary, notes, cellKey, focusContext }: PublishCellApprovalRequestedParams) => {
+      const createdAt = new Date();
+      const batchKey = `cell-appr-${createdAt.getTime()}`;
+      const uniqueRecipients = Array.from(new Set(recipientUserIds.filter(Boolean)));
+      // #region agent log
+      fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'B',location:'NotificationsContext.tsx:221',message:'publishCellApprovalRequested called',data:{recipientUserIds,uniqueRecipients,willReturnEarly:uniqueRecipients.length===0,requesterName,requesterUserId},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
+      if (uniqueRecipients.length === 0) return;
+      const payload: ApprovalNotificationPayload = {
+        requesterUserId,
+        requesterName,
+        cellKey,
+        summary,
+        focusContext,
+      };
+      setNotifications((prev) => {
+        const added: HeaderNotification[] = uniqueRecipients.map((recipientUserId) => {
+          const bodyLines = [
+            `${requesterName} requested your approval${summary ? ` on ${summary}` : ''}.`,
+            'Open Planning & Forecasting to review and approve.',
+          ];
+          if (notes?.trim()) {
+            bodyLines.push(`Requester note: ${notes.trim()}`);
+          }
+          return {
+            id: `${batchKey}-${recipientUserId}`,
+            recipientUserId,
+            kind: 'cell_approval_request' as const,
+            title: 'Approval requested',
+            body: bodyLines.join('\n\n'),
+            createdAt,
+            read: false,
+            payload,
+          };
+        });
+        return [...added, ...prev];
+      });
+    },
+    []
+  );
+
+  const publishCellApproverDecision = useCallback(
+    ({ requesterUserId, approverName, outcome, summary, notes }: PublishCellApproverDecisionParams) => {
+      if (!requesterUserId) return;
+      const createdAt = new Date();
+      const id = `cell-appr-decision-${createdAt.getTime()}-${requesterUserId}`;
+      const verb = decisionOutcomeVerb(outcome);
+      const bodyLines = [
+        `${approverName} ${verb} your change${summary ? ` on ${summary}` : ''}.`,
+        'Open Planning & Forecasting to review the outcome.',
+      ];
+      if (notes?.trim()) {
+        bodyLines.push(`Approver note: ${notes.trim()}`);
+      }
+      const title =
+        outcome === 'rejected'
+          ? 'Change rejected'
+          : outcome === 'approvedWithCondition'
+            ? 'Change approved with conditions'
+            : 'Change approved';
+
+      setNotifications((prev) => [
+        {
+          id,
+          recipientUserId: requesterUserId,
+          kind: 'cell_approver_decision',
+          title,
+          body: bodyLines.join('\n\n'),
+          createdAt,
+          read: false,
+        },
+        ...prev,
+      ]);
+      setNotificationsPanelOpenRequest({ userId: requesterUserId, nonce: createdAt.getTime() });
+    },
+    []
+  );
+
   const withdrawPlanApprovalNotifications = useCallback(() => {
     setNotifications((prev) => prev.filter((n) => n.kind !== 'plan_approval_request'));
   }, []);
@@ -184,6 +328,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       notifications,
       publishPlanApprovalRequested,
       publishPlanApproverDecisionForRequester,
+      publishCellApprovalRequested,
+      publishCellApproverDecision,
       withdrawPlanApprovalNotifications,
       markNotificationRead,
       markAllReadForUser,
@@ -194,6 +340,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       notifications,
       publishPlanApprovalRequested,
       publishPlanApproverDecisionForRequester,
+      publishCellApprovalRequested,
+      publishCellApproverDecision,
       withdrawPlanApprovalNotifications,
       markNotificationRead,
       markAllReadForUser,

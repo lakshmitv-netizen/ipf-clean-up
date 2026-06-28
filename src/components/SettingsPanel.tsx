@@ -29,8 +29,9 @@ interface SettingsPanelProps {
   selectedLayout?: string;
   onLayoutChange?: (layout: string) => void;
   measures?: MeasureData[]; // Current measures data
-  onMeasuresReorder?: (orderedMeasures: MeasureData[], visibleMeasureIds: Set<string>) => void; // Callback when measures are reordered
+  onMeasuresReorder?: (orderedMeasures: MeasureData[], visibleMeasureIds: Set<string>, autoLockMeasureIds?: Set<string>) => void; // Callback when measures are reordered
   visibleMeasureIds?: Set<string>; // Set of visible measure IDs
+  autoLockMeasureIds?: Set<string>; // Set of measure IDs whose cells auto-lock after an edit
   showAllPeriods?: boolean;
   onShowAllPeriodsChange?: (showAll: boolean) => void;
   startPeriod?: string;
@@ -41,6 +42,9 @@ interface SettingsPanelProps {
   onShowAdditionalFrozenColumnsChange?: (show: boolean) => void;
   showSubColumns?: boolean;
   onShowSubColumnsChange?: (show: boolean) => void;
+  showQuickAccessToolbar?: boolean;
+  onShowQuickAccessToolbarChange?: (show: boolean) => void;
+  onConfigureQuickAccess?: () => void;
   onEditFrozenColumns?: () => void;
   onEditSubColumns?: () => void;
   conditionalFormattingRules?: ConditionalFormattingRule[];
@@ -54,6 +58,8 @@ interface SettingsPanelProps {
   forceFormattingTabSignal?: number;
   cfLaunchFromSelectionSignal?: number;
   cfLaunchFromSelectionCellKeys?: string[];
+  selectedCalendarId?: string;
+  onCalendarChange?: (calendarId: string) => void;
 }
 
 const layoutOptions = [
@@ -71,7 +77,7 @@ const layoutOptions = [
   }
 ];
 
-const measureSubgroupOptions = [
+export const measureSubgroupOptions = [
   {
     value: 'Revenue & Quantity Measures'
   },
@@ -80,24 +86,42 @@ const measureSubgroupOptions = [
   }
 ];
 
-interface DimensionLevel {
+export interface CalendarOption {
+  id: string;
+  name: string;
+  startMonth: number; // 0 = Jan ... 9 = Oct
+  startYear: number;
+  subtitle: string;
+}
+
+// Mirrors the deployed Commercial Planning grid: selecting a calendar rotates the
+// month columns so they begin at the calendar's fiscal start month.
+export const CALENDAR_OPTIONS: CalendarOption[] = [
+  { id: 'fiscal', name: 'Fiscal Calendar', startMonth: 9, startYear: 2025, subtitle: 'Oct 1, 2025 – Sep 30, 2026' },
+  { id: 'financial', name: 'Financial Calendar', startMonth: 3, startYear: 2026, subtitle: 'Apr 1, 2026 – Mar 31, 2027' },
+  { id: 'gregorian', name: 'Gregorian Calendar', startMonth: 0, startYear: 2026, subtitle: 'Jan 1, 2026 – Dec 31, 2026' },
+];
+
+export const DEFAULT_CALENDAR_ID = 'gregorian';
+
+export interface DimensionLevel {
   id: string;
   name: string;
   hierarchy: string;
 }
 
-const dimensionLevels: DimensionLevel[] = [
+export const dimensionLevels: DimensionLevel[] = [
   { id: 'account', name: 'Accounts', hierarchy: 'Account Hierarchy' },
   { id: 'category', name: 'Category', hierarchy: 'Product Hierarchy' },
   { id: 'product', name: 'Product', hierarchy: 'Product Hierarchy' }
 ];
 
-interface TimeGranularity {
+export interface TimeGranularity {
   id: string;
   name: string;
 }
 
-const timeGranularities: TimeGranularity[] = [
+export const timeGranularities: TimeGranularity[] = [
   { id: 'year', name: 'Years' },
   { id: 'quarter', name: 'Quarters' },
   { id: 'month', name: 'Months' },
@@ -122,6 +146,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   measures = [],
   onMeasuresReorder,
   visibleMeasureIds = new Set(),
+  autoLockMeasureIds = new Set(),
   showAllPeriods = true,
   onShowAllPeriodsChange,
   startPeriod = '',
@@ -132,6 +157,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onShowAdditionalFrozenColumnsChange,
   showSubColumns: propShowSubColumns = false,
   onShowSubColumnsChange,
+  showQuickAccessToolbar: propShowQuickAccessToolbar,
+  onShowQuickAccessToolbarChange,
+  onConfigureQuickAccess,
   onEditFrozenColumns,
   onEditSubColumns,
   conditionalFormattingRules = [],
@@ -144,7 +172,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onDesignSystemRulesChange,
   forceFormattingTabSignal = 0,
   cfLaunchFromSelectionSignal = 0,
-  cfLaunchFromSelectionCellKeys = []
+  cfLaunchFromSelectionCellKeys = [],
+  selectedCalendarId,
+  onCalendarChange
 }) => {
   const { industry } = useIndustry();
   const [selectedLayout, setSelectedLayout] = useState(propSelectedLayout || layoutOptions[0].value);
@@ -188,6 +218,27 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   
   const [isTimeGranularityDropdownOpen, setIsTimeGranularityDropdownOpen] = useState(false);
   const timeGranularityDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Calendar selector — drives month-column rotation (mirrors Parag build).
+  const [internalCalendarId, setInternalCalendarId] = useState(DEFAULT_CALENDAR_ID);
+  const activeCalendarId = selectedCalendarId ?? internalCalendarId;
+  const selectedCalendar =
+    CALENDAR_OPTIONS.find(c => c.id === activeCalendarId) ?? CALENDAR_OPTIONS[2];
+  const handleCalendarSelect = (id: string) => {
+    setInternalCalendarId(id);
+    onCalendarChange?.(id);
+  };
+  const [isCalendarDropdownOpen, setIsCalendarDropdownOpen] = useState(false);
+  const calendarDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Quick Access Toolbar visibility — controlled by parent when props are provided,
+  // otherwise falls back to local state.
+  const [internalShowQuickAccessToolbar, setInternalShowQuickAccessToolbar] = useState(true);
+  const showQuickAccessToolbar = propShowQuickAccessToolbar ?? internalShowQuickAccessToolbar;
+  const setShowQuickAccessToolbar = (next: boolean) => {
+    setInternalShowQuickAccessToolbar(next);
+    onShowQuickAccessToolbarChange?.(next);
+  };
   
   const [showAdditionalFrozenColumns, setShowAdditionalFrozenColumns] = useState(propShowAdditionalFrozenColumns);
   const [showSubColumns, setShowSubColumns] = useState(propShowSubColumns);
@@ -298,16 +349,19 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (timeGranularityDropdownRef.current && !timeGranularityDropdownRef.current.contains(event.target as Node)) {
         setIsTimeGranularityDropdownOpen(false);
       }
+      if (calendarDropdownRef.current && !calendarDropdownRef.current.contains(event.target as Node)) {
+        setIsCalendarDropdownOpen(false);
+      }
     };
 
-    if (isLayoutDropdownOpen || isMeasureSubgroupDropdownOpen || isDimensionDropdownOpen || isTimeGranularityDropdownOpen) {
+    if (isLayoutDropdownOpen || isMeasureSubgroupDropdownOpen || isDimensionDropdownOpen || isTimeGranularityDropdownOpen || isCalendarDropdownOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isLayoutDropdownOpen, isMeasureSubgroupDropdownOpen, isDimensionDropdownOpen, isTimeGranularityDropdownOpen]);
+  }, [isLayoutDropdownOpen, isMeasureSubgroupDropdownOpen, isDimensionDropdownOpen, isTimeGranularityDropdownOpen, isCalendarDropdownOpen]);
 
   const toggleDimensionLevel = (levelId: string) => {
     const newSet = new Set(selectedDimensionLevels);
@@ -465,12 +519,44 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
             <div className="settings-tab-content">
 
               {/* ── Measures, Dimensions & Time ── */}
-              <div className="settings-section" style={{ order: 2 }}>
+              <div className="settings-section" style={{ order: 1 }}>
                 <div className="settings-section-header settings-section-header-mdt">
                   <p className="settings-section-title">Measures, Dimensions & Time</p>
                 </div>
 
+                {/* Select layout */}
                 <div className="settings-field">
+                  <label className="settings-field-label">Select layout</label>
+                  <div className="settings-dropdown-wrapper" ref={layoutDropdownRef}>
+                    <div
+                      className={`settings-dropdown-trigger ${isLayoutDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsLayoutDropdownOpen(!isLayoutDropdownOpen)}
+                    >
+                      <span className={selectedLayout ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
+                        {selectedLayout || 'Select Layout'}
+                      </span>
+                      <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {isLayoutDropdownOpen && (
+                      <div className="settings-dropdown-list">
+                        {layoutOptions.map((option, index) => (
+                          <div
+                            key={index}
+                            className={`settings-dropdown-option ${selectedLayout === option.value ? 'selected' : ''}`}
+                            onClick={() => { setSelectedLayout(option.value); setIsLayoutDropdownOpen(false); onLayoutChange?.(option.value); }}
+                          >
+                            <div className="settings-dropdown-option-title">{option.value}</div>
+                            <div className="settings-dropdown-option-subtitle">{option.subtitle}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="settings-field settings-field-spaced">
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                     <label className="settings-field-label" style={{ marginBottom: 0 }}>Measure subsets</label>
                     <a
@@ -479,7 +565,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       style={{ marginBottom: 0 }}
                       onClick={(e) => { e.preventDefault(); setIsReorderModalOpen(true); }}
                     >
-                      Reorder
+                      Configure Measures
                     </a>
                   </div>
                   <div className="settings-dropdown-wrapper" ref={measureSubgroupDropdownRef}>
@@ -561,6 +647,36 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                   </div>
                 </div>
 
+                {/* Calendar */}
+                <div className="settings-field" style={{ marginTop: '12px' }}>
+                  <label className="settings-field-label">Calendar</label>
+                  <div className="settings-dropdown-wrapper" ref={calendarDropdownRef}>
+                    <div
+                      className={`settings-dropdown-trigger ${isCalendarDropdownOpen ? 'open' : ''}`}
+                      onClick={() => setIsCalendarDropdownOpen(!isCalendarDropdownOpen)}
+                    >
+                      <span className="settings-dropdown-value">{selectedCalendar.name}</span>
+                      <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                    {isCalendarDropdownOpen && (
+                      <div className="settings-dropdown-list">
+                        {CALENDAR_OPTIONS.map((option) => (
+                          <div
+                            key={option.id}
+                            className={`settings-dropdown-option ${activeCalendarId === option.id ? 'selected' : ''}`}
+                            onClick={() => { handleCalendarSelect(option.id); setIsCalendarDropdownOpen(false); }}
+                          >
+                            <div className="settings-dropdown-option-title">{option.name}</div>
+                            <div className="settings-dropdown-option-subtitle">{option.subtitle}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="settings-field" style={{ marginTop: '12px' }}>
                   <label className="settings-field-label">Time granularity</label>
                   <div className="settings-dropdown-wrapper" ref={timeGranularityDropdownRef}>
@@ -634,41 +750,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               </div>
 
               {/* ── Layout ── */}
-              <div className="settings-section" style={{ order: 1 }}>
+              <div className="settings-section" style={{ order: 2 }}>
                 <div className="settings-section-header settings-section-header-layout">
                   <p className="settings-section-title">Layout</p>
-                </div>
-
-                {/* Layout dropdown */}
-                <div className="settings-field">
-                  <label className="settings-field-label">Select layout</label>
-                  <div className="settings-dropdown-wrapper" ref={layoutDropdownRef}>
-                    <div
-                      className={`settings-dropdown-trigger ${isLayoutDropdownOpen ? 'open' : ''}`}
-                      onClick={() => setIsLayoutDropdownOpen(!isLayoutDropdownOpen)}
-                    >
-                      <span className={selectedLayout ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
-                        {selectedLayout || 'Select Layout'}
-                      </span>
-                      <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    {isLayoutDropdownOpen && (
-                      <div className="settings-dropdown-list">
-                        {layoutOptions.map((option, index) => (
-                          <div
-                            key={index}
-                            className={`settings-dropdown-option ${selectedLayout === option.value ? 'selected' : ''}`}
-                            onClick={() => { setSelectedLayout(option.value); setIsLayoutDropdownOpen(false); onLayoutChange?.(option.value); }}
-                          >
-                            <div className="settings-dropdown-option-title">{option.value}</div>
-                            <div className="settings-dropdown-option-subtitle">{option.subtitle}</div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Show row information */}
@@ -700,6 +784,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                       <span className="settings-checkbox-text">Show sub columns</span>
                     </label>
                     <button type="button" className="settings-link-button" onClick={(e) => { e.stopPropagation(); onEditSubColumns?.(); }}>Configure</button>
+                  </div>
+                </div>
+
+                {/* Show quick Access Toolbar */}
+                <div className="settings-field">
+                  <div className="settings-checkbox-row">
+                    <label
+                      className="settings-standalone-checkbox-label"
+                      onClick={() => setShowQuickAccessToolbar(!showQuickAccessToolbar)}
+                    >
+                      <div className={`settings-checkbox-wrapper settings-checkbox-wrapper-standalone ${showQuickAccessToolbar ? 'checked' : ''}`}>
+                        {showQuickAccessToolbar && <svg className="settings-checkbox-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <span className="settings-checkbox-text">Show quick Access Toolbar</span>
+                    </label>
+                    <button type="button" className="settings-link-button" onClick={(e) => { e.stopPropagation(); onConfigureQuickAccess?.(); }}>Configure</button>
                   </div>
                 </div>
 
@@ -824,9 +924,10 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
           measureSubgroup={Array.from(selectedMeasureSubgroup).join(', ') || ''}
           selectedMeasureSubgroups={selectedMeasureSubgroup}
           visibleMeasureIds={visibleMeasureIds}
-          onSave={(orderedMeasures, visibleMeasureIds) => {
+          autoLockMeasureIds={autoLockMeasureIds}
+          onSave={(orderedMeasures, visibleMeasureIds, autoLockMeasureIds) => {
             if (onMeasuresReorder) {
-              onMeasuresReorder(orderedMeasures, visibleMeasureIds);
+              onMeasuresReorder(orderedMeasures, visibleMeasureIds, autoLockMeasureIds);
             }
           }}
         />

@@ -1,6 +1,15 @@
 import { MeasureData, GridRow } from '../types';
 import { IndustryType } from '../contexts/IndustryContext';
 import { consumerGoodsData } from './consumerGoodsData';
+import { deriveWeekValues } from '../utils/weekColumns';
+
+// Ensure every node in a measure tree carries weekly columns (derived from months).
+const ensureWeekValues = (rows: (MeasureData | GridRow)[]): void => {
+  rows.forEach((r) => {
+    deriveWeekValues(r.values as Record<string, number>);
+    if (r.children && r.children.length) ensureWeekValues(r.children);
+  });
+};
 
 const monthlyValue = (base: number) => {
   const monthFactors = {
@@ -369,9 +378,11 @@ const createManufacturingHierarchy = (
 
 export const getMockData = (industry: IndustryType | null): MeasureData[] => {
   if (industry === 'consumer-goods') {
+    ensureWeekValues(consumerGoodsData);
     return consumerGoodsData;
   }
   // manufacturing, grid-264 ("264 Updated Grid"), and null → main project manufacturing tree
+  ensureWeekValues(manufacturingData);
   return manufacturingData;
 };
 

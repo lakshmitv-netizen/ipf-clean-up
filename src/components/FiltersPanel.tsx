@@ -518,7 +518,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const handleSelectFilterSet = (name: string) => {
     setSelectedFilterSet(name);
     setIsSaveMenuOpen(false);
-    setSaveAsMode(false);
+    setSaveAsName('');
 
     if (name === 'None') {
       setFilters(buildAllFilters());
@@ -739,14 +739,22 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   };
 
 
-  // Basic filter: get time range from filters state
+  // Basic filter: get time range from filters state.
+  // The time card stores a human-readable value ("Equals Apr 26 to Jun 26"),
+  // so parse the month labels back into month keys (e.g. 'apr2026') that match
+  // the <select> options — otherwise the dropdowns fall back to the first month.
   const getBasicTimeRange = (): { from: string; to: string } => {
     const f = filters.find(fi => fi.type === 'time');
     if (!f || !f.value || f.value.includes('Jan 26 to Dec 26') || f.value === 'Equals All') {
       return { from: 'jan2026', to: 'dec2026' };
     }
-    const parts = f.value.split(' to ');
-    return { from: parts[0]?.trim() || 'jan2026', to: parts[1]?.trim() || 'dec2026' };
+    const body = f.value.replace(/^Equals\s*/, '');
+    const [fromPart, toPart] = body.split(' to ');
+    const toKey = (label?: string): string => {
+      const mon = (label || '').trim().split(' ')[0];
+      return MONTHS.find(mm => mm.label.startsWith(mon))?.key ?? 'jan2026';
+    };
+    return { from: toKey(fromPart), to: toKey(toPart) };
   };
 
   const setBasicTimeRange = (from: string, to: string) => {

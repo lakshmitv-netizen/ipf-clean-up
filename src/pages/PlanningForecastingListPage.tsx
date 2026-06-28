@@ -1525,6 +1525,9 @@ const PlanningForecastingListPage: React.FC = () => {
                     </svg>
                   </th>
                   <th className="list-page-th">
+                    <span>Grid</span>
+                  </th>
+                  <th className="list-page-th">
                     <span>Fiscal Year</span>
                     <svg className="list-page-sort-icon" viewBox="0 0 24 24" fill="currentColor">
                       <path d="M7 10l5 5 5-5H7z"/>
@@ -1562,6 +1565,14 @@ const PlanningForecastingListPage: React.FC = () => {
                         className="list-page-name-link"
                       >
                         {record.name}
+                      </Link>
+                    </td>
+                    <td className="list-page-td">
+                      <Link
+                        to={getGridPathForIndustry(industry)}
+                        className="list-page-name-link"
+                      >
+                        {record.name} - Grid
                       </Link>
                     </td>
                     <td className="list-page-td">{record.fiscalYear}</td>

@@ -398,6 +398,31 @@
 }
 .alerts-link-btn:hover { color: var(--slds-g-color-accent-2); text-decoration: underline; }
 
+/* ── Nested approval-review chunks ───────────────────────────────────────── */
+.alerts-chunk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  margin-left: 13px;
+  padding-left: 10px;
+  border-left: 2px solid var(--slds-g-color-border-base-1);
+}
+.alerts-chunk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.alerts-chunk-label {
+  font-size: 12px !important;
+  color: var(--slds-g-color-neutral-base-30);
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
 .alerts-dismiss-btn {
   background: none;
   border: none;

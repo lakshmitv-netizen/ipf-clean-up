@@ -67,8 +67,12 @@ export const useIndustry = () => {
   return context;
 };
 
-/** True only on `/home/grid-264`. Manufacturing & consumer goods keep the earlier Heroku grid UX. */
+/**
+ * The grid-264 experience is no longer bifurcated from manufacturing: every industry
+ * (manufacturing, consumer goods, and grid-264) now renders with the same manufacturing
+ * (legacy) grid UX. Kept as a hook so call sites stay unchanged and the split can be
+ * re-introduced later if needed.
+ */
 export function useIsGrid264UpdatedExperience(): boolean {
-  const { industry } = useIndustry();
-  return industry === 'grid-264';
+  return false;
 }

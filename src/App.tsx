@@ -8,6 +8,10 @@ import Header from './components/Header';
 import ForecastingGrid from './components/ForecastingGrid';
 import PlanningForecastingPage from './pages/PlanningForecastingPage';
 import PlanningForecastingListPage from './pages/PlanningForecastingListPage';
+import SetupSalesforceGoPage from './pages/SetupSalesforceGoPage';
+import CpmFeatureSetPage from './pages/CpmFeatureSetPage';
+import CpmFeaturePage from './pages/CpmFeaturePage';
+import DpeDefinitionPage from './pages/DpeDefinitionPage';
 import HomePage from './pages/HomePage';
 import IndustryUrlSync from './components/IndustryUrlSync';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -42,6 +46,10 @@ function App() {
             <Route path="/home/grid-264" element={<GridPage />} />
             <Route path="/planning-forecasting-list" element={<PlanningForecastingListPage />} />
             <Route path="/planning-forecasting" element={<PlanningForecastingPage />} />
+            <Route path="/setup/salesforce-go" element={<SetupSalesforceGoPage />} />
+            <Route path="/setup/cpm-feature-set" element={<CpmFeatureSetPage />} />
+            <Route path="/setup/cpm-feature-page" element={<CpmFeaturePage />} />
+            <Route path="/setup/dpe-definition" element={<DpeDefinitionPage />} />
             <Route path="/grid" element={<GridPage />} />
             <Route path="/" element={<Navigate to="/home" replace />} />
           </Routes>

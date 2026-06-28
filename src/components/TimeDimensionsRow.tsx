@@ -9,7 +9,7 @@ import { LegacySavedLineArrowDownIcon, LegacySavedLineArrowUpIcon } from './grid
 import { useIsGrid264UpdatedExperience } from '../contexts/IndustryContext';
 import MoreNodeSettingsModal from './MoreNodeSettingsModal';
 import AddRemoveChildNodesModal from './AddRemoveChildNodesModal';
-import { evaluateFormulaExpression } from '../utils/conditionalFormattingUtils';
+import { evaluateCellInput } from '../utils/cellFormula';
 import '../styles/components/Grid.css';
 
 interface TimeDimensionsRowProps {
@@ -240,34 +240,18 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
     const actualInputValue = inputRef.current?.value || inputValue;
     console.log('[TimeDimensionsRow] Blur event, inputValue:', actualInputValue, 'editValue state:', editValue);
     
-    // Check if input is a formula (starts with =)
-    if (actualInputValue.trim().startsWith('=')) {
-      const formula = actualInputValue.trim().substring(1); // Remove the = sign
-      const currentValue = row.measureValues.get(measureId) || 0;
-      const timeKey = row.timeKey || 'year';
-      const evaluated = evaluateFormulaExpression(formula, currentValue, [currentValue], row.id, timeKey);
-      
-      if (evaluated !== null && !isNaN(evaluated)) {
-        const roundedValue = Math.round(evaluated * 100) / 100;
-        console.log('[TimeDimensionsRow] Formula evaluated:', { formula, result: roundedValue });
-        // Extract original dimension ID from row.id (format: dimension-{originalId}-{timeKey})
-        const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
-        onCellChange(timeKey, dimensionId, measureId, roundedValue);
-      } else {
-        console.log('[TimeDimensionsRow] Invalid formula:', formula);
-        alert('Invalid formula. Please check your formula and try again.');
-      }
-    } else {
-      // Regular number input
-      const numValue = parseFloat(actualInputValue.replace(/,/g, ''));
-      if (!isNaN(numValue)) {
-        const roundedValue = Math.round(numValue * 100) / 100;
-        console.log('[TimeDimensionsRow] Calling onCellChange from blur with:', { timeKey: row.timeKey, dimensionId: row.id, measureId, newValue: roundedValue });
-        const timeKey = row.timeKey || 'year';
-        // Extract original dimension ID from row.id (format: dimension-{originalId}-{timeKey})
-        const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
-        onCellChange(timeKey, dimensionId, measureId, roundedValue);
-      }
+    // Evaluate input: plain number, "+N%/-N%" delta, or "=" arithmetic formula.
+    const currentValue = row.measureValues.get(measureId) || 0;
+    const timeKey = row.timeKey || 'year';
+    const evalResult = evaluateCellInput(actualInputValue, currentValue);
+    if (evalResult.value !== null && !isNaN(evalResult.value)) {
+      const roundedValue = Math.round(evalResult.value * 100) / 100;
+      // Extract original dimension ID from row.id (format: dimension-{originalId}-{timeKey})
+      const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
+      onCellChange(timeKey, dimensionId, measureId, roundedValue);
+    } else if (evalResult.isFormula && evalResult.error) {
+      console.log('[TimeDimensionsRow] Invalid formula:', actualInputValue);
+      alert('Invalid formula. Please check your formula and try again.');
     }
     setEditingCell(null);
     setEditValue('');
@@ -281,40 +265,18 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
       const inputValue = inputRef.current?.value || (e.target as HTMLInputElement).value;
       console.log('[TimeDimensionsRow] Enter pressed, inputValue:', inputValue, 'editValue state:', editValue);
       
-      // Check if input is a formula (starts with =)
-      if (inputValue.trim().startsWith('=')) {
-        const formula = inputValue.trim().substring(1); // Remove the = sign
-        const currentValue = row.measureValues.get(measureId) || 0;
-        const timeKey = row.timeKey || 'year';
-        const evaluated = evaluateFormulaExpression(formula, currentValue, [currentValue], row.id, timeKey);
-        
-        if (evaluated !== null && !isNaN(evaluated)) {
-          const roundedValue = Math.round(evaluated * 100) / 100;
-          console.log('[TimeDimensionsRow] Formula evaluated:', { formula, result: roundedValue });
-          savedByEnterRef.current = true;
-          // Extract original dimension ID from row.id
-          const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
-          if (onCellChange) {
-            onCellChange(timeKey, dimensionId, measureId, roundedValue);
-          }
-        } else {
-          console.log('[TimeDimensionsRow] Invalid formula:', formula);
-          alert('Invalid formula. Please check your formula and try again.');
-        }
-      } else {
-        // Regular number input
-        const numValue = parseFloat(inputValue.replace(/,/g, ''));
-        if (!isNaN(numValue) && onCellChange) {
-          const roundedValue = Math.round(numValue * 100) / 100;
-          console.log('[TimeDimensionsRow] Calling onCellChange with:', { timeKey: row.timeKey, dimensionId: row.id, measureId, newValue: roundedValue });
-          savedByEnterRef.current = true;
-          const timeKey = row.timeKey || 'year';
-          // Extract original dimension ID from row.id
-          const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
-          onCellChange(timeKey, dimensionId, measureId, roundedValue);
-        } else {
-          console.log('[TimeDimensionsRow] Invalid number or no onCellChange:', { numValue, isNaN: isNaN(numValue), hasOnCellChange: !!onCellChange });
-        }
+      // Evaluate input: plain number, "+N%/-N%" delta, or "=" arithmetic formula.
+      const currentValue = row.measureValues.get(measureId) || 0;
+      const timeKey = row.timeKey || 'year';
+      const evalResult = evaluateCellInput(inputValue, currentValue);
+      if (evalResult.value !== null && !isNaN(evalResult.value) && onCellChange) {
+        const roundedValue = Math.round(evalResult.value * 100) / 100;
+        savedByEnterRef.current = true;
+        const dimensionId = row.id.replace(/^dimension-/, '').replace(/-\w+$/, '');
+        onCellChange(timeKey, dimensionId, measureId, roundedValue);
+      } else if (evalResult.isFormula && evalResult.error) {
+        console.log('[TimeDimensionsRow] Invalid formula:', inputValue);
+        alert('Invalid formula. Please check your formula and try again.');
       }
       setEditingCell(null);
       setEditValue('');
@@ -393,7 +355,10 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
                     {`${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(2)}%`}
                   </>
                 ) : (
-                  `${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`
+                  <>
+                    <CellDeltaSignIcon deltaPercent={deltaPercent} />
+                    {`${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`}
+                  </>
                 )}
               </div>
             )}
@@ -503,7 +468,10 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
                     {`${deltaPercent > 0 ? '+' : ''}${deltaPercent.toFixed(2)}%`}
                   </>
                 ) : (
-                  `${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`
+                  <>
+                    <CellDeltaSignIcon deltaPercent={deltaPercent} />
+                    {`${deltaPercent > 0 ? '+' : ''} ${deltaPercent.toFixed(2)}%`}
+                  </>
                 )}
               </div>
             )}

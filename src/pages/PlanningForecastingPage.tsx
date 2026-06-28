@@ -10,10 +10,54 @@ import {
 } from '../contexts/PlanWorkflowContext';
 import { useCurrentUser } from '../contexts/UserContext';
 import { useNotifications } from '../contexts/NotificationsContext';
+import type { ApprovalNotificationFocusContext } from '../contexts/NotificationsContext';
+import { usePlanningGridSession } from '../contexts/PlanningGridSessionContext';
+import type { CellEditHistoryEntry } from '../types/editHistory';
 import { useIndustry, getGridPathForIndustry } from '../contexts/IndustryContext';
 import ScopedNotification from '../components/ScopedNotification';
 import ExportCsvModal from '../components/ExportCsvModal';
 import '../styles/pages/PlanningForecastingPage.css';
+
+const PLAN_FOCUS_MONTH_ORDER = [
+  'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+  'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+];
+
+/** Build an approval focus context from the requester's grid edits, so the
+ *  approver's review card can focus the grid on the cells that actually changed.
+ *  Only month-level value edits made by the requester are included. */
+function buildPlanFocusContextFromEdits(
+  editHistory: CellEditHistoryEntry[] | undefined,
+  requesterUserId: string,
+): ApprovalNotificationFocusContext | undefined {
+  if (!editHistory || editHistory.length === 0) return undefined;
+
+  const seen = new Set<string>();
+  const cellKeys: string[] = [];
+  for (const entry of editHistory) {
+    // Skip note-only entries (no value change).
+    if (entry.oldValue === undefined && entry.newValue === undefined) continue;
+    // Only the requester's own edits.
+    if (requesterUserId && entry.userId && entry.userId !== requesterUserId) continue;
+    const timeKey = (entry.timeKey || entry.cellKey.split('-').pop() || '').toLowerCase();
+    if (PLAN_FOCUS_MONTH_ORDER.indexOf(timeKey) === -1) continue; // month value cells only
+    if (seen.has(entry.cellKey)) continue;
+    seen.add(entry.cellKey);
+    cellKeys.push(entry.cellKey);
+  }
+  if (cellKeys.length === 0) return undefined;
+
+  const months = cellKeys
+    .map((k) => (k.split('-').pop() || '').toLowerCase())
+    .filter((m) => PLAN_FOCUS_MONTH_ORDER.includes(m))
+    .sort((a, b) => PLAN_FOCUS_MONTH_ORDER.indexOf(a) - PLAN_FOCUS_MONTH_ORDER.indexOf(b));
+
+  return {
+    selectedCellKeys: cellKeys,
+    startPeriod: months[0],
+    endPeriod: months[months.length - 1],
+  };
+}
 
 const PLAN_STATUS_TO_PATH_ID: Record<PlanWorkflowStatus, string> = {
   Draft: 'draft',
@@ -81,6 +125,7 @@ const PlanningForecastingPage: React.FC = () => {
   const { industry } = useIndustry();
   const gridHomePath = getGridPathForIndustry(industry);
   const { currentUser } = useCurrentUser();
+  const { session } = usePlanningGridSession();
   const {
     publishPlanApprovalRequested,
     publishPlanApproverDecisionForRequester,
@@ -186,9 +231,15 @@ const PlanningForecastingPage: React.FC = () => {
   }, [planStatus, setPlanStatus, selectedPathStepId, openApproverDecisionModal]);
 
   const handleConfirmDraftToInReview = useCallback(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run2',hypothesisId:'F',location:'PlanningForecastingPage.tsx:189',message:'Plan submit-for-approval confirm fired',data:{currentUserId:currentUser.id,currentUserName:currentUser.name},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const focusContext = buildPlanFocusContextFromEdits(session?.editHistory, currentUser.id);
     publishPlanApprovalRequested({
       requesterName: currentUser.name,
+      requesterUserId: currentUser.id,
       notes: submitForApprovalNotes.trim() || undefined,
+      focusContext,
     });
     setPlanSubmittedByUserId(currentUser.id);
     setPlanStatus('Submitted');
@@ -198,6 +249,9 @@ const PlanningForecastingPage: React.FC = () => {
     setRelatedApprovalsWithdrawn(false);
     setLastRecordedPlanDecision(null);
     setPlanSubmittedForReviewToastVisible(true);
+    // #region agent log
+    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run2',hypothesisId:'F',location:'PlanningForecastingPage.tsx:200',message:'Plan submit toast set visible=true',data:{},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   }, [
     setPlanStatus,
     setPlanSubmittedByUserId,
@@ -205,6 +259,7 @@ const PlanningForecastingPage: React.FC = () => {
     currentUser.name,
     publishPlanApprovalRequested,
     submitForApprovalNotes,
+    session,
   ]);
 
   useEffect(() => {

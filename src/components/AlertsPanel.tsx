@@ -29,6 +29,10 @@ export interface FocusGridParams {
   categories?: string[];
   measures?: string[];
   dimensionLevel?: 'account' | 'category' | 'product';
+  // Time granularities to show as columns (e.g. ['month', 'quarter'] to surface the quarter column).
+  timeGranularities?: string[];
+  // Column-level Bottom-N filter on the category dimension (e.g. the 3 worst-performing categories).
+  bottomNCategories?: { n: number; measureId: string; columnKey: string };
 }
 
 const TODAY = new Date('2026-03-17');
@@ -82,7 +86,7 @@ const MOCK_DEADLINES: DeadlineTask[] = [
   {
     id: 'dl-5',
     title: 'Urgent: Q2 at Risk - 3 Categories Behind Plan',
-    description: 'Portfolio: Michigan + Ohio · Apr–Jun 2026 · $2.3M gap',
+    description: 'Michigan + Ohio · Bottom 3 categories by Q2 revenue · $2.3M gap',
     dueDate: new Date('2026-06-30'),
     measureId: 'measure-revenue',
     type: 'review',
@@ -128,6 +132,18 @@ interface AlertsPanelProps {
   onJumpToCell?: (cellKey: string) => void;
   onViewCellHistory?: (cellKey: string) => void;
   onFocusGrid?: (params: FocusGridParams | null) => void;
+  /** Injected when arriving from a header-bell approval notification — rendered as a
+   *  pinned "Review approval request from <requester>" card, auto-focused. */
+  reviewApprovalCard?: {
+    id: string;
+    requesterName: string;
+    summary?: string;
+    focusParams: FocusGridParams;
+    /** Optional logical sub-sections (measure · branch · contiguous months). When
+     *  present, each renders its own "Focus grid" button beneath a "Focus all". */
+    chunks?: Array<{ id: string; label: string; focusParams: FocusGridParams }>;
+  } | null;
+  onDismissReviewApprovalCard?: () => void;
 }
 
 // ── FocusGrid toggle button ───────────────────────────────────────────────────
@@ -165,6 +181,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   onJumpToCell: _onJumpToCell,
   onViewCellHistory,
   onFocusGrid,
+  reviewApprovalCard = null,
+  onDismissReviewApprovalCard,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -189,6 +207,18 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
       onFocusGrid?.(params);
     }
   };
+
+  // When a review-approval card is injected (arriving from a bell notification),
+  // show its first section as already "Focused" — the grid focus is applied by the
+  // parent on navigation. Falls back to the card id when there are no sections.
+  useEffect(() => {
+    if (reviewApprovalCard) {
+      const firstChunk = reviewApprovalCard.chunks?.[0];
+      setFocusedCardId(
+        firstChunk ? `${reviewApprovalCard.id}::${firstChunk.id}` : reviewApprovalCard.id
+      );
+    }
+  }, [reviewApprovalCard?.id]);
 
   // ── Deadline tasks ─────────────────────────────────────────────────────────
   const deadlineTasks = useMemo(() => MOCK_DEADLINES, []);
@@ -417,6 +447,68 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
       {/* Body */}
       <div className="alerts-panel-body">
 
+        {/* ── Injected review-approval card (from a header-bell notification) ── */}
+        {reviewApprovalCard && (() => {
+          const t = reviewApprovalCard;
+          const chunks = t.chunks ?? [];
+          const hasChunks = chunks.length > 0;
+          // The card counts as focused if any of its sections is active, so
+          // focusing one section doesn't dim the whole card.
+          const isFocused =
+            focusedCardId === t.id ||
+            (!!focusedCardId && focusedCardId.startsWith(`${t.id}::`));
+          const isDimmed = anyFocused && !isFocused;
+          return (
+            <div
+              key={t.id}
+              className={`alerts-card alerts-card--urgent${isFocused ? ' alerts-card--focused' : ''}${isDimmed ? ' alerts-card--dimmed' : ''}`}
+            >
+              <div className="alerts-card-header">
+                <div className="alerts-card-header-left">
+                  <span className="alerts-urgency-dot alerts-urgency-dot--urgent"></span>
+                  <span className="alerts-card-title">Review approval request from {t.requesterName}</span>
+                </div>
+                <span className="alerts-type-badge alerts-type-badge--approve">Approval</span>
+              </div>
+
+              {t.summary && <div className="alerts-card-sub">{t.summary}</div>}
+
+              <div className="alerts-card-meta">
+                <span className="alerts-chip alerts-chip--amber">⏱ Awaiting your decision</span>
+                {chunks.length > 1 && (
+                  <span className="alerts-chip">{chunks.length} sections</span>
+                )}
+              </div>
+
+              {onDismissReviewApprovalCard && (
+                <div className="alerts-card-actions">
+                  <button className="alerts-link-btn" onClick={onDismissReviewApprovalCard}>
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
+              {onFocusGrid && hasChunks && (
+                <div className="alerts-chunk-list">
+                  {chunks.map((chunk) => {
+                    const chunkId = `${t.id}::${chunk.id}`;
+                    return (
+                      <div key={chunkId} className="alerts-chunk-row">
+                        <span className="alerts-chunk-label">{chunk.label}</span>
+                        <FocusToggleBtn
+                          active={focusedCardId === chunkId}
+                          disabled={false}
+                          onClick={() => handleFocusToggle(chunkId, chunk.focusParams)}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ── TASKS ─────────────────────────────────────────────── */}
         {((showTasks && deadlineTasks.some(showDeadline)) || (showApprovals && visibleApprovalSlaCards.length > 0)) && (
           <>
@@ -490,14 +582,18 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
               const isFocused = focusedCardId === task.id;
               const isDimmed = anyFocused && !isFocused;
               
-              // Build focus params - special handling for intent-based filtering task
+              // Build focus params - special handling for intent-based filtering task.
+              // dl-5 ("Q2 at Risk – 3 Categories Behind Plan"): surface the Q2 quarter column and
+              // apply a column-level Bottom-3 filter on the category dimension (by Q2 revenue) so the
+              // "3 categories behind" are explicitly the 3 worst-performing categories.
               const focusParams: FocusGridParams = task.id === 'dl-5' 
                 ? {
                     accounts: ['MagnaDrive - Michigan Plant', 'MagnaDrive - Ohio Plant'],
-                    categories: ['Transmission Assembly', 'Chassis Components', 'Engine Components'],
-                    measures: ['Sales Agreement Revenue', 'Forecasted Revenue', 'Order Revenue', 'Opportunity Revenue'],
+                    measures: ['Sales Agreement Revenue'],
                     startPeriod: task.startPeriod,
                     endPeriod: task.endPeriod,
+                    timeGranularities: ['month', 'quarter'],
+                    bottomNCategories: { n: 3, measureId: 'measure-sa-rev', columnKey: 'q2' },
                   }
                 : {
                     searchTerm: task.searchTerm,

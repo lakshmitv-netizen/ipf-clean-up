@@ -14,6 +14,7 @@ interface MeasureOrderItem {
   groupNames: string[];
   accessStatus: 'read' | 'write';
   readOnlyReason?: string;
+  autoLock: boolean; // Auto-lock cells of this measure after an edit
 }
 
 interface ReorderMeasuresModalProps {
@@ -23,7 +24,8 @@ interface ReorderMeasuresModalProps {
   measureSubgroup: string;
   selectedMeasureSubgroups?: Set<string>; // Currently selected measure subgroups
   visibleMeasureIds?: Set<string> | null; // Set of visible measure IDs from saved state (null means use default: all visible)
-  onSave: (orderedMeasures: MeasureData[], visibleMeasureIds: Set<string>) => void;
+  autoLockMeasureIds?: Set<string> | null; // Set of measure IDs whose cells auto-lock after an edit
+  onSave: (orderedMeasures: MeasureData[], visibleMeasureIds: Set<string>, autoLockMeasureIds: Set<string>) => void;
 }
 
 const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
@@ -33,13 +35,13 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
   measureSubgroup: _measureSubgroup,
   selectedMeasureSubgroups = new Set(),
   visibleMeasureIds = null,
+  autoLockMeasureIds = null,
   onSave
 }) => {
   const { industry } = useIndustry();
   const [measureItems, setMeasureItems] = useState<MeasureOrderItem[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [movingRowId, setMovingRowId] = useState<string | null>(null);
-  const [hoveredMeasureId, setHoveredMeasureId] = useState<string | null>(null);
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const originalOrderRef = useRef<Map<string, number>>(new Map());
 
@@ -122,7 +124,8 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
           visible: isVisible,
           groupNames: groupInfo.groupNames,
           accessStatus: groupInfo.accessStatus,
-          readOnlyReason: groupInfo.readOnlyReason
+          readOnlyReason: groupInfo.readOnlyReason,
+          autoLock: !!autoLockMeasureIds && autoLockMeasureIds.has(measure.id)
         };
       });
       setMeasureItems(items);
@@ -133,7 +136,15 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
       // Clear original state when modal closes
       originalItemsRef.current = [];
     }
-  }, [isOpen, measures, visibleMeasureIds, industry]);
+  }, [isOpen, measures, visibleMeasureIds, autoLockMeasureIds, industry]);
+
+  const handleToggleAutoLock = (id: string) => {
+    setMeasureItems(items =>
+      items.map(item =>
+        item.id === id ? { ...item, autoLock: !item.autoLock } : item
+      )
+    );
+  };
 
   const handleToggleVisibility = (id: string) => {
     setMeasureItems(items =>
@@ -352,7 +363,8 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
         visible: true,
         groupNames: groupInfo.groupNames,
         accessStatus: groupInfo.accessStatus,
-        readOnlyReason: groupInfo.readOnlyReason
+        readOnlyReason: groupInfo.readOnlyReason,
+        autoLock: false
       };
     });
     setMeasureItems(defaultItems);
@@ -390,7 +402,13 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
       }
     });
 
-    onSave(orderedMeasures, visibleMeasureIds);
+    // Collect measures whose cells should auto-lock after an edit
+    const autoLockMeasureIds = new Set<string>();
+    measureItems.forEach(item => {
+      if (item.autoLock) autoLockMeasureIds.add(item.id);
+    });
+
+    onSave(orderedMeasures, visibleMeasureIds, autoLockMeasureIds);
     onClose();
   };
 
@@ -456,23 +474,6 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
             <table className="reorder-measures-table">
               <thead>
                 <tr>
-                  <th className="reorder-measures-th-order">
-                    <div className="reorder-measures-th-order-wrapper">
-                      <span>Order</span>
-                      <button 
-                        className="reorder-measures-sort-button"
-                        onClick={handleSort}
-                        title="Sort by order"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M4 6L8 2L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </th>
-                  <th className="reorder-measures-th-name">Measure Name</th>
-                  <th className="reorder-measures-th-groups">Group Names</th>
-                  <th className="reorder-measures-th-access">Access</th>
                   <th className="reorder-measures-th-visibility">
                     <label className="reorder-measures-checkbox-wrapper" style={{ justifyContent: 'center', cursor: 'pointer' }}>
                       <input
@@ -489,6 +490,23 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
                       <span className="reorder-measures-checkbox-label"></span>
                     </label>
                   </th>
+                  <th className="reorder-measures-th-order">
+                    <div className="reorder-measures-th-order-wrapper">
+                      <span>Order</span>
+                      <button 
+                        className="reorder-measures-sort-button"
+                        onClick={handleSort}
+                        title="Sort by order"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M4 6L8 2L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                  </th>
+                  <th className="reorder-measures-th-name">Measure Name</th>
+                  <th className="reorder-measures-th-groups">Group Names</th>
+                  <th className="reorder-measures-th-access">Auto-lock</th>
                 </tr>
               </thead>
               <tbody>
@@ -511,6 +529,17 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
                       }
                     }}
                   >
+                    <td className="reorder-measures-td-visibility">
+                      <label className="reorder-measures-checkbox-wrapper">
+                        <input
+                          type="checkbox"
+                          checked={item.visible}
+                          onChange={() => handleToggleVisibility(item.id)}
+                          className="reorder-measures-checkbox"
+                        />
+                        <span className="reorder-measures-checkbox-label"></span>
+                      </label>
+                    </td>
                     <td className="reorder-measures-td-order">
                       {item.visible ? (
                         <input
@@ -547,28 +576,13 @@ const ReorderMeasuresModal: React.FC<ReorderMeasuresModalProps> = ({
                       )}
                     </td>
                     <td className="reorder-measures-td-access">
-                      {item.accessStatus === 'read' ? (
-                        <div 
-                          className="reorder-measures-access-badge-wrapper"
-                          onMouseEnter={() => setHoveredMeasureId(item.id)}
-                          onMouseLeave={() => setHoveredMeasureId(null)}
-                        >
-                          <span className="reorder-measures-read-badge">Read Only</span>
-                          {hoveredMeasureId === item.id && item.readOnlyReason && (
-                            <div className="reorder-measures-tooltip">
-                              {item.readOnlyReason}
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                    </td>
-                    <td className="reorder-measures-td-visibility">
-                      <label className="reorder-measures-checkbox-wrapper">
+                      <label className="reorder-measures-checkbox-wrapper" style={{ justifyContent: 'flex-start' }}>
                         <input
                           type="checkbox"
-                          checked={item.visible}
-                          onChange={() => handleToggleVisibility(item.id)}
+                          checked={item.autoLock}
+                          onChange={() => handleToggleAutoLock(item.id)}
                           className="reorder-measures-checkbox"
+                          aria-label={`Auto-lock cells for ${item.name} after an edit`}
                         />
                         <span className="reorder-measures-checkbox-label"></span>
                       </label>

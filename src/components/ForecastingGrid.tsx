@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MeasureData, ApprovalRequest, GridRow, ParentTotalsRollupMode } from '../types';
 import { ApproverState, APPROVER_ROSTER, deriveAggregateStatus } from '../types/approvalRequest';
 import { ConditionalFormattingRule } from '../types/conditionalFormatting';
@@ -31,7 +31,8 @@ import HierarchicalGrid from './HierarchicalGrid';
 import DimensionsTimeGrid from './DimensionsTimeGrid';
 import TimeDimensionsGrid from './TimeDimensionsGrid';
 import GridToolbar from './GridToolbar';
-import SettingsPanel from './SettingsPanel';
+import SettingsPanel, { CALENDAR_OPTIONS, DEFAULT_CALENDAR_ID } from './SettingsPanel';
+import { QuickAccessBar, ConfigureQuickAccessModal } from './QuickAccessToolbar';
 import FiltersPanel from './FiltersPanel';
 import CellDetailsHistoryPanel from './CellDetailsHistoryPanel';
 import CellEditInfoPopover from './CellEditInfoPopover';
@@ -42,8 +43,163 @@ import EditFrozenColumnsModal, { FrozenColumn } from './EditFrozenColumnsModal';
 import EditSubColumnsModal, { SubColumn } from './EditSubColumnsModal';
 import GlobalSortPanel, { GlobalSortConfig } from './GlobalSortPanel';
 import AlertsPanel, { FocusGridParams } from './AlertsPanel';
+import { ColumnFilter } from './ColumnFilterPopover';
 import ScopedNotification from './ScopedNotification';
 import { getMeasureName } from '../utils/cellInfoUtils';
+
+// ── Approval review "semantic chunking" ──────────────────────────────────────
+// Splits a flat list of approved/edited cell keys into logical chunks so the
+// review-approval card can offer one "Focus grid" button per chunk. A chunk is
+// a group of cells that share the same measure + top-level dimension branch and
+// fall in a contiguous run of months — i.e. the units a reviewer naturally scans
+// together in a single grid view (no scrolling / chevron expansion required).
+export interface ApprovalFocusChunk {
+  id: string;
+  label: string;
+  focusParams: FocusGridParams;
+}
+
+const CHUNK_MONTH_ORDER = [
+  'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+  'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+];
+
+const chunkMonthIndex = (timeKey: string): number =>
+  CHUNK_MONTH_ORDER.indexOf(timeKey.toLowerCase());
+
+const formatChunkTime = (timeKey: string): string => {
+  const m = timeKey.match(/^([a-z]+)(\d{4})$/i);
+  if (m) {
+    const month = m[1].charAt(0).toUpperCase() + m[1].slice(1, 3).toLowerCase();
+    return `${month} ${m[2]}`;
+  }
+  return timeKey;
+};
+
+const formatChunkRange = (start: string, end: string): string =>
+  start === end ? formatChunkTime(start) : `${formatChunkTime(start)} – ${formatChunkTime(end)}`;
+
+// Depth-first path from a measure's children down to `targetId` (inclusive).
+const findRowPath = (rows: GridRow[], targetId: string): GridRow[] | null => {
+  for (const row of rows) {
+    if (row.id === targetId) return [row];
+    if (row.children && row.children.length) {
+      const sub = findRowPath(row.children, targetId);
+      if (sub) return [row, ...sub];
+    }
+  }
+  return null;
+};
+
+const buildApprovalFocusChunks = (
+  selectedCellKeys: string[] | undefined,
+  data: MeasureData[],
+): ApprovalFocusChunk[] => {
+  if (!selectedCellKeys || selectedCellKeys.length === 0) return [];
+
+  interface Group {
+    measureName: string;
+    branchName: string;
+    keys: string[];
+    timeKeys: Set<string>;
+  }
+  const groups = new Map<string, Group>();
+
+  selectedCellKeys.forEach((cellKey) => {
+    const parts = cellKey.split('-');
+    if (parts.length < 2) return;
+    const timeKey = parts[parts.length - 1];
+    const rowId = parts.slice(0, -1).join('-');
+
+    let measureName = '';
+    let branchName = '';
+    let branchId = '';
+    let measureId = '';
+
+    const measure = data.find((m) => m.id === rowId);
+    if (measure) {
+      measureId = measure.id;
+      measureName = measure.name;
+      branchName = measure.name;
+      branchId = measure.id;
+    } else {
+      for (const m of data) {
+        const path = findRowPath(m.children ?? [], rowId);
+        if (path) {
+          measureId = m.id;
+          measureName = m.name;
+          branchName = path[0].name;
+          branchId = path[0].id;
+          break;
+        }
+      }
+    }
+    if (!measureId) return; // could not resolve — skip
+
+    const groupKey = `${measureId}::${branchId}`;
+    let group = groups.get(groupKey);
+    if (!group) {
+      group = { measureName, branchName, keys: [], timeKeys: new Set() };
+      groups.set(groupKey, group);
+    }
+    group.keys.push(cellKey);
+    group.timeKeys.add(timeKey);
+  });
+
+  const chunks: ApprovalFocusChunk[] = [];
+  groups.forEach((group, groupKey) => {
+    const sortedTimes = [...group.timeKeys].sort((a, b) => {
+      const ia = chunkMonthIndex(a);
+      const ib = chunkMonthIndex(b);
+      if (ia === -1 && ib === -1) return a.localeCompare(b);
+      if (ia === -1) return 1;
+      if (ib === -1) return -1;
+      return ia - ib;
+    });
+
+    // Split into contiguous month runs (e.g. Jan,Feb,Mar | May,Jun).
+    const runs: string[][] = [];
+    let current: string[] = [];
+    let prevIndex: number | null = null;
+    sortedTimes.forEach((t) => {
+      const idx = chunkMonthIndex(t);
+      if (current.length === 0) {
+        current = [t];
+        prevIndex = idx;
+        return;
+      }
+      const contiguous = idx !== -1 && prevIndex !== null && prevIndex !== -1 && idx === prevIndex + 1;
+      if (contiguous) {
+        current.push(t);
+        prevIndex = idx;
+      } else {
+        runs.push(current);
+        current = [t];
+        prevIndex = idx;
+      }
+    });
+    if (current.length) runs.push(current);
+
+    runs.forEach((run) => {
+      const runSet = new Set(run);
+      const runKeys = group.keys.filter((k) => runSet.has(k.split('-').pop() || ''));
+      const start = run[0];
+      const end = run[run.length - 1];
+      chunks.push({
+        id: `${groupKey}::${start}-${end}`,
+        label: `${group.measureName} · ${group.branchName} · ${formatChunkRange(start, end)}`,
+        focusParams: {
+          searchTerm: group.branchName,
+          startPeriod: start,
+          endPeriod: end,
+          selectedCellKeys: runKeys,
+        },
+      });
+    });
+  });
+
+  return chunks;
+};
 
 const AVAILABLE_SUB_COLUMNS: SubColumn[] = [
   { id: 'yoy', name: 'YoY' },
@@ -94,8 +250,49 @@ const AVAILABLE_FROZEN_COLUMNS: FrozenColumn[] = [
   { id: 'trend', name: 'Trend' },
 ];
 
-// Default visible measures: Sales Agreement Quantity, Sales Agreement Revenue, Opportunity Quantity, Opportunity Revenue, Order Quantity, Order Revenue
-const DEFAULT_VISIBLE_MEASURE_IDS = new Set(['measure-sa-qty', 'measure-sa-rev', 'measure-opp-qty', 'measure-opp-rev', 'measure-order-qty', 'measure-order-rev']);
+// Default visible measures: show all measures in the selected subset (Showing 10 of 10).
+// A measure is only hidden when the user explicitly unchecks it in "Configure Measures".
+const DEFAULT_VISIBLE_MEASURE_IDS = new Set([
+  'measure-sa-qty',
+  'measure-sa-rev',
+  'measure-opp-qty',
+  'measure-opp-rev',
+  'measure-order-qty',
+  'measure-order-rev',
+  'measure-ly-order-qty',
+  'measure-ly-order-rev',
+  'measure-forecast-qty',
+  'measure-forecast-rev',
+]);
+
+// Pre-seeded admin conditional-formatting rules (mirrors the deployed grid's Formatting tab).
+// Stored active; the design-system-rules effect renders them toggled off while "Default Rules" is on.
+const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
+  {
+    id: 'user-rule-admin-1',
+    name: 'Admin Rule 1',
+    isActive: true,
+    priority: 0,
+    mode: 'modifyCells',
+    target: { measureIds: ['measure-sa-qty'], dimensionLevels: ['product'], timeKeys: [] },
+    condition: { type: 'greaterThan', value: 47 },
+    visualization: { type: 'background', color: '#FFEBEB' },
+    createdAt: new Date('2024-01-02T00:00:00'),
+    updatedAt: new Date('2024-01-02T00:00:00'),
+  },
+  {
+    id: 'user-rule-admin-2',
+    name: 'Admin Rule 2',
+    isActive: true,
+    priority: 1,
+    mode: 'modifyCells',
+    target: { measureIds: ['measure-sa-rev'], dimensionLevels: ['category'], timeKeys: [] },
+    condition: { type: 'greaterThan', value: 30000 },
+    visualization: { type: 'background', color: '#E8F5E8' },
+    createdAt: new Date('2024-01-01T00:00:00'),
+    updatedAt: new Date('2024-01-01T00:00:00'),
+  },
+];
 
 import '../styles/components/Grid.css';
 /* Segmented approver decision control (reused in GridRow edit popover) */
@@ -133,6 +330,18 @@ const ForecastingGrid: React.FC = () => {
     sessionMatchesIndustry ? cloneMeasureData(session.originalData) : industryData
   );
   const [visibleMeasureIds, setVisibleMeasureIds] = useState<Set<string>>(new Set(DEFAULT_VISIBLE_MEASURE_IDS));
+  // Measures whose cells auto-lock after an edit (configured in the Reorder Measures modal)
+  const [autoLockMeasureIds, setAutoLockMeasureIds] = useState<Set<string>>(new Set());
+  const autoLockMeasureIdsRef = useRef<Set<string>>(autoLockMeasureIds);
+  useEffect(() => {
+    autoLockMeasureIdsRef.current = autoLockMeasureIds;
+  }, [autoLockMeasureIds]);
+  // Keep latest measure data in a ref so the auto-lock-after-edit hook can map a
+  // row id back to its top-level measure without re-creating callbacks.
+  const dataForAutoLockRef = useRef<MeasureData[]>(data);
+  useEffect(() => {
+    dataForAutoLockRef.current = data;
+  }, [data]);
   
   // Approval state management
   /** Fresh load: no approval rows until the user requests / edits status in Cell Actions or bulk flows. */
@@ -1073,6 +1282,7 @@ const ForecastingGrid: React.FC = () => {
       if (
         target.closest('.grid-cell') ||
         target.closest('.cell-details-history-panel') ||
+        target.closest('.planning-approval-modal-overlay') ||
         target.closest('.settings-panel') ||
         target.closest('.filters-panel') ||
         target.closest('.sort-panel') ||
@@ -2245,6 +2455,34 @@ const ForecastingGrid: React.FC = () => {
   // Function to add/edit DRAFT edit history entry (unsaved edits)
   // If a draft already exists for this cellKey, update it; otherwise create new
   const addDraftEditHistory = useCallback((entry: Omit<CellEditHistoryEntry, 'id' | 'timestamp' | 'userId' | 'userName'>) => {
+    // Auto-lock: if the edited cell's measure is configured to auto-lock, lock the
+    // cell immediately after the value changes (mirrors Parag's deployed behavior).
+    if (
+      entry.cellKey &&
+      entry.newValue !== undefined &&
+      entry.newValue !== entry.oldValue &&
+      autoLockMeasureIdsRef.current.size > 0
+    ) {
+      const containsRow = (node: any): boolean =>
+        !!node && (node.id === entry.rowId || (Array.isArray(node.children) && node.children.some(containsRow)));
+      let measureId: string | null = null;
+      for (const measure of dataForAutoLockRef.current) {
+        if (measure.id === entry.rowId || containsRow(measure)) {
+          measureId = measure.id;
+          break;
+        }
+      }
+      if (measureId && autoLockMeasureIdsRef.current.has(measureId)) {
+        const cellKey = entry.cellKey;
+        setLockedCells(prev => {
+          if (prev.has(cellKey)) return prev;
+          const next = new Set(prev);
+          next.add(cellKey);
+          return next;
+        });
+      }
+    }
+
     setDraftEditHistory(prev => {
       const newMap = new Map(prev);
       const existingDraft = newMap.get(entry.cellKey);
@@ -3149,11 +3387,22 @@ const ForecastingGrid: React.FC = () => {
     
     setOriginalData(combinedData);
     setData(combinedData);
-    // Initialize visible measures to default (only those that exist in current measures)
-    const defaultVisibleForCurrentMeasures = new Set(
-      Array.from(DEFAULT_VISIBLE_MEASURE_IDS).filter(id => finalMeasureIds.includes(id))
-    );
-    setVisibleMeasureIds(defaultVisibleForCurrentMeasures.size > 0 ? defaultVisibleForCurrentMeasures : new Set(finalMeasureIds));
+    // Every measure that belongs to a selected subset shows by default. Measures from a
+    // newly-checked subset appear automatically; measures that were already present keep their
+    // current visibility, so anything the user explicitly hid via "Configure Measures" stays hidden.
+    setVisibleMeasureIds(prev => {
+      const next = new Set<string>();
+      finalMeasureIds.forEach(id => {
+        if (!prevMeasureIds.has(id)) {
+          // Newly added (a freshly-checked subset, or first load) → visible by default.
+          next.add(id);
+        } else if (prev.has(id)) {
+          // Already-present measure → respect the user's current show/hide choice.
+          next.add(id);
+        }
+      });
+      return next.size > 0 ? next : new Set(finalMeasureIds);
+    });
     
     // Update previous measure IDs
     prevMeasureIdsRef.current = currentMeasureIds;
@@ -3181,9 +3430,14 @@ const ForecastingGrid: React.FC = () => {
   }, [selectedMeasureSubgroup, applyInitialEditHistoryToData, industry, measureGroupContext, sharedMeasureIds]);
 
   // Handle measure reordering
-  const handleMeasuresReorder = useCallback((orderedMeasures: MeasureData[], visibleIds: Set<string>) => {
+  const handleMeasuresReorder = useCallback((orderedMeasures: MeasureData[], visibleIds: Set<string>, autoLockIds?: Set<string>) => {
     setData(orderedMeasures);
     setVisibleMeasureIds(new Set(visibleIds)); // Create a new Set to ensure state update
+    // Only update auto-lock config when the full Reorder modal provides it; the Quick
+    // Access toolbar's quick visibility toggles call this with 2 args and must not clear it.
+    if (autoLockIds) {
+      setAutoLockMeasureIds(new Set(autoLockIds));
+    }
   }, []);
 
   // Filter data based on visible measures
@@ -3228,6 +3482,11 @@ const ForecastingGrid: React.FC = () => {
     return readonlyIds;
   }, [selectedMeasureSubgroup, data]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // Quick Access Toolbar: toggle defaults on, but no actions configured by default
+  // (so the bar stays hidden until the user adds actions) — mirrors the deployed grid.
+  const [showQuickAccessToolbar, setShowQuickAccessToolbar] = useState(false);
+  const [quickAccessActions, setQuickAccessActions] = useState<string[]>([]);
+  const [isQuickAccessModalOpen, setIsQuickAccessModalOpen] = useState(false);
   const [isEditFrozenColumnsModalOpen, setIsEditFrozenColumnsModalOpen] = useState(false);
   const [selectedFrozenColumns, setSelectedFrozenColumns] = useState<FrozenColumn[]>([
     { id: 'users', name: 'Users' },
@@ -3266,7 +3525,11 @@ const ForecastingGrid: React.FC = () => {
   const [isCellHistoryApprovalView, setIsCellHistoryApprovalView] = useState(false);
   const [bulkActionPreselect, setBulkActionPreselect] = useState<string | null>(null);
   const [bulkActionPreselectSignal, setBulkActionPreselectSignal] = useState(0);
-  const [conditionalFormattingRules, setConditionalFormattingRules] = useState<ConditionalFormattingRule[]>([]);
+  const [selectedCalendarId, setSelectedCalendarId] = useState<string>(DEFAULT_CALENDAR_ID);
+  const selectedCalendar = CALENDAR_OPTIONS.find(c => c.id === selectedCalendarId);
+  const calendarStartMonth = selectedCalendar?.startMonth ?? 0;
+  const calendarStartYear = selectedCalendar?.startYear ?? 2026;
+  const [conditionalFormattingRules, setConditionalFormattingRules] = useState<ConditionalFormattingRule[]>(INITIAL_CONDITIONAL_FORMATTING_RULES);
   const [applyCfRulesAsColorScale, setApplyCfRulesAsColorScale] = useState(false);
   const [previewConditionalFormattingRule, setPreviewConditionalFormattingRule] = useState<ConditionalFormattingRule | null>(null);
   const [isDesignSystemRulesEnabled, setIsDesignSystemRulesEnabled] = useState(true);
@@ -3740,18 +4003,60 @@ const ForecastingGrid: React.FC = () => {
   }, [selectedCells]);
 
   // Handler for single cell update from the panel
-  const handleSingleCellUpdate = useCallback((rowId: string, monthKey: string, newValue: number, adjustmentNote?: string) => {
-    if (selectedLayoutState === 'Measures / Dimensions x Time') {
-      // Use HierarchicalGrid's cell change handler
-      if (cellChangeHandlerRef.current) {
-        cellChangeHandlerRef.current(rowId, monthKey as any, newValue, adjustmentNote);
+  // Find the direct children of a row by id (used for disaggregation).
+  const findRowChildren = useCallback((rowId: string): any[] => {
+    const search = (items: any[]): any[] | null => {
+      for (const item of items) {
+        if (item.id === rowId) return item.children || [];
+        if (item.children) {
+          const found = search(item.children);
+          if (found) return found;
+        }
       }
-    } else {
-      // For other layouts, would need to call appropriate handlers
-      // For now, log it
-      console.log('[ForecastingGrid] Single cell update:', { rowId, monthKey, newValue, adjustmentNote });
+      return null;
+    };
+    return search(data) || [];
+  }, [data]);
+
+  const handleSingleCellUpdate = useCallback((rowId: string, monthKey: string, newValue: number, adjustmentNote?: string, disaggregationRule?: string) => {
+    if (selectedLayoutState !== 'Measures / Dimensions x Time') {
+      console.log('[ForecastingGrid] Single cell update:', { rowId, monthKey, newValue, adjustmentNote, disaggregationRule });
+      return;
     }
-  }, [selectedLayoutState]);
+    if (!cellChangeHandlerRef.current) return;
+
+    const rule = (disaggregationRule || 'proportional').toLowerCase();
+    const children = findRowChildren(rowId);
+
+    // "Equal"/"Even" → split the new value evenly across (unlocked) children.
+    // "Proportional" (or a leaf row) → edit the row directly; the grid already
+    // pushes a parent edit down to children by their existing proportions.
+    if ((rule === 'equal' || rule === 'even') && children.length > 0) {
+      const lockedChildren = children.filter((c: any) => lockedCells.has(`${c.id}-${monthKey}`));
+      const unlockedChildren = children.filter((c: any) => !lockedCells.has(`${c.id}-${monthKey}`));
+
+      if (unlockedChildren.length > 0) {
+        const lockedSum = lockedChildren.reduce((sum: number, c: any) => sum + (c.values?.[monthKey] || 0), 0);
+        const perChild = (newValue - lockedSum) / unlockedChildren.length;
+
+        // Apply sequentially so each child's roll-up reads the latest state
+        // (mirrors the mass-update flow), leaving the parent equal to newValue.
+        const applyEven = async () => {
+          for (let i = 0; i < unlockedChildren.length; i++) {
+            if (i > 0) await new Promise(resolve => setTimeout(resolve, 120));
+            const child = unlockedChildren[i];
+            cellChangeHandlerRef.current?.(child.id, monthKey as any, perChild, adjustmentNote);
+            await new Promise(resolve => setTimeout(resolve, 80));
+          }
+        };
+        applyEven();
+        return;
+      }
+    }
+
+    // Proportional / leaf row / all children locked → edit the row directly.
+    cellChangeHandlerRef.current(rowId, monthKey as any, newValue, adjustmentNote);
+  }, [selectedLayoutState, findRowChildren, lockedCells]);
 
   // Handler for toggling cell lock from the panel
   const handleToggleCellLock = useCallback((cellKey: string) => {
@@ -3761,10 +4066,6 @@ const ForecastingGrid: React.FC = () => {
         newSet.delete(cellKey);
       } else {
         newSet.add(cellKey);
-        // Close side panels when locking a cell
-        setIsCellDetailsHistoryOpen(false);
-        setIsSettingsOpen(false);
-        setIsFiltersOpen(false);
       }
       return newSet;
     });
@@ -4063,6 +4364,9 @@ const ForecastingGrid: React.FC = () => {
   const [externalAccounts, setExternalAccounts] = useState<string[]>([]);
   const [externalCategories, setExternalCategories] = useState<string[]>([]);
   const [externalMeasures, setExternalMeasures] = useState<string[]>([]);
+  // Column-level filters injected by a Focus-grid action (e.g. Bottom-N categories). Null when no
+  // focus filter is active, so the grid never clobbers user-applied column filters.
+  const [externalColumnFilters, setExternalColumnFilters] = useState<Map<string, ColumnFilter> | null>(null);
   const [_showOnlyImpactedKPI, setShowOnlyImpactedKPI] = useState<boolean>(false);
   const toggleShowOnlyImpactedKPIHandlerRef = useRef<((checked: boolean) => void) | null>(null);
   
@@ -4205,7 +4509,207 @@ const ForecastingGrid: React.FC = () => {
   // Set when intent-based (Focus grid) filters are applied so we auto-expand the
   // filtered hierarchy once the new data has propagated to the grid.
   const pendingIntentExpandRef = useRef(false);
-  
+
+  // Injected "Review approval request from <requester>" card (set when arriving from a
+  // header-bell approval notification). Rendered at the top of the Alerts/Tasks panel.
+  const [reviewApprovalCard, setReviewApprovalCard] = useState<{
+    id: string;
+    requesterName: string;
+    summary?: string;
+    focusParams: FocusGridParams;
+    chunks?: ApprovalFocusChunk[];
+  } | null>(null);
+
+  /** Apply (or reset) a Focus-grid request. Shared by the Alerts panel and the
+   *  approval-notification deep-link effect below. */
+  const handleFocusGrid = useCallback((params: FocusGridParams | null) => {
+    if (params === null) {
+      // Toggle off — reset all filters
+      setGridSearch('');
+      setShowAllPeriods(true);
+      setStartPeriod('');
+      setEndPeriod('');
+      setExternalAccounts([]);
+      setExternalCategories([]);
+      setExternalMeasures([]);
+      setExternalColumnFilters(null);
+      setSelectedTimeGranularities(new Set(['month']));
+    } else {
+      if (params.searchTerm !== undefined) setGridSearch(params.searchTerm);
+      if (params.timeGranularities && params.timeGranularities.length > 0) {
+        setSelectedTimeGranularities(new Set(params.timeGranularities));
+      }
+      if (params.bottomNCategories) {
+        const { n, measureId, columnKey } = params.bottomNCategories;
+        const filterMap = new Map<string, ColumnFilter>([
+          [columnKey, {
+            conditions: [{
+              id: 'focus-bottom-n-category',
+              dimension: 'category',
+              measureId,
+              operator: 'bottomN',
+              value: String(n),
+            }],
+          }],
+        ]);
+        setExternalColumnFilters(filterMap);
+      } else {
+        setExternalColumnFilters(null);
+      }
+      if (params.startPeriod || params.endPeriod) {
+        setShowAllPeriods(false);
+        if (params.startPeriod) setStartPeriod(params.startPeriod);
+        if (params.endPeriod) setEndPeriod(params.endPeriod);
+      }
+      if (params.selectedCellKeys && params.selectedCellKeys.length > 0) {
+        const orderedKeys = [...params.selectedCellKeys];
+        const selectedSet = new Set(orderedKeys);
+        setSelectedCells(selectedSet);
+        selectedCellsRef.current = selectedSet;
+        selectedCellsOrderRef.current = orderedKeys;
+        setSelectedCellsOrder(orderedKeys);
+        const firstKey = orderedKeys[0];
+        if (firstKey) {
+          lastSelectedCellRef.current = firstKey;
+          setLastSelectedCell(firstKey);
+          const parts = firstKey.split('-');
+          const monthKey = parts[parts.length - 1];
+          const rowId = parts.slice(0, -1).join('-');
+          setCurrentFocusedCell({ rowId, monthKey });
+        }
+      }
+      if (params.accounts) setExternalAccounts(params.accounts);
+      if (params.categories) setExternalCategories(params.categories);
+      if (params.measures) setExternalMeasures(params.measures);
+      if (params.accounts || params.categories || params.measures) {
+        pendingIntentExpandRef.current = true;
+      }
+    }
+    if (resetColumnWidthsRef.current) resetColumnWidthsRef.current();
+  }, []);
+
+  // When arriving via a header-bell approval notification, open the Alerts panel,
+  // inject the "Review approval request from <requester>" card, and focus the grid
+  // on the exact section the requester asked about.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const handledNotificationFocusRef = useRef<unknown>(null);
+  useEffect(() => {
+    const incoming = (location.state as { focusFromNotification?: import('../contexts/NotificationsContext').ApprovalNotificationPayload } | null)?.focusFromNotification;
+    // #region agent log
+    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'D',location:'ForecastingGrid.tsx:4441',message:'Grid deep-link effect ran',data:{pathname:location.pathname,hasState:!!location.state,hasIncoming:!!incoming,incomingCellKey:incoming?.cellKey,alreadyHandled:handledNotificationFocusRef.current===location.state},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    if (!incoming) return;
+    // Guard against re-applying the same navigation state on every render.
+    if (handledNotificationFocusRef.current === location.state) return;
+    handledNotificationFocusRef.current = location.state;
+
+    const fc = incoming.focusContext;
+    let focusParams: FocusGridParams = {
+      searchTerm: fc?.searchTerm,
+      startPeriod: fc?.startPeriod,
+      endPeriod: fc?.endPeriod,
+      selectedCellKeys: fc?.selectedCellKeys,
+    };
+
+    let chunks = buildApprovalFocusChunks(fc?.selectedCellKeys, data);
+    // Plan-level requests carry no searchTerm and (often) no usable cell keys —
+    // the submit happened on the plan page, not the grid. When the incoming keys
+    // don't resolve to any section in the current grid, fall back to the cells the
+    // requester actually edited (recorded in this grid's own edit history) so
+    // "Focus grid" has a real target instead of doing nothing.
+    if (!fc?.searchTerm && chunks.length === 0) {
+      const requesterId = incoming.requesterUserId;
+      const fallbackKeys = editHistory
+        .filter((e) => e.oldValue !== undefined || e.newValue !== undefined)
+        .filter((e) => !requesterId || !e.userId || e.userId === requesterId)
+        .filter((e) => {
+          const tk = (e.timeKey || e.cellKey.split('-').pop() || '').toLowerCase();
+          return CHUNK_MONTH_ORDER.includes(tk);
+        })
+        .map((e) => e.cellKey);
+      chunks = buildApprovalFocusChunks(fallbackKeys, data);
+    }
+
+    // Derive the "Focus grid" params from the resolved chunks so it actually
+    // narrows the grid (branch + month range + cell selection).
+    if (!fc?.searchTerm && chunks.length > 0) {
+      if (chunks.length === 1) {
+        focusParams = chunks[0].focusParams;
+      } else {
+        const allKeys = chunks.flatMap((c) => c.focusParams.selectedCellKeys ?? []);
+        const months = allKeys
+          .map((k) => (k.split('-').pop() || '').toLowerCase())
+          .filter((m) => CHUNK_MONTH_ORDER.includes(m))
+          .sort((a, b) => CHUNK_MONTH_ORDER.indexOf(a) - CHUNK_MONTH_ORDER.indexOf(b));
+        focusParams = {
+          startPeriod: months[0],
+          endPeriod: months[months.length - 1],
+          selectedCellKeys: allKeys,
+        };
+      }
+    }
+
+    // Seed the pending approval request so the approver can act on it (and so the
+    // decision notification can find the original requester) even though the grid
+    // remounted on navigation.
+    if (incoming.cellKey) {
+      const cellKey = incoming.cellKey;
+      const parts = cellKey.split('-');
+      const monthKey = parts[parts.length - 1];
+      const rowId = parts.slice(0, -1).join('-');
+      const measureId = rowId.split('-').find((p) => p.startsWith('measure-')) || '';
+      setApprovalRequests((prev) => {
+        if (prev.has(cellKey)) return prev;
+        const next = new Map(prev);
+        next.set(cellKey, {
+          id: `approval-${cellKey}-${Date.now()}`,
+          cellKey,
+          measureId,
+          rowId,
+          timeKey: monthKey,
+          oldValue: 0,
+          newValue: 0,
+          variancePct: 0,
+          requesterNote: '',
+          requesterId: incoming.requesterUserId || '',
+          requesterName: incoming.requesterName,
+          approverId: '',
+          approverName: '',
+          status: 'pending',
+          userInitiated: true,
+          focusContext: fc,
+          createdAt: new Date(),
+        });
+        return next;
+      });
+    }
+
+    setReviewApprovalCard({
+      id: `review-approval-${incoming.cellKey || Date.now()}`,
+      requesterName: incoming.requesterName,
+      summary: incoming.summary,
+      focusParams,
+      // The review card is a pure list of logical sections (measure · branch ·
+      // contiguous months); each has its own "Focus grid" button. There is no
+      // global "focus all" — see AlertsPanel.
+      chunks: chunks.length > 0 ? chunks : undefined,
+    });
+    setIsAlertsOpen(true);
+    // Auto-focus the first section on open so the approver lands somewhere
+    // meaningful (the union of all edits rarely narrows anything useful).
+    handleFocusGrid(chunks.length > 0 ? chunks[0].focusParams : focusParams);
+
+    // Clear the notification payload from the browser history entry. Otherwise
+    // react-router persists location.state across reloads / re-navigation, and a
+    // fresh load (even by a different user who never requested approval) would
+    // re-trigger this effect and re-inject the review card.
+    // #region agent log
+    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'post-fix',hypothesisId:'D',location:'ForecastingGrid.tsx:4501',message:'Clearing notification history state',data:{pathname:location.pathname},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, [location.state, location.pathname, location.search, handleFocusGrid, navigate, data, editHistory]);
+
   const handleExpandAllRows = () => {
     if (expandAllRef.current) {
       expandAllRef.current();
@@ -4504,6 +5008,26 @@ const ForecastingGrid: React.FC = () => {
           onClose={() => setApprovalSubmittedNotification(prev => ({ ...prev, isVisible: false }))}
         />
       )}
+      {showQuickAccessToolbar && (
+        <QuickAccessBar
+          actions={quickAccessActions}
+          onConfigure={() => setIsQuickAccessModalOpen(true)}
+          onClose={() => setShowQuickAccessToolbar(false)}
+          selectedMeasureSubgroup={selectedMeasureSubgroup}
+          onMeasureSubgroupChange={setSelectedMeasureSubgroup}
+          measures={data}
+          visibleMeasureIds={visibleMeasureIds}
+          onMeasuresReorder={handleMeasuresReorder}
+          selectedDimensionLevels={selectedDimensionLevels}
+          onDimensionLevelsChange={handleDimensionLevelsChange}
+          selectedTimeGranularities={selectedTimeGranularities}
+          onTimeGranularitiesChange={handleTimeGranularitiesChange}
+          startPeriod={startPeriod}
+          endPeriod={endPeriod}
+          onStartPeriodChange={setStartPeriod}
+          onEndPeriodChange={setEndPeriod}
+        />
+      )}
       <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
         <div className="grid-wrapper">
         {selectedLayoutState === 'Dimensions / Time x Measures' ? (
@@ -4632,6 +5156,8 @@ const ForecastingGrid: React.FC = () => {
             onCellMapsSnapshotChange={handleCellMapsSnapshotChange}
             selectedDimensionLevels={selectedDimensionLevels}
             selectedTimeGranularities={selectedTimeGranularities}
+            calendarStartMonth={calendarStartMonth}
+            calendarStartYear={calendarStartYear}
             columnWidth={columnWidth}
             onExpandAllRows={(handler) => { expandAllRef.current = handler; }}
             onCollapseAllRows={(handler) => { collapseAllRef.current = handler; }}
@@ -4781,6 +5307,7 @@ const ForecastingGrid: React.FC = () => {
             conditionalFormattingColorScaleMerge={applyCfRulesAsColorScale}
             isDesignSystemRulesEnabled={isDesignSystemRulesEnabled}
             onRowHidingFiltersChange={setHierarchyRowHidingFromGrid}
+            externalColumnFilters={externalColumnFilters}
         />
           </>
           )}
@@ -4803,6 +5330,7 @@ const ForecastingGrid: React.FC = () => {
           measures={data}
           onMeasuresReorder={handleMeasuresReorder}
           visibleMeasureIds={visibleMeasureIds}
+          autoLockMeasureIds={autoLockMeasureIds}
           showAllPeriods={showAllPeriods}
           onShowAllPeriodsChange={setShowAllPeriods}
           startPeriod={startPeriod}
@@ -4815,6 +5343,9 @@ const ForecastingGrid: React.FC = () => {
           showSubColumns={showSubColumns}
           onShowSubColumnsChange={setShowSubColumns}
           onEditSubColumns={() => setIsEditSubColumnsModalOpen(true)}
+          showQuickAccessToolbar={showQuickAccessToolbar}
+          onShowQuickAccessToolbarChange={setShowQuickAccessToolbar}
+          onConfigureQuickAccess={() => setIsQuickAccessModalOpen(true)}
           conditionalFormattingRules={conditionalFormattingRules}
           onConditionalFormattingRulesChange={handleConditionalFormattingRulesChange}
           onConditionalFormattingPreviewChange={setPreviewConditionalFormattingRule}
@@ -4826,6 +5357,8 @@ const ForecastingGrid: React.FC = () => {
           forceFormattingTabSignal={cfLaunchFromSelectionSignal}
           cfLaunchFromSelectionSignal={cfLaunchFromSelectionSignal}
           cfLaunchFromSelectionCellKeys={cfFromSelectionCellKeys}
+          selectedCalendarId={selectedCalendarId}
+          onCalendarChange={setSelectedCalendarId}
         />
         <EditFrozenColumnsModal
           isOpen={isEditFrozenColumnsModalOpen}
@@ -4855,6 +5388,16 @@ const ForecastingGrid: React.FC = () => {
             }
             
             setIsEditSubColumnsModalOpen(false);
+          }}
+        />
+        <ConfigureQuickAccessModal
+          isOpen={isQuickAccessModalOpen}
+          onClose={() => setIsQuickAccessModalOpen(false)}
+          selectedActions={quickAccessActions}
+          onSave={(actions) => {
+            setQuickAccessActions(actions);
+            if (actions.length > 0) setShowQuickAccessToolbar(true);
+            setIsQuickAccessModalOpen(false);
           }}
         />
         <FiltersPanel
@@ -4970,54 +5513,9 @@ const ForecastingGrid: React.FC = () => {
             setIsCellDetailsHistoryOpen(true);
             setIsAlertsOpen(false);
           }}
-          onFocusGrid={(params: FocusGridParams | null) => {
-            if (params === null) {
-              // Toggle off — reset all filters
-              setGridSearch('');
-              setShowAllPeriods(true);
-              setStartPeriod('');
-              setEndPeriod('');
-              setExternalAccounts([]);
-              setExternalCategories([]);
-              setExternalMeasures([]);
-            } else {
-              if (params.searchTerm !== undefined) setGridSearch(params.searchTerm);
-              if (params.startPeriod || params.endPeriod) {
-                setShowAllPeriods(false);
-                if (params.startPeriod) setStartPeriod(params.startPeriod);
-                if (params.endPeriod) setEndPeriod(params.endPeriod);
-              }
-              if (params.selectedCellKeys && params.selectedCellKeys.length > 0) {
-                const orderedKeys = [...params.selectedCellKeys];
-                const selectedSet = new Set(orderedKeys);
-                setSelectedCells(selectedSet);
-                selectedCellsRef.current = selectedSet;
-                selectedCellsOrderRef.current = orderedKeys;
-                setSelectedCellsOrder(orderedKeys);
-                const firstKey = orderedKeys[0];
-                if (firstKey) {
-                  lastSelectedCellRef.current = firstKey;
-                  setLastSelectedCell(firstKey);
-                  const parts = firstKey.split('-');
-                  const monthKey = parts[parts.length - 1];
-                  const rowId = parts.slice(0, -1).join('-');
-                  setCurrentFocusedCell({ rowId, monthKey });
-                }
-              }
-              // Apply intent-based filters (filters apply to the grid even while the
-              // Filters panel stays closed — only one right panel shown at a time).
-              if (params.accounts) setExternalAccounts(params.accounts);
-              if (params.categories) setExternalCategories(params.categories);
-              if (params.measures) setExternalMeasures(params.measures);
-              // Auto-expand the filtered hierarchy (e.g. show the categories' products)
-              // once the filtered data lands in the grid.
-              if (params.accounts || params.categories || params.measures) {
-                pendingIntentExpandRef.current = true;
-              }
-            }
-            // Always reset auto-expanded column widths so visible columns keep fixed sizes
-            if (resetColumnWidthsRef.current) resetColumnWidthsRef.current();
-          }}
+          reviewApprovalCard={reviewApprovalCard}
+          onDismissReviewApprovalCard={() => setReviewApprovalCard(null)}
+          onFocusGrid={handleFocusGrid}
         />
 
         {/* Cell Edit Info Popover - shown when a cell with edit history is focused */}

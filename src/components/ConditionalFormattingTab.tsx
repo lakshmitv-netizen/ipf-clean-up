@@ -57,6 +57,13 @@ const timeOptions = [
 const DIM_LABEL_TO_ID: Record<string, string> = { Accounts: 'account', Categories: 'category', Products: 'product' };
 const DIM_ID_TO_LABEL: Record<string, string> = { account: 'Accounts', category: 'Categories', product: 'Products' };
 
+// Dimension levels for the rule "Level" dropdown (matches the deployed grid).
+const LEVEL_OPTIONS: { id: string; label: string }[] = [
+  { id: 'account', label: 'Account' },
+  { id: 'category', label: 'Category' },
+  { id: 'product', label: 'Product' },
+];
+
 // ─── Formula constants ──────────────────────────────────────────────────────────
 
 const FORMULA_TEMPLATES: { label: string; description: string; formula: (m: string) => string; unit: 'percent' | 'number' | 'ratio' }[] = [
@@ -1998,6 +2005,7 @@ const TINT_COLORS: { hex: string; swatchHex: string; label: string }[] = [
 interface SimpleRuleFormProps {
   name: string;
   measureId: string;
+  level: string;
   operator: ConditionType;
   value: string;
   value2: string;
@@ -2005,6 +2013,7 @@ interface SimpleRuleFormProps {
   availableMeasures: MeasureData[];
   onNameChange: (v: string) => void;
   onMeasureChange: (v: string) => void;
+  onLevelChange: (v: string) => void;
   onOperatorChange: (v: ConditionType) => void;
   onValueChange: (v: string) => void;
   onValue2Change: (v: string) => void;
@@ -2016,12 +2025,13 @@ const ReqMark = () => (
 );
 
 const SimpleRuleForm: React.FC<SimpleRuleFormProps> = ({
-  name, measureId, operator, value, value2, color, availableMeasures,
-  onNameChange, onMeasureChange, onOperatorChange, onValueChange, onValue2Change, onColorChange,
+  name, measureId, level, operator, value, value2, color, availableMeasures,
+  onNameChange, onMeasureChange, onLevelChange, onOperatorChange, onValueChange, onValue2Change, onColorChange,
 }) => {
   const uid = useId();
   const nameId = `${uid}-name`;
   const measureIdField = `${uid}-measure`;
+  const levelId = `${uid}-level`;
   const conditionId = `${uid}-condition`;
   const valueId = `${uid}-value`;
   const value2Id = `${uid}-value2`;
@@ -2056,6 +2066,22 @@ const SimpleRuleForm: React.FC<SimpleRuleFormProps> = ({
           <option value="">All measures</option>
           {availableMeasures.map(m => (
             <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="cf-simple-field">
+        <label className="cf-simple-label" htmlFor={levelId}>
+          Level
+        </label>
+        <select
+          id={levelId}
+          className="cf-simple-input cf-simple-select"
+          value={level}
+          onChange={e => onLevelChange(e.target.value)}
+        >
+          <option value="">All levels</option>
+          {LEVEL_OPTIONS.map(l => (
+            <option key={l.id} value={l.id}>{l.label}</option>
           ))}
         </select>
       </div>
@@ -2143,6 +2169,7 @@ const SimpleRuleCard: React.FC<SimpleRuleCardProps> = ({ rule, availableMeasures
   const [isExpanded, setIsExpanded] = useState(false);
   const [editName, setEditName] = useState(rule.name);
   const [editMeasureId, setEditMeasureId] = useState(rule.target.measureIds[0] ?? '');
+  const [editLevel, setEditLevel] = useState(rule.target.dimensionLevels[0] ?? '');
   const [editOperator, setEditOperator] = useState<ConditionType>(rule.condition.type);
   const [editValue, setEditValue] = useState(String(rule.condition.value ?? ''));
   const [editValue2, setEditValue2] = useState(String(rule.condition.value2 ?? ''));
@@ -2152,6 +2179,7 @@ const SimpleRuleCard: React.FC<SimpleRuleCardProps> = ({ rule, availableMeasures
     if (!isExpanded) {
       setEditName(rule.name);
       setEditMeasureId(rule.target.measureIds[0] ?? '');
+      setEditLevel(rule.target.dimensionLevels[0] ?? '');
       setEditOperator(rule.condition.type);
       setEditValue(String(rule.condition.value ?? ''));
       setEditValue2(String(rule.condition.value2 ?? ''));
@@ -2166,7 +2194,7 @@ const SimpleRuleCard: React.FC<SimpleRuleCardProps> = ({ rule, availableMeasures
     onSave({
       ...rule,
       name: editName.trim(),
-      target: { ...rule.target, measureIds: editMeasureId ? [editMeasureId] : [] },
+      target: { ...rule.target, measureIds: editMeasureId ? [editMeasureId] : [], dimensionLevels: editLevel ? [editLevel] : [] },
       condition: {
         type: editOperator,
         value: parseFloat(editValue),
@@ -2228,6 +2256,7 @@ const SimpleRuleCard: React.FC<SimpleRuleCardProps> = ({ rule, availableMeasures
             <SimpleRuleForm
               name={editName}
               measureId={editMeasureId}
+              level={editLevel}
               operator={editOperator}
               value={editValue}
               value2={editValue2}
@@ -2235,6 +2264,7 @@ const SimpleRuleCard: React.FC<SimpleRuleCardProps> = ({ rule, availableMeasures
               availableMeasures={availableMeasures}
               onNameChange={setEditName}
               onMeasureChange={setEditMeasureId}
+              onLevelChange={setEditLevel}
               onOperatorChange={setEditOperator}
               onValueChange={setEditValue}
               onValue2Change={setEditValue2}
@@ -2302,6 +2332,7 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [draftName, setDraftName] = useState('');
   const [draftMeasureId, setDraftMeasureId] = useState('');
+  const [draftLevel, setDraftLevel] = useState('');
   const [draftOperator, setDraftOperator] = useState<ConditionType>('greaterThan');
   const [draftValue, setDraftValue] = useState('');
   const [draftValue2, setDraftValue2] = useState('');
@@ -2342,7 +2373,7 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
       mode: 'modifyCells',
       target: {
         measureIds: draftMeasureId ? [draftMeasureId] : [],
-        dimensionLevels: [],
+        dimensionLevels: draftLevel ? [draftLevel] : [],
         timeKeys: [],
       },
       condition: {
@@ -2360,6 +2391,7 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
     onRulesChange([...rules, newRule]);
     setDraftName('');
     setDraftMeasureId('');
+    setDraftLevel('');
     setDraftOperator('greaterThan');
     setDraftValue('');
     setDraftValue2('');
@@ -2382,7 +2414,8 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
   const userRules = rules
     .filter(r => r.mode === 'modifyCells')
     .sort((a, b) => ruleCreatedAtMs(b) - ruleCreatedAtMs(a));
-  const showColorScaleMergeOption = userRules.length > 1;
+  // "Apply as a color scale" is removed for parity with the deployed grid.
+  const showColorScaleMergeOption = false;
 
   useEffect(() => {
     if (!showColorScaleMergeOption && applyRulesAsColorScale) {
@@ -2449,6 +2482,7 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
             <SimpleRuleForm
               name={draftName}
               measureId={draftMeasureId}
+              level={draftLevel}
               operator={draftOperator}
               value={draftValue}
               value2={draftValue2}
@@ -2456,6 +2490,7 @@ const ConditionalFormattingTab: React.FC<ConditionalFormattingTabProps> = ({
               availableMeasures={availableMeasures}
               onNameChange={setDraftName}
               onMeasureChange={setDraftMeasureId}
+              onLevelChange={setDraftLevel}
               onOperatorChange={setDraftOperator}
               onValueChange={setDraftValue}
               onValue2Change={setDraftValue2}

@@ -124,6 +124,20 @@ button.header-bell-trigger.header-bell-trigger--open {
   background-color: var(--slds-g-color-accent-container-1);
 }
 
+button.header-setup-trigger {
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+}
+
+button.header-setup-trigger.header-setup-trigger--open {
+  color: var(--slds-g-color-accent-1, var(--color-accent-blue));
+  background-color: var(--slds-g-color-accent-container-1);
+}
+
 .header-icon.header-icon--with-badge {
   position: relative;
 }

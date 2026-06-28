@@ -218,11 +218,51 @@ const getTargetValue = (actualValue: number, rowId: string, timeKey: string): nu
 };
 
 /** Get numeric value for filter/sort. Supports composite keys like "jan2026-Actual" or "jan2026-MoM" */
+/** Constituent month keys for each derived quarter / year column. */
+const QUARTER_MONTH_KEYS: Record<string, string[]> = {
+  q1: ['jan2026', 'feb2026', 'mar2026'],
+  q2: ['apr2026', 'may2026', 'jun2026'],
+  q3: ['jul2026', 'aug2026', 'sep2026'],
+  q4: ['oct2026', 'nov2026', 'dec2026'],
+  year: [
+    'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+    'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+  ],
+};
+
+/**
+ * Reads a row's raw value for a time key. Quarter / year aggregates (`q1`–`q4`, `year`)
+ * can be `null` on rolled-up rows after a time-period filter is applied, so fall back to
+ * summing the constituent month values — this keeps column filters / Top-N / Bottom-N
+ * ranking aligned with the values the grid actually displays.
+ */
+const getRowTimeKeyValue = (row: GridRowType, timeKey: string): number => {
+  const raw = row.values?.[timeKey as keyof typeof row.values];
+  if (raw !== null && raw !== undefined && raw !== '') {
+    const n = Number(raw);
+    if (!isNaN(n)) return n;
+  }
+  const monthKeys = QUARTER_MONTH_KEYS[timeKey];
+  if (monthKeys) {
+    let sum = 0;
+    let any = false;
+    for (const mk of monthKeys) {
+      const mv = row.values?.[mk as keyof typeof row.values];
+      if (mv !== null && mv !== undefined && mv !== '') {
+        const n = Number(mv);
+        if (!isNaN(n)) { sum += n; any = true; }
+      }
+    }
+    if (any) return sum;
+  }
+  return 0;
+};
+
 const getCellNumericValueForColumn = (row: GridRowType, compositeKey: string): number => {
   const dashIdx = compositeKey.indexOf('-');
   const timeKey = dashIdx >= 0 ? compositeKey.slice(0, dashIdx) : compositeKey;
   const subColId = dashIdx >= 0 ? compositeKey.slice(dashIdx + 1) : 'Actual';
-  const actualValue = Number(row.values?.[timeKey as keyof typeof row.values] ?? 0);
+  const actualValue = getRowTimeKeyValue(row, timeKey);
   const rand = seededRandom(`${row.id}-${timeKey}-${subColId}`);
   const targetValue = getTargetValue(actualValue, row.id, timeKey);
   if (subColId === 'Actual' || subColId === 'achieved') return actualValue;
@@ -255,6 +295,8 @@ interface HierarchicalGridProps {
   onDataChange?: (newData: MeasureData[]) => void;
   selectedDimensionLevels?: Set<string>;
   selectedTimeGranularities?: Set<string>;
+  calendarStartMonth?: number; // 0=Jan..9=Oct; rotates month columns to fiscal start
+  calendarStartYear?: number; // Calendar year of the start month (e.g. 2025 for Fiscal)
   columnWidth?: number; // Column width in pixels for time period columns
   onExpandAllRows?: (handler: () => void) => void; // Callback to register expand handler
   onCollapseAllRows?: (handler: () => void) => void; // Callback to register collapse handler
@@ -367,6 +409,9 @@ interface HierarchicalGridProps {
   rollupValueSourceData?: MeasureData[];
   /** Column / quick filters in the grid that can hide rows from the visible hierarchy (for parent UI hints). */
   onRowHidingFiltersChange?: (info: { hasColumnFilters: boolean; hasQuickFilters: boolean; columnFilters: Map<string, ColumnFilter> }) => void;
+  /** Column filters injected from outside (e.g. a Focus-grid Bottom-N action). Seeds the grid's
+   *  internal column filters; null leaves user-applied column filters untouched. */
+  externalColumnFilters?: Map<string, ColumnFilter> | null;
 }
 
 const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({ 
@@ -376,6 +421,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onDataChange, 
   selectedDimensionLevels, 
   selectedTimeGranularities,
+  calendarStartMonth = 0,
+  calendarStartYear = 2026,
   onAddAdjustmentNote, 
   columnWidth = 100, 
   onExpandAllRows, 
@@ -454,10 +501,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   initialCellMapsSnapshot = null,
   onCellMapsSnapshotChange,
   onRowHidingFiltersChange,
+  externalColumnFilters,
 }) => {
   const readonlyMeasureIds = readonlyMeasureIdsProp;
   const { industry } = useIndustry();
-  const isGrid264Ux = industry === 'grid-264';
+  // Bifurcation removed: every industry (incl. grid-264) now uses the manufacturing (legacy) grid UX.
+  const isGrid264Ux = false;
   
   // Store onEditHistory in a ref so it's always available in callbacks
   const onEditHistoryRef = useRef(onEditHistory);
@@ -709,6 +758,20 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
   // Column-level filters: map of columnKey -> ColumnFilter
   const [columnFilters, setColumnFilters] = useState<Map<string, ColumnFilter>>(new Map());
+
+  // Seed column filters from a Focus-grid action (e.g. Bottom-N categories). Only touches the
+  // internal column filters while a focus filter is active, then clears its own injection so the
+  // user's manually-applied column filters are never clobbered.
+  const externalColumnFilterActiveRef = useRef(false);
+  useEffect(() => {
+    if (externalColumnFilters && externalColumnFilters.size > 0) {
+      setColumnFilters(new Map(externalColumnFilters));
+      externalColumnFilterActiveRef.current = true;
+    } else if (externalColumnFilterActiveRef.current) {
+      setColumnFilters(new Map());
+      externalColumnFilterActiveRef.current = false;
+    }
+  }, [externalColumnFilters]);
 
   // Extract dimension names from data for name-based filtering
   const dimensionNames = useMemo(() => {
@@ -1377,7 +1440,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
           row.values.year = row.values.q1 + row.values.q2 + row.values.q3 + row.values.q4;
         }
         // Derive weekly columns from months (once); preserves any edited week values.
-        deriveWeekValues(row.values as Record<string, number>);
+        deriveWeekValues(row.values as Record<string, number>, calendarStartMonth);
       }
     };
     
@@ -1792,6 +1855,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     // Use comma-separated format with exactly 3 decimal places — no K/M/B units.
     // This avoids mixed units within a column (e.g., some rows showing K, others M)
     // and keeps all cells consistently formatted for easy decimal-point alignment.
+    if (value === undefined || value === null || Number.isNaN(value)) {
+      value = 0;
+    }
     const formatted = value.toLocaleString('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
@@ -1865,12 +1931,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
   // Get visible time headers with labels (filtered by granularity and search) - memoized
   const visibleTimeHeaders = useMemo(() => {
-    const allTimeKeys: { key: keyof GridRowType['values']; granularity: string; label: string; shortLabel?: string }[] = [
-      { key: 'year', granularity: 'year', label: 'FY26' },
-      { key: 'q1', granularity: 'quarter', label: 'Q1' },
-      { key: 'q2', granularity: 'quarter', label: 'Q2' },
-      { key: 'q3', granularity: 'quarter', label: 'Q3' },
-      { key: 'q4', granularity: 'quarter', label: 'Q4' },
+    const monthKeys: { key: keyof GridRowType['values']; granularity: string; label: string; shortLabel?: string }[] = [
       { key: 'jan2026', granularity: 'month', label: 'Jan' },
       { key: 'feb2026', granularity: 'month', label: 'Feb' },
       { key: 'mar2026', granularity: 'month', label: 'Mar' },
@@ -1883,7 +1944,20 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       { key: 'oct2026', granularity: 'month', label: 'Oct' },
       { key: 'nov2026', granularity: 'month', label: 'Nov' },
       { key: 'dec2026', granularity: 'month', label: 'Dec' },
-      ...buildWeekHeaders(),
+    ];
+    // Rotate months so the column order starts at the calendar's fiscal start month.
+    const startMonth = ((calendarStartMonth % 12) + 12) % 12;
+    const orderedMonths = startMonth > 0
+      ? [...monthKeys.slice(startMonth), ...monthKeys.slice(0, startMonth)]
+      : monthKeys;
+    const allTimeKeys: { key: keyof GridRowType['values']; granularity: string; label: string; shortLabel?: string }[] = [
+      { key: 'year', granularity: 'year', label: 'FY26' },
+      { key: 'q1', granularity: 'quarter', label: 'Q1' },
+      { key: 'q2', granularity: 'quarter', label: 'Q2' },
+      { key: 'q3', granularity: 'quarter', label: 'Q3' },
+      { key: 'q4', granularity: 'quarter', label: 'Q4' },
+      ...orderedMonths,
+      ...buildWeekHeaders(calendarStartMonth, calendarStartYear),
     ];
 
     // Filter by granularity first
@@ -1911,7 +1985,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         } else if (tk.granularity === 'week') {
           const m = /^week(\d+)_/.exec(tk.key as string);
           if (!m) return true;
-          return weekOverlapsRange(parseInt(m[1], 10), rangeStart, rangeEnd);
+          return weekOverlapsRange(parseInt(m[1], 10), rangeStart, rangeEnd, calendarStartMonth, calendarStartYear);
         } else if (tk.granularity === 'year') {
           // Show year if any months are visible
           return true;
@@ -1947,7 +2021,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       granularity: tk.granularity,
       shortLabel: tk.shortLabel,
     }));
-  }, [selectedTimeGranularities, searchTerm, showAllPeriods, startPeriod, endPeriod, isMonthInRange, isQuarterInRange]);
+  }, [selectedTimeGranularities, calendarStartMonth, calendarStartYear, searchTerm, showAllPeriods, startPeriod, endPeriod, isMonthInRange, isQuarterInRange]);
 
   // Track previous visible headers to detect structural changes
   const previousVisibleHeadersRef = useRef<string>('');
@@ -2090,6 +2164,19 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       children: row.children ? row.children.map(child => deepCopyRow(child)) : undefined
     };
   }, []);
+
+  // Recompute weekly columns from each row's (already rolled-up) monthly values, in place,
+  // so rendered cells always carry consistent, non-zero week values regardless of which
+  // copy/filter step the row passed through. Operates on fresh per-render copies.
+  const ensureWeeksDeep = useCallback((row: GridRowType): GridRowType => {
+    if (row.values) {
+      const v = row.values as Record<string, number>;
+      for (let n = 1; n <= 52; n++) delete v[`week${n}_2026`];
+      deriveWeekValues(v, calendarStartMonth);
+    }
+    if (row.children) row.children.forEach(ensureWeeksDeep);
+    return row;
+  }, [calendarStartMonth]);
 
   // Filter rows by selected dimension types
   // If a parent is deselected but child is selected, show child directly under grandparent
@@ -3179,7 +3266,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
     // Track any row cell whose value changed from recalc (not only top-level measure rows), e.g. Matches filter bucket
     for (const [snapshotRowId, originalValues] of originalRowValuesBeforeRecalc.entries()) {
-      const rowAfter = findRowById(snapshotRowId, updatedData);
+      // findRowById only walks measure.children, so top-level measure rows are not found by it.
+      // Fall back to the measures array so a measure whose rolled-up total changed is also marked impacted.
+      const rowAfter = findRowById(snapshotRowId, updatedData) || updatedData.find(m => m.id === snapshotRowId);
       if (!rowAfter) continue;
       for (const [key, originalValue] of originalValues.entries()) {
         if (snapshotRowId === rowId && key === monthKey) {
@@ -4808,13 +4897,19 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                       if (!tip) {
                         tip = document.createElement('div');
                         tip.id = '__wkTip';
+                        tip.style.cssText = 'position:fixed;z-index:99999;background:#032d60;color:#fff;font:12px/1.5 sans-serif;padding:4px 8px;border-radius:4px;pointer-events:none;filter:drop-shadow(0 1px 3px rgba(0,0,0,.35));white-space:nowrap';
+                        const tx = document.createElement('span');
+                        tip.appendChild(tx);
+                        const nb = document.createElement('div');
+                        nb.style.cssText = 'position:absolute;top:-5px;left:14px;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:6px solid #032d60';
+                        tip.appendChild(nb);
                         document.body.appendChild(tip);
                       }
-                      tip.textContent = header.label;
-                      tip.style.cssText = 'position:fixed;z-index:99999;display:block;background:#16325c;color:#fff;font-size:12px;line-height:1.3;padding:6px 9px;border-radius:5px;white-space:nowrap;pointer-events:none;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3));';
+                      (tip.firstChild as HTMLElement).textContent = header.label;
+                      tip.style.display = 'block';
                       const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-                      tip.style.left = `${Math.round(r.left + r.width / 2 - tip.offsetWidth / 2)}px`;
-                      tip.style.top = `${Math.round(r.bottom + 8)}px`;
+                      tip.style.left = `${Math.round(r.left + 24)}px`;
+                      tip.style.top = `${Math.round(r.bottom - 4)}px`;
                     } : undefined}
                     onMouseLeave={isCompactWeek ? () => {
                       const t = document.getElementById('__wkTip');
@@ -5007,7 +5102,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                 return (
                   <GridRowComponent
                     key={`${measure.id}-read-${readCells.length > 0 ? [...readCells].sort().join('-') : 'none'}-${readCells.length}`}
-                    row={quickFilteredRow}
+                    row={ensureWeeksDeep(quickFilteredRow)}
                     level={0}
                     isExpanded={expandedRows.has(measure.id)}
                     expandedRows={expandedRows}
@@ -5116,7 +5211,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
               return (
                 <GridRowComponent
                   key={`${measure.id}-read-${readCells.length > 0 ? [...readCells].sort().join('-') : 'none'}-${readCells.length}`}
-                  row={quickFilteredRowNoFilter}
+                  row={ensureWeeksDeep(quickFilteredRowNoFilter)}
                   level={0}
                   isExpanded={expandedRows.has(measure.id)}
                   expandedRows={expandedRows}

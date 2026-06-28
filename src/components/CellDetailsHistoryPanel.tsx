@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { MeasureData, GridRow } from '../types';
 import { extractCellInfo, CellInfo } from '../utils/cellInfoUtils';
 import { CellEditHistoryEntry, editHistoryEntryAffectsCell } from '../types/editHistory';
 import { ApprovalRequest, ALL_APPROVER_ROLES, APPROVER_ROSTER } from '../types/approvalRequest';
+import { useNotifications, type PlanApproverDecisionOutcome } from '../contexts/NotificationsContext';
+import { useCurrentUser, APP_USERS } from '../contexts/UserContext';
 import CellEditHistoryCard from './CellEditHistoryCard';
 import GenericCommentCard from './GenericCommentCard';
 import RequestApprovalConfirmModal from './RequestApprovalConfirmModal';
@@ -76,7 +79,7 @@ interface CellDetailsHistoryPanelProps {
   preselectAction?: string | null; // Optional action to preselect when opening multi-cell form
   preselectActionSignal?: number; // Increment to force-apply preselected action
   onSetFocusedCell?: (cell: { rowId: string; monthKey?: string; measureId?: string }) => void; // Callback to set focused cell
-  onSingleCellUpdate?: (rowId: string, monthKey: string, newValue: number, adjustmentNote?: string) => void; // Callback for single cell update
+  onSingleCellUpdate?: (rowId: string, monthKey: string, newValue: number, adjustmentNote?: string, disaggregationRule?: string) => void; // Callback for single cell update
   onToggleCellLock?: (cellKey: string) => void; // Callback to toggle cell lock
   isCellLocked?: (cellKey: string) => boolean; // Function to check if cell is locked
   getCellValue?: (rowId: string, monthKey: string) => number | undefined; // Function to get current cell value
@@ -104,8 +107,8 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
   preselectActionSignal = 0,
   onSetFocusedCell,
   onSingleCellUpdate,
-  onToggleCellLock: _onToggleCellLock,
-  isCellLocked: _isCellLocked,
+  onToggleCellLock,
+  isCellLocked,
   getCellValue,
   onSelectSingleCell,
   selectedCellsOrder = [],
@@ -114,6 +117,8 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
   isApprovalView = false,
   planWideApprovalSubmitted = false,
 }) => {
+  const { publishCellApprovalRequested, publishCellApproverDecision } = useNotifications();
+  const { currentUser } = useCurrentUser();
   const [activeTab, setActiveTab] = useState<'single' | 'multi' | 'details'>(initialTab);
   const [isExplainabilityOpen, setIsExplainabilityOpen] = useState(true);
   const [isApprovalDetailsOpen, setIsApprovalDetailsOpen] = useState(true);
@@ -222,16 +227,19 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
   // Single cell update form state
   const [singleCellNewValue, setSingleCellNewValue] = useState<string>('');
   const [singleCellAdjustmentNote, setSingleCellAdjustmentNote] = useState<string>('');
-  const [approvalActionMode, setApprovalActionMode] = useState<'request' | 'provide'>('request');
+  const [lockCellChecked, setLockCellChecked] = useState<boolean>(false);
+  const [disaggregationRule, setDisaggregationRule] = useState<string>('Proportional');
+  // Which approval modal is open (null = none). Neither button is selected by default.
+  const [approvalModal, setApprovalModal] = useState<null | 'request' | 'provide'>(null);
   const [isProvideApprovalExpanded, setIsProvideApprovalExpanded] = useState(false);
   const [provideApprovalDecision, setProvideApprovalDecision] = useState<string>('approved');
   const [provideApprovalNote, setProvideApprovalNote] = useState<string>('');
 
   useEffect(() => {
-    if (approvalActionMode !== 'provide') {
+    if (approvalModal !== 'provide') {
       setIsProvideApprovalExpanded(false);
     }
-  }, [approvalActionMode]);
+  }, [approvalModal]);
   
   // Replies state - keyed by entry ID
   interface CardReply {
@@ -248,6 +256,16 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
     if (!focusedCell) return null;
     return extractCellInfo(focusedCell, data, layout);
   }, [focusedCell, data, layout]);
+
+  /** Short human label for the focused cell, used in bell notifications. */
+  const cellSummaryLabel = React.useMemo(() => {
+    if (!cellInfo) return undefined;
+    const lastDimension =
+      cellInfo.dimensionPath && cellInfo.dimensionPath.length > 0
+        ? cellInfo.dimensionPath[cellInfo.dimensionPath.length - 1]
+        : undefined;
+    return [cellInfo.measureName, cellInfo.timePeriod, lastDimension].filter(Boolean).join(' · ') || undefined;
+  }, [cellInfo]);
 
   /** Canonical grid key for approval / value cells (matches `cellEditHistory` / selection). */
   const focusedValueCellKey = React.useMemo(() => {
@@ -418,16 +436,26 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
     
     const monthKey = focusedCell.monthKey || '';
     
-    // Call the update callback
+    // Call the update callback (passes the disaggregation rule so the value is
+    // pushed down to children Proportionally / Equally / Evenly).
     onSingleCellUpdate(
       focusedCell.rowId, 
       monthKey, 
       numericValue, 
-      singleCellAdjustmentNote.trim() || undefined
+      singleCellAdjustmentNote.trim() || undefined,
+      disaggregationRule
     );
+
+    // Apply the "Lock cell" choice — toggle only when it differs from current state.
+    if (onToggleCellLock && focusedValueCellKey) {
+      const currentlyLocked = isCellLocked ? isCellLocked(focusedValueCellKey) : false;
+      if (lockCellChecked !== currentlyLocked) {
+        onToggleCellLock(focusedValueCellKey);
+      }
+    }
     
     // Keep adjustment note - only clear when cell changes or grid saves
-  }, [focusedCell, singleCellNewValue, singleCellAdjustmentNote, onSingleCellUpdate]);
+  }, [focusedCell, singleCellNewValue, singleCellAdjustmentNote, onSingleCellUpdate, disaggregationRule, onToggleCellLock, isCellLocked, focusedValueCellKey, lockCellChecked]);
 
   // Handle single cell cancel
   const handleSingleCellCancel = useCallback(() => {
@@ -474,8 +502,11 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
       const currentValue = getCellValue ? getCellValue(focusedCell.rowId, focusedCell.monthKey || '') : undefined;
       setSingleCellNewValue(currentValue !== undefined ? currentValue.toString() : '');
       setSingleCellAdjustmentNote('');
+      // Reflect the cell's current lock state in the checkbox
+      setLockCellChecked(focusedValueCellKey && isCellLocked ? isCellLocked(focusedValueCellKey) : false);
+      setDisaggregationRule('Proportional');
     }
-  }, [focusedCell?.rowId, focusedCell?.monthKey, selectedCells.size, getCellValue]);
+  }, [focusedCell?.rowId, focusedCell?.monthKey, selectedCells.size, getCellValue, focusedValueCellKey, isCellLocked]);
 
   // Close popover when clicking outside
   useEffect(() => {
@@ -1634,266 +1665,402 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
                     />
                   </div>
 
+                  {/* Disaggregation Rule */}
+                  <div className="cell-details-history-multi-field">
+                    <label className="cell-details-history-multi-label">Disaggregation Rule</label>
+                    <select
+                      className="cell-details-history-multi-input"
+                      value={disaggregationRule}
+                      onChange={(e) => setDisaggregationRule(e.target.value)}
+                    >
+                      <option value="Proportional">Proportional</option>
+                      <option value="Equal">Equal</option>
+                      <option value="Even">Even</option>
+                    </select>
+                  </div>
+
+                  {/* Lock cell */}
+                  <div className="cell-details-history-multi-field">
+                    <label className="cdh-lock-cell-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={lockCellChecked}
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setLockCellChecked(next);
+                          // Apply the lock/unlock immediately so the grid reflects it.
+                          if (onToggleCellLock && focusedValueCellKey) {
+                            const currentlyLocked = isCellLocked ? isCellLocked(focusedValueCellKey) : false;
+                            if (next !== currentlyLocked) {
+                              onToggleCellLock(focusedValueCellKey);
+                            }
+                          }
+                        }}
+                      />
+                      <span>Lock cell</span>
+                    </label>
+                  </div>
+
                   <h3 className="cell-details-history-single-section-title">Request or Provide Approvals</h3>
-                  <div className="cell-details-history-approval-toggle-group" role="tablist" aria-label="Request or provide approvals">
+                  <div className="cell-details-history-approval-action-group" aria-label="Request or provide approvals">
                     <button
                       type="button"
-                      className={`cell-details-history-approval-toggle-btn ${approvalActionMode === 'request' ? 'active' : ''}`}
-                      onClick={() => setApprovalActionMode('request')}
-                      role="tab"
-                      aria-selected={approvalActionMode === 'request'}
+                      className="cell-details-history-approval-action-btn"
+                      onClick={() => setApprovalModal('request')}
                     >
                       Request Approval
                     </button>
                     <button
                       type="button"
-                      className={`cell-details-history-approval-toggle-btn ${approvalActionMode === 'provide' ? 'active' : ''}`}
-                      onClick={() => setApprovalActionMode('provide')}
-                      role="tab"
-                      aria-selected={approvalActionMode === 'provide'}
+                      className="cell-details-history-approval-action-btn"
+                      onClick={() => setApprovalModal('provide')}
                     >
                       Provide Approval
                     </button>
                   </div>
 
-                  {/* Request Approval form — shown when 'request' mode is active */}
-                  {approvalActionMode === 'request' && (
-                    <>
-                      <div className="cell-details-history-multi-field">
-                        <label className="cell-details-history-multi-label">Submit to</label>
-                        <div className="cdh-submit-to-panel">
-                          <div className="cdh-submit-to-roles">
-                            {ALL_APPROVER_ROLES.map(role => (
-                              <label key={role} className="cdh-submit-to-role">
-                                <input
-                                  type="checkbox"
-                                  checked={submitToApprovers.includes(role)}
-                                  onChange={e => {
-                                    if (e.target.checked) {
-                                      setSubmitToApprovers(prev => [...prev, role]);
-                                    } else {
-                                      setSubmitToApprovers(prev => prev.filter(r => r !== role));
-                                    }
-                                  }}
-                                />
-                                <span
-                                  className="cdh-submit-to-role-initials"
-                                  style={{ background: role === 'Finance' ? '#dbeafe' : role === 'Supply Chain' ? '#d1fae5' : role === 'Sales Ops' ? '#fef3c7' : '#ede9fe' }}
-                                >
-                                  {APPROVER_ROSTER[role].initials}
-                                </span>
-                                <span className="cdh-submit-to-role-text">
-                                  <span className="cdh-submit-to-role-name">{APPROVER_ROSTER[role].name}</span>
-                                  <span className="cdh-submit-to-role-dept">{role}</span>
-                                </span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
+                {/* Request Approval modal */}
+                {approvalModal === 'request' && createPortal(
+                  <div
+                    className="planning-approval-modal-overlay"
+                    role="presentation"
+                    onClick={() => setApprovalModal(null)}
+                  >
+                    <div
+                      className="planning-approval-modal"
+                      role="dialog"
+                      aria-modal="true"
+                      aria-labelledby="cdh-request-approval-modal-title"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="planning-approval-modal-header">
+                        <h2 id="cdh-request-approval-modal-title" className="planning-approval-modal-title">
+                          Request Approval
+                        </h2>
+                        <button
+                          type="button"
+                          className="planning-approval-modal-close"
+                          onClick={() => setApprovalModal(null)}
+                          aria-label="Close"
+                        >
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
-                      <div className="cell-details-history-multi-field">
-                        <label className="cell-details-history-multi-label">Request note</label>
-                        <textarea
-                          className="cell-details-history-multi-textarea"
-                          value={requestNote}
-                          onChange={(e) => setRequestNote(e.target.value)}
-                          placeholder="Add request note (optional)"
-                          rows={4}
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {approvalActionMode === 'provide' && (() => {
-                    const approvalCellKey = focusedValueCellKey;
-                    const approval = approvalCellKey ? approvalRequests.get(approvalCellKey) : undefined;
-                    const oldValue = approval?.oldValue ?? (singleCellNewValue ? Number(singleCellNewValue) * 0.92 : 0);
-                    const newValue = approval?.newValue ?? Number(singleCellNewValue || 0);
-                    const variancePct = approval?.variancePct ?? (oldValue ? ((newValue - oldValue) / oldValue) * 100 : 0);
-                    const absVariancePct = Math.abs(variancePct);
-
-                    const budgetVariancePct = variancePct - 3.5;
-                    const historical3mPct = variancePct - 1.8;
-                    const historical12mPct = variancePct + 2.1;
-                    const marginImpactPct = variancePct >= 0 ? Math.max(0.6, variancePct * 0.22) : variancePct * 0.14;
-                    const revenueImpact = (newValue - oldValue) * 125;
-                    const capacityUtilization = Math.min(99, Math.max(52, 72 + Math.round(absVariancePct * 0.9)));
-                    const leadTimeDays = Math.max(7, 14 + Math.round(absVariancePct * 0.2));
-                    const scheduleRisk = capacityUtilization > 90 ? 'High' : capacityUtilization > 80 ? 'Medium' : 'Low';
-
-                    const pros = [
-                      variancePct >= 0 && `Forecast vs prior: ${variancePct >= 0 ? '+' : ''}${variancePct.toFixed(1)}%`,
-                      budgetVariancePct >= 0 && `Forecast vs budget: ${budgetVariancePct >= 0 ? '+' : ''}${budgetVariancePct.toFixed(1)}%`,
-                      (historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend positive (3M / 12M)`,
-                      marginImpactPct >= 0 && `Margin impact: +${marginImpactPct.toFixed(1)}%`,
-                      revenueImpact >= 0 && `Revenue impact: +$${Math.round(revenueImpact).toLocaleString('en-US')}`,
-                      capacityUtilization <= 85 && `Capacity within range (${capacityUtilization}%)`,
-                      leadTimeDays <= 18 && `Lead time acceptable (${leadTimeDays}d)`,
-                      scheduleRisk === 'Low' && `Schedule risk: Low`,
-                    ].filter(Boolean) as string[];
-
-                    const cons = [
-                      variancePct < 0 && `Forecast vs prior: ${variancePct.toFixed(1)}%`,
-                      budgetVariancePct < 0 && `Forecast vs budget: ${budgetVariancePct.toFixed(1)}%`,
-                      !(historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend mixed or negative`,
-                      marginImpactPct < 0 && `Margin impact: ${marginImpactPct.toFixed(1)}%`,
-                      revenueImpact < 0 && `Revenue impact: -$${Math.abs(Math.round(revenueImpact)).toLocaleString('en-US')}`,
-                      capacityUtilization > 85 && `Capacity strained (${capacityUtilization}%)`,
-                      leadTimeDays > 18 && `Lead time extended (${leadTimeDays}d)`,
-                      scheduleRisk !== 'Low' && `Schedule risk: ${scheduleRisk}`,
-                    ].filter(Boolean) as string[];
-
-                    return (
-                      <div className="cdh-provide-approval-section">
-                        {/* Decision factors */}
-                        <div className="cdh-provide-factors">
-                          <div className="cdh-provide-factors-header-row">
-                            <span className="cdh-provide-factors-label">Decision factors</span>
-                            <button
-                              type="button"
-                              className="cell-details-history-approval-expand-btn"
-                              onClick={() => setIsProvideApprovalExpanded(prev => !prev)}
-                            >
-                              {isProvideApprovalExpanded ? 'Less details' : 'More details'}
-                            </button>
-                          </div>
-                          {isProvideApprovalExpanded && (
-                            <div className="cdh-provide-factors-body">
-                              {pros.length > 0 && (
-                                <div className="cdh-provide-factors-col">
-                                  <span className="cdh-provide-col-heading cdh-provide-col-heading--pro">
-                                    <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M6 1a5 5 0 1 1 0 10A5 5 0 0 1 6 1zm2.3 3.3a.6.6 0 0 0-.85-.85L5.5 5.4 4.55 4.45a.6.6 0 0 0-.85.85l1.37 1.37a.6.6 0 0 0 .85 0l2.38-2.37z"/></svg>
-                                    Supporting
-                                  </span>
-                                  <ul className="cdh-provide-bullet-list">
-                                    {pros.map((p, i) => <li key={i}>{p}</li>)}
-                                  </ul>
-                                </div>
-                              )}
-                              {cons.length > 0 && (
-                                <div className="cdh-provide-factors-col">
-                                  <span className="cdh-provide-col-heading cdh-provide-col-heading--con">
-                                    <svg width="11" height="11" viewBox="0 0 12 12" fill="currentColor"><path d="M6 1a5 5 0 1 1 0 10A5 5 0 0 1 6 1zm2.07 2.93a.6.6 0 0 0-.85 0L6 5.15 4.78 3.93a.6.6 0 0 0-.85.85L5.15 6 3.93 7.22a.6.6 0 0 0 .85.85L6 6.85l1.22 1.22a.6.6 0 0 0 .85-.85L6.85 6l1.22-1.22a.6.6 0 0 0 0-.85z"/></svg>
-                                    Concerns
-                                  </span>
-                                  <ul className="cdh-provide-bullet-list">
-                                    {cons.map((c, i) => <li key={i}>{c}</li>)}
-                                  </ul>
-                                </div>
-                              )}
-                              {pros.length === 0 && cons.length === 0 && (
-                                <span className="cdh-provide-empty">No factors available</span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Decision — segmented control (same pattern as plan approver modal) */}
-                        <div className="planning-approver-decision-select-wrap" style={{ marginTop: 0 }}>
-                          <div
-                            className="planning-approver-decision-select-label"
-                            id="cdh-provide-approval-decision-label"
-                          >
-                            Your decision
-                          </div>
-                          <div
-                            className="planning-approver-decision-btn-group"
-                            role="group"
-                            aria-labelledby="cdh-provide-approval-decision-label"
-                          >
-                            <button
-                              type="button"
-                              className={`planning-approver-decision-btn planning-approver-decision-btn--approve${
-                                provideApprovalDecision === 'approved' ? ' planning-approver-decision-btn--selected' : ''
-                              }`}
-                              aria-pressed={provideApprovalDecision === 'approved'}
-                              onClick={() => setProvideApprovalDecision('approved')}
-                            >
-                              Approve
-                            </button>
-                            <button
-                              type="button"
-                              className={`planning-approver-decision-btn planning-approver-decision-btn--conditional${
-                                provideApprovalDecision === 'approvedWithCondition'
-                                  ? ' planning-approver-decision-btn--selected'
-                                  : ''
-                              }`}
-                              aria-pressed={provideApprovalDecision === 'approvedWithCondition'}
-                              onClick={() => setProvideApprovalDecision('approvedWithCondition')}
-                            >
-                              Conditionally Approve
-                            </button>
-                            <button
-                              type="button"
-                              className={`planning-approver-decision-btn planning-approver-decision-btn--reject${
-                                provideApprovalDecision === 'rejected' ? ' planning-approver-decision-btn--selected' : ''
-                              }`}
-                              aria-pressed={provideApprovalDecision === 'rejected'}
-                              onClick={() => setProvideApprovalDecision('rejected')}
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Note */}
+                      <div className="planning-approval-modal-body">
                         <div className="cell-details-history-multi-field">
-                          <label className="cell-details-history-multi-label">Note</label>
+                          <label className="cell-details-history-multi-label">Submit to</label>
+                          <div className="cdh-submit-to-panel">
+                            <div className="cdh-submit-to-roles">
+                              {ALL_APPROVER_ROLES.map(role => (
+                                <label key={role} className="cdh-submit-to-role">
+                                  <input
+                                    type="checkbox"
+                                    checked={submitToApprovers.includes(role)}
+                                    onChange={e => {
+                                      if (e.target.checked) {
+                                        setSubmitToApprovers(prev => [...prev, role]);
+                                      } else {
+                                        setSubmitToApprovers(prev => prev.filter(r => r !== role));
+                                      }
+                                    }}
+                                  />
+                                  <span
+                                    className="cdh-submit-to-role-initials"
+                                    style={{ background: role === 'Finance' ? '#dbeafe' : role === 'Supply Chain' ? '#d1fae5' : role === 'Sales Ops' ? '#fef3c7' : '#ede9fe' }}
+                                  >
+                                    {APPROVER_ROSTER[role].initials}
+                                  </span>
+                                  <span className="cdh-submit-to-role-text">
+                                    <span className="cdh-submit-to-role-name">{APPROVER_ROSTER[role].name}</span>
+                                    <span className="cdh-submit-to-role-dept">{role}</span>
+                                  </span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="cell-details-history-multi-field">
+                          <label className="cell-details-history-multi-label">Request note</label>
                           <textarea
                             className="cell-details-history-multi-textarea"
-                            value={provideApprovalNote}
-                            onChange={e => setProvideApprovalNote(e.target.value)}
-                            placeholder="Add a note (optional)"
-                            rows={3}
+                            value={requestNote}
+                            onChange={(e) => setRequestNote(e.target.value)}
+                            placeholder="Add request note (optional)"
+                            rows={4}
                           />
                         </div>
                       </div>
-                    );
-                  })()}
-                  
-                {/* Action Buttons */}
-                <div className="cell-details-history-multi-actions">
-                  <button 
-                    className="cell-details-history-multi-cancel-btn"
-                    onClick={handleSingleCellCancel}
-                  >
-                    Cancel
-                  </button>
-                  {approvalActionMode === 'request' ? (
-                    <button
-                      className="cell-details-history-multi-update-btn"
-                      onClick={() => {
-                        if (!focusedValueCellKey || !onMassUpdate) return;
-                        onMassUpdate([focusedValueCellKey], 'Set to', 'pending', requestNote.trim() || undefined, undefined, submitToApprovers);
-                        setRequestNote('');
-                      }}
-                      disabled={submitToApprovers.length === 0 || !focusedValueCellKey}
+                      <div className="planning-approval-modal-footer">
+                        <button
+                          type="button"
+                          className="planning-approval-modal-btn planning-approval-modal-btn-cancel"
+                          onClick={() => setApprovalModal(null)}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          className="planning-approval-modal-btn planning-approval-modal-btn-confirm"
+                          onClick={() => {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'A,E',location:'CellDetailsHistoryPanel.tsx:1806',message:'Request onClick entry',data:{focusedValueCellKey,submitToApprovers,hasOnMassUpdate:!!onMassUpdate,currentUserId:currentUser.id,currentUserName:currentUser.name},timestamp:Date.now()})}).catch(()=>{});
+                            // #endregion
+                            if (!focusedValueCellKey || !onMassUpdate) return;
+                            onMassUpdate([focusedValueCellKey], 'Set to', 'pending', requestNote.trim() || undefined, undefined, submitToApprovers);
+                            // Notify the targeted approver(s) via the header bell.
+                            const recipientUserIds = submitToApprovers
+                              .map((role) => APPROVER_ROSTER[role]?.name)
+                              .map((name) => (name ? APP_USERS.find((u) => u.name === name)?.id : undefined))
+                              .filter((id): id is string => !!id && id !== currentUser.id);
+                            // #region agent log
+                            fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'A,B',location:'CellDetailsHistoryPanel.tsx:1814',message:'recipientUserIds computed',data:{recipientUserIds,submitToApprovers,approverNames:submitToApprovers.map((role)=>APPROVER_ROSTER[role]?.name),currentUserId:currentUser.id},timestamp:Date.now()})}).catch(()=>{});
+                            // #endregion
+                            const reqMonthKey = focusedCell?.monthKey;
+                            const reqLastDimension =
+                              cellInfo?.dimensionPath && cellInfo.dimensionPath.length > 0
+                                ? cellInfo.dimensionPath[cellInfo.dimensionPath.length - 1]
+                                : undefined;
+                            publishCellApprovalRequested({
+                              requesterUserId: currentUser.id,
+                              requesterName: currentUser.name,
+                              recipientUserIds,
+                              summary: cellSummaryLabel,
+                              notes: requestNote.trim() || undefined,
+                              cellKey: focusedValueCellKey,
+                              focusContext: {
+                                searchTerm: [cellInfo?.measureName, reqLastDimension].filter(Boolean).join(' ') || undefined,
+                                startPeriod: reqMonthKey,
+                                endPeriod: reqMonthKey,
+                                measureSummary: cellInfo?.measureName,
+                                dimensionSummary: reqLastDimension,
+                                selectedCellKeys: focusedValueCellKey ? [focusedValueCellKey] : undefined,
+                              },
+                            });
+                            setRequestNote('');
+                            setApprovalModal(null);
+                          }}
+                          disabled={submitToApprovers.length === 0 || !focusedValueCellKey}
+                        >
+                          Request
+                        </button>
+                      </div>
+                    </div>
+                  </div>,
+                  document.body
+                )}
+
+                {/* Provide Approval modal — mirrors the record-page approver decision modal */}
+                {approvalModal === 'provide' && createPortal((() => {
+                  const approvalCellKey = focusedValueCellKey;
+                  const approval = approvalCellKey ? approvalRequests.get(approvalCellKey) : undefined;
+                  const oldValue = approval?.oldValue ?? (singleCellNewValue ? Number(singleCellNewValue) * 0.92 : 0);
+                  const newValue = approval?.newValue ?? Number(singleCellNewValue || 0);
+                  const variancePct = approval?.variancePct ?? (oldValue ? ((newValue - oldValue) / oldValue) * 100 : 0);
+                  const absVariancePct = Math.abs(variancePct);
+
+                  const budgetVariancePct = variancePct - 3.5;
+                  const historical3mPct = variancePct - 1.8;
+                  const historical12mPct = variancePct + 2.1;
+                  const marginImpactPct = variancePct >= 0 ? Math.max(0.6, variancePct * 0.22) : variancePct * 0.14;
+                  const revenueImpact = (newValue - oldValue) * 125;
+                  const capacityUtilization = Math.min(99, Math.max(52, 72 + Math.round(absVariancePct * 0.9)));
+                  const leadTimeDays = Math.max(7, 14 + Math.round(absVariancePct * 0.2));
+                  const scheduleRisk = capacityUtilization > 90 ? 'High' : capacityUtilization > 80 ? 'Medium' : 'Low';
+
+                  const pros = [
+                    variancePct >= 0 && `Forecast vs prior: ${variancePct >= 0 ? '+' : ''}${variancePct.toFixed(1)}%`,
+                    budgetVariancePct >= 0 && `Forecast vs budget: ${budgetVariancePct >= 0 ? '+' : ''}${budgetVariancePct.toFixed(1)}%`,
+                    (historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend positive (3M / 12M)`,
+                    marginImpactPct >= 0 && `Margin impact: +${marginImpactPct.toFixed(1)}%`,
+                    revenueImpact >= 0 && `Revenue impact: +$${Math.round(revenueImpact).toLocaleString('en-US')}`,
+                    capacityUtilization <= 85 && `Capacity within range (${capacityUtilization}%)`,
+                    leadTimeDays <= 18 && `Lead time acceptable (${leadTimeDays}d)`,
+                    scheduleRisk === 'Low' && `Schedule risk: Low`,
+                  ].filter(Boolean) as string[];
+
+                  const cons = [
+                    variancePct < 0 && `Forecast vs prior: ${variancePct.toFixed(1)}%`,
+                    budgetVariancePct < 0 && `Forecast vs budget: ${budgetVariancePct.toFixed(1)}%`,
+                    !(historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend mixed or negative`,
+                    marginImpactPct < 0 && `Margin impact: ${marginImpactPct.toFixed(1)}%`,
+                    revenueImpact < 0 && `Revenue impact: -$${Math.abs(Math.round(revenueImpact)).toLocaleString('en-US')}`,
+                    capacityUtilization > 85 && `Capacity strained (${capacityUtilization}%)`,
+                    leadTimeDays > 18 && `Lead time extended (${leadTimeDays}d)`,
+                    scheduleRisk !== 'Low' && `Schedule risk: ${scheduleRisk}`,
+                  ].filter(Boolean) as string[];
+
+                  return (
+                    <div
+                      className="planning-approval-modal-overlay"
+                      role="presentation"
+                      onClick={() => setApprovalModal(null)}
                     >
-                      Request
-                    </button>
-                  ) : approvalActionMode === 'provide' ? (
-                    <button
-                      className="cell-details-history-multi-update-btn"
-                      onClick={() => {
-                        if (!focusedValueCellKey || !onMassUpdate) return;
-                        onMassUpdate([focusedValueCellKey], 'Edit Approval Status', provideApprovalDecision, provideApprovalNote.trim() || undefined);
-                        setProvideApprovalDecision('approved');
-                        setProvideApprovalNote('');
-                      }}
-                      disabled={!provideApprovalDecision || !focusedValueCellKey}
-                    >
-                      Submit
-                    </button>
-                  ) : (
-                    <button 
-                      className="cell-details-history-multi-update-btn"
-                      onClick={handleSingleCellUpdate}
-                      disabled={!singleCellNewValue.trim() || isNaN(parseFloat(singleCellNewValue))}
-                    >
-                      Update
-                    </button>
-                  )}
-                </div>
+                      <div
+                        className="planning-approval-modal planning-approval-modal--approver-decision"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cdh-provide-approval-modal-title"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="planning-approval-modal-header">
+                          <h2 id="cdh-provide-approval-modal-title" className="planning-approval-modal-title">
+                            Provide Approval
+                          </h2>
+                          <button
+                            type="button"
+                            className="planning-approval-modal-close"
+                            onClick={() => setApprovalModal(null)}
+                            aria-label="Close"
+                          >
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="planning-approval-modal-body">
+                          <div className="planning-decision-factors">
+                            <div className="planning-decision-factors-header">
+                              <h3 className="planning-decision-factors-title">Decision factors</h3>
+                              <button
+                                type="button"
+                                className="planning-decision-factors-toggle"
+                                onClick={() => setIsProvideApprovalExpanded(prev => !prev)}
+                              >
+                                {isProvideApprovalExpanded ? 'Less details' : 'More details'}
+                              </button>
+                            </div>
+
+                            {isProvideApprovalExpanded && (
+                              <>
+                                {pros.length > 0 && (
+                                  <div className="planning-decision-factors-section">
+                                    <div className="planning-decision-factors-badge planning-decision-factors-badge--supporting">
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                                      </svg>
+                                      SUPPORTING
+                                    </div>
+                                    <ul className="planning-decision-factors-list planning-decision-factors-list--supporting">
+                                      {pros.map((p, i) => <li key={i}>{p}</li>)}
+                                    </ul>
+                                  </div>
+                                )}
+                                {cons.length > 0 && (
+                                  <div className="planning-decision-factors-section">
+                                    <div className="planning-decision-factors-badge planning-decision-factors-badge--concerning">
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                                        <path d="M7.002 11a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 4.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 4.995z"/>
+                                      </svg>
+                                      CONCERNING
+                                    </div>
+                                    <ul className="planning-decision-factors-list planning-decision-factors-list--concerning">
+                                      {cons.map((c, i) => <li key={i}>{c}</li>)}
+                                    </ul>
+                                  </div>
+                                )}
+                                {pros.length === 0 && cons.length === 0 && (
+                                  <span className="cdh-provide-empty">No factors available</span>
+                                )}
+                              </>
+                            )}
+                          </div>
+
+                          <div className="planning-approver-decision-select-wrap">
+                            <div className="planning-approver-decision-select-label" id="cdh-provide-approval-decision-label">
+                              Your decision
+                            </div>
+                            <div
+                              className="planning-approver-decision-btn-group"
+                              role="group"
+                              aria-labelledby="cdh-provide-approval-decision-label"
+                            >
+                              <button
+                                type="button"
+                                className={`planning-approver-decision-btn planning-approver-decision-btn--approve${
+                                  provideApprovalDecision === 'approved' ? ' planning-approver-decision-btn--selected' : ''
+                                }`}
+                                aria-pressed={provideApprovalDecision === 'approved'}
+                                onClick={() => setProvideApprovalDecision('approved')}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                className={`planning-approver-decision-btn planning-approver-decision-btn--conditional${
+                                  provideApprovalDecision === 'approvedWithCondition'
+                                    ? ' planning-approver-decision-btn--selected'
+                                    : ''
+                                }`}
+                                aria-pressed={provideApprovalDecision === 'approvedWithCondition'}
+                                onClick={() => setProvideApprovalDecision('approvedWithCondition')}
+                              >
+                                Conditionally Approve
+                              </button>
+                              <button
+                                type="button"
+                                className={`planning-approver-decision-btn planning-approver-decision-btn--reject${
+                                  provideApprovalDecision === 'rejected' ? ' planning-approver-decision-btn--selected' : ''
+                                }`}
+                                aria-pressed={provideApprovalDecision === 'rejected'}
+                                onClick={() => setProvideApprovalDecision('rejected')}
+                              >
+                                Reject
+                              </button>
+                            </div>
+                          </div>
+                          <label className="planning-submit-approval-notes-label" htmlFor="cdh-provide-approval-notes">
+                            Notes <span className="planning-submit-approval-notes-optional">(optional)</span>
+                          </label>
+                          <textarea
+                            id="cdh-provide-approval-notes"
+                            className="planning-approval-modal-textarea"
+                            rows={4}
+                            value={provideApprovalNote}
+                            onChange={e => setProvideApprovalNote(e.target.value)}
+                            placeholder="Add context for your decision (conditions, follow-ups, rejection reasons)…"
+                          />
+                        </div>
+                        <div className="planning-approval-modal-footer">
+                          <button
+                            type="button"
+                            className="planning-approval-modal-btn planning-approval-modal-btn-cancel"
+                            onClick={() => setApprovalModal(null)}
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            className="planning-approval-modal-btn planning-approval-modal-btn-confirm"
+                            onClick={() => {
+                              if (!focusedValueCellKey || !onMassUpdate) return;
+                              onMassUpdate([focusedValueCellKey], 'Edit Approval Status', provideApprovalDecision, provideApprovalNote.trim() || undefined);
+                              // Notify the original requester of the approval outcome via the header bell.
+                              const requesterUserId = approvalRequests.get(focusedValueCellKey)?.requesterId;
+                              if (requesterUserId && requesterUserId !== currentUser.id) {
+                                publishCellApproverDecision({
+                                  requesterUserId,
+                                  approverName: currentUser.name,
+                                  outcome: provideApprovalDecision as PlanApproverDecisionOutcome,
+                                  summary: cellSummaryLabel,
+                                  notes: provideApprovalNote.trim() || undefined,
+                                });
+                              }
+                              setProvideApprovalDecision('approved');
+                              setProvideApprovalNote('');
+                              setApprovalModal(null);
+                            }}
+                            disabled={!provideApprovalDecision || !focusedValueCellKey}
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })(), document.body)}
               </div>
             </div>
           </div>

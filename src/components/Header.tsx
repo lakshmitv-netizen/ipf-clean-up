@@ -31,6 +31,10 @@ const Header: React.FC = () => {
   const notificationsPanelRef = useRef<HTMLDivElement>(null);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [notificationsPosition, setNotificationsPosition] = useState<{ top: number; left: number } | null>(null);
+  const [isSetupMenuOpen, setIsSetupMenuOpen] = useState(false);
+  const [setupMenuPosition, setSetupMenuPosition] = useState<{ top: number; right: number } | null>(null);
+  const setupGearRef = useRef<HTMLButtonElement>(null);
+  const setupMenuRef = useRef<HTMLDivElement>(null);
 
   const myNotifications = useMemo(
     () =>
@@ -44,6 +48,12 @@ const Header: React.FC = () => {
     () => myNotifications.filter((n) => !n.read).length,
     [myNotifications]
   );
+
+  // #region agent log
+  useEffect(() => {
+    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'C',location:'Header.tsx:46',message:'Header notifications state',data:{currentUserId:currentUser.id,currentUserName:currentUser.name,totalNotifications:notifications.length,allRecipientIds:notifications.map((n)=>n.recipientUserId),allKinds:notifications.map((n)=>n.kind),myCount:myNotifications.length,unreadNotificationCount},timestamp:Date.now()})}).catch(()=>{});
+  }, [notifications, currentUser.id, myNotifications.length, unreadNotificationCount]);
+  // #endregion
   
   const tabs = [
     'Home',
@@ -135,6 +145,38 @@ const Header: React.FC = () => {
     consumeNotificationsPanelOpenRequest();
   }, [notificationsPanelOpenRequest, currentUser.id, consumeNotificationsPanelOpenRequest]);
 
+  // Setup (gear) menu positioning + click-outside / Escape handling.
+  useEffect(() => {
+    if (isSetupMenuOpen && setupGearRef.current) {
+      const rect = setupGearRef.current.getBoundingClientRect();
+      setSetupMenuPosition({
+        top: rect.bottom + window.scrollY + 8,
+        right: window.innerWidth - rect.right,
+      });
+    } else {
+      setSetupMenuPosition(null);
+    }
+  }, [isSetupMenuOpen]);
+
+  useEffect(() => {
+    if (!isSetupMenuOpen) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const t = event.target as Node;
+      if (setupGearRef.current?.contains(t)) return;
+      if (setupMenuRef.current?.contains(t)) return;
+      setIsSetupMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsSetupMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [isSetupMenuOpen]);
+
   const handleIndustrySwitch = (selectedIndustry: IndustryType) => {
     setIndustry(selectedIndustry);
     if (selectedIndustry === 'manufacturing') {
@@ -147,19 +189,19 @@ const Header: React.FC = () => {
     setIsDropdownOpen(false);
   };
 
-  const navigateToForecastingGrid = useCallback(() => {
+  const navigateToForecastingGrid = useCallback((options?: { state?: unknown }) => {
     if (industry === 'consumer-goods') {
-      navigate('/home/consumergoods');
+      navigate('/home/consumergoods', options);
       return;
     }
     if (industry === 'grid-264') {
-      navigate('/home/grid-264');
+      navigate('/home/grid-264', options);
       return;
     }
     if (industry !== 'manufacturing') {
       setIndustry('manufacturing');
     }
-    navigate('/home/manufacturing');
+    navigate('/home/manufacturing', options);
   }, [industry, navigate, setIndustry]);
 
   return (
@@ -205,12 +247,20 @@ const Header: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <div className="header-icon">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button
+              type="button"
+              ref={setupGearRef}
+              className={`header-icon header-setup-trigger${isSetupMenuOpen ? ' header-setup-trigger--open' : ''}`}
+              aria-label="Setup"
+              aria-expanded={isSetupMenuOpen}
+              aria-haspopup="menu"
+              onClick={() => setIsSetupMenuOpen((open) => !open)}
+            >
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
               </svg>
-            </div>
+            </button>
             <button
               type="button"
               ref={bellRef}
@@ -460,15 +510,18 @@ const Header: React.FC = () => {
                     <button
                       type="button"
                       className={`header-notifications-panel__item${n.read ? '' : ' header-notifications-panel__item--unread'}`}
-                      onClick={() => {
-                        markNotificationRead(n.id);
-                        setIsNotificationsOpen(false);
-                        if (n.kind === 'plan_approver_decision') {
-                          navigate('/planning-forecasting');
-                        } else {
-                          navigateToForecastingGrid();
-                        }
-                      }}
+                onClick={() => {
+                  markNotificationRead(n.id);
+                  setIsNotificationsOpen(false);
+                  if (n.kind === 'cell_approval_request' || n.kind === 'plan_approval_request') {
+                    // Deep-link into the grid: open the review card + focus the requested section.
+                    navigateToForecastingGrid({ state: { focusFromNotification: n.payload } });
+                  } else if (n.kind === 'plan_approver_decision') {
+                    navigate('/planning-forecasting');
+                  } else {
+                    navigateToForecastingGrid();
+                  }
+                }}
                     >
                       <span className="header-notifications-panel__item-icon" aria-hidden>
                         {n.kind === 'plan_approver_decision' ? (
@@ -515,7 +568,225 @@ const Header: React.FC = () => {
           </div>,
           document.body
         )}
-      
+
+      {isSetupMenuOpen &&
+        setupMenuPosition &&
+        createPortal(
+          <div
+            ref={setupMenuRef}
+            role="menu"
+            aria-label="Setup Menu"
+            style={{
+              position: 'fixed',
+              top: `${setupMenuPosition.top}px`,
+              right: `${setupMenuPosition.right}px`,
+              backgroundColor: 'var(--color-surface-white, #ffffff)',
+              border: '1px solid #c9c9c9',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px 0 rgba(0, 0, 0, 0.18)',
+              minWidth: '300px',
+              zIndex: 10000,
+              overflow: 'hidden',
+              fontFamily: 'inherit',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+                borderBottom: '1px solid #e5e5e5',
+              }}
+            >
+              <span style={{ fontSize: '15px', fontWeight: 700, color: '#181818' }}>
+                Setup Menu
+              </span>
+              <button
+                type="button"
+                aria-label="Close setup menu"
+                onClick={() => setIsSetupMenuOpen(false)}
+                style={{
+                  display: 'flex',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '2px',
+                  color: '#444',
+                }}
+              >
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Primary "Setup" item */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setIsSetupMenuOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                width: '100%',
+                textAlign: 'left',
+                border: 'none',
+                borderBottom: '1px solid #e5e5e5',
+                cursor: 'pointer',
+                padding: '12px 16px',
+                fontFamily: 'inherit',
+                backgroundColor: '#eef4ff',
+              }}
+            >
+              <span style={{ display: 'flex', marginTop: '2px', color: '#0b5cab' }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.03 7.03 0 00-1.62-.94l-.36-2.54A.49.49 0 0014 2h-4a.49.49 0 00-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.65 8.47a.49.49 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.13.22.39.31.59.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.2.09.46 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z" />
+                </svg>
+              </span>
+              <span style={{ flex: 1 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#181818' }}>Setup</span>
+                  <svg width="14" height="14" fill="none" stroke="#0b5cab" viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5h5v5M19 5l-7 7M10 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-4" />
+                  </svg>
+                </span>
+                <span style={{ display: 'block', fontSize: '13px', color: '#5c5c5c', marginTop: '2px' }}>
+                  Setup for current app
+                </span>
+              </span>
+            </button>
+
+            {/* Secondary items */}
+            {[
+              {
+                key: 'data-cloud-setup',
+                label: 'Data Cloud Setup',
+                color: '#032d60',
+                icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.03 7.03 0 00-1.62-.94l-.36-2.54A.49.49 0 0014 2h-4a.49.49 0 00-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.65 8.47a.49.49 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.13.22.39.31.59.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.2.09.46 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z" />
+                  </svg>
+                ),
+                onClick: () => setIsSetupMenuOpen(false),
+              },
+              {
+                key: 'salesforce-go',
+                label: 'Salesforce Go',
+                color: '#1a8754',
+                icon: (
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96a7.03 7.03 0 00-1.62-.94l-.36-2.54A.49.49 0 0014 2h-4a.49.49 0 00-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.65 8.47a.49.49 0 00.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.13.22.39.31.59.22l2.39-.96c.49.38 1.03.7 1.62.94l.36 2.54c.04.24.24.41.48.41h4c.24 0 .44-.17.48-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.2.09.46 0 .59-.22l1.92-3.32a.49.49 0 00-.12-.61l-2.03-1.58zM12 15.5A3.5 3.5 0 1112 8.5a3.5 3.5 0 010 7z" />
+                  </svg>
+                ),
+                onClick: () => {
+                  setIsSetupMenuOpen(false);
+                  navigate('/setup/salesforce-go');
+                },
+              },
+              {
+                key: 'your-account',
+                label: 'Your Account',
+                color: '#5867e8',
+                icon: (
+                  <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 21V7l9-4 9 4v14M3 21h18M9 21v-6h6v6M7 10h.01M12 10h.01M17 10h.01" />
+                  </svg>
+                ),
+                onClick: () => setIsSetupMenuOpen(false),
+              },
+              {
+                key: 'agentforce-vibes',
+                label: 'Agentforce Vibes',
+                color: '#0b5cab',
+                icon: (
+                  <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9l-2 3 2 3M15 9l2 3-2 3" />
+                  </svg>
+                ),
+                onClick: () => setIsSetupMenuOpen(false),
+              },
+              {
+                key: 'developer-console',
+                label: 'Developer Console',
+                color: '#d6336c',
+                icon: (
+                  <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24" aria-hidden>
+                    <rect x="2" y="4" width="20" height="14" rx="2" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 21h8M12 18v3" />
+                  </svg>
+                ),
+                onClick: () => setIsSetupMenuOpen(false),
+              },
+            ].map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                role="menuitem"
+                onClick={item.onClick}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '14px',
+                  width: '100%',
+                  textAlign: 'left',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '12px 16px',
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  color: '#181818',
+                  backgroundColor: 'transparent',
+                  transition: 'background-color 0.1s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'var(--slds-g-color-surface-container-1, #f3f3f3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <span style={{ display: 'flex', color: item.color }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
+
+            {/* Footer item */}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setIsSetupMenuOpen(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                textAlign: 'left',
+                border: 'none',
+                borderTop: '1px solid #e5e5e5',
+                cursor: 'pointer',
+                padding: '13px 16px',
+                fontFamily: 'inherit',
+                fontSize: '14px',
+                color: '#181818',
+                backgroundColor: 'transparent',
+                transition: 'background-color 0.1s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--slds-g-color-surface-container-1, #f3f3f3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+            >
+              Edit Object
+            </button>
+          </div>,
+          document.body
+        )}
+
       {/* Bottom Row - Navigation */}
       <nav className="header-bottom">
         <div className="header-bottom-left">
