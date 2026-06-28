@@ -95,13 +95,13 @@
           cta.setAttribute('aria-label', 'Set Up: Commercial Planning for Manufacturing');
           cta.classList.remove('slds-button_brand');
           cta.classList.add('slds-button_neutral');
-          if(cta.tagName === 'A'){ cta.setAttribute('href', '/setup/cpm-feature-page'); cta.setAttribute('target', '_top'); }
+          if(cta.tagName === 'A'){ cta.setAttribute('href', '/ipf-clean-up/setup/cpm-feature-page'); cta.setAttribute('target', '_top'); }
           if(!cta.dataset.cpmWired){
             cta.dataset.cpmWired = '1';
             cta.addEventListener('click', function(e){
               e.preventDefault();
               e.stopImmediatePropagation();
-              window.top.location.href = '/setup/cpm-feature-page';
+              window.top.location.href = '/ipf-clean-up/setup/cpm-feature-page';
             }, true);
           }
         }

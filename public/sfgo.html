@@ -48,12 +48,12 @@
     var cta = card.querySelector('.item-card__cta');
     if(cta && !cta.dataset.cpmWired){
       cta.dataset.cpmWired = '1';
-      cta.setAttribute('href', '/setup/cpm-feature-set');
+      cta.setAttribute('href', '/ipf-clean-up/setup/cpm-feature-set');
       cta.setAttribute('target', '_top');
       cta.addEventListener('click', function(e){
         e.preventDefault();
         e.stopPropagation();
-        window.top.location.href = '/setup/cpm-feature-set';
+        window.top.location.href = '/ipf-clean-up/setup/cpm-feature-set';
       });
     }
   }
