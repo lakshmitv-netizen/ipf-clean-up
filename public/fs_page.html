@@ -38,7 +38,7 @@
     });
     if(eye) eye.textContent = 'Manufacturing Cloud';
     var img = container.querySelector('.item-card__cloud-image') || container.querySelector('img');
-    if(img){ img.src = '/manufacturing-cloud-icon.png'; img.srcset = ''; }
+    if(img){ img.src = 'manufacturing-cloud-icon.png'; img.srcset = ''; }
 
     // Wire the breadcrumb "Salesforce Go" (not the left-nav item) to the SF Go page.
     var crumbs = [].slice.call(doc.querySelectorAll('*')).filter(function(n){
@@ -88,7 +88,7 @@
         var desc = root.querySelector('.item-card__description');
         if(desc) desc.textContent = 'Forecast, plan and monitor your book of business across a range of metrics.';
         var fcImg = root.querySelector('img');
-        if(fcImg){ fcImg.src = '/manufacturing-cloud-icon.png'; fcImg.srcset = ''; }
+        if(fcImg){ fcImg.src = 'manufacturing-cloud-icon.png'; fcImg.srcset = ''; }
         var cta = root.querySelector('.item-card__cta');
         if(cta){
           cta.textContent = 'Set Up';
