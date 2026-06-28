@@ -65,7 +65,7 @@ function isCurrentUserApprovalRequester(
   );
 }
 
-const APPROVAL_STAMP_SRC = '/approval-stamp.svg';
+const APPROVAL_STAMP_SRC = `${import.meta.env.BASE_URL}approval-stamp.svg`;
 
 /** 0–100: share of approvers who approved (plain or with condition). Legacy single-approver: 100% when resolved approved. */
 function approvalStampProgressPercent(a: ApprovalRequest): number {
@@ -169,16 +169,16 @@ function getDimensionAncestorNamesForFlatSortHint(
 const APPROVAL_STATUS_NOTE_RE = /^(Not Submitted|Pending|Approved|Approved with Condition|Rejected)\s*→\s*(Not Submitted|Pending|Approved|Approved with Condition|Rejected)(:|$)/;
 const isApprovalStatusTransitionNote = (note?: string): boolean => !!note && APPROVAL_STATUS_NOTE_RE.test(note.trim());
 // Icon imports - using public folder paths (SVGs with built-in colored backgrounds)
-const AccountIcon = '/new_account.svg';
+const AccountIcon = `${import.meta.env.BASE_URL}new_account.svg`;
 /** Account row when column filters hide some descendant rows (e.g. categories); funnel baked into asset. */
-const AccountFilteredDescendantsIcon = '/account-filtered-descendants.svg';
-const CategoryIcon = '/category.svg';
+const AccountFilteredDescendantsIcon = `${import.meta.env.BASE_URL}account-filtered-descendants.svg`;
+const CategoryIcon = `${import.meta.env.BASE_URL}category.svg`;
 /** Category row when some product children are hidden by filters; funnel baked into asset. */
-const CategoryFilteredDescendantsIcon = '/category-filtered-descendants.svg';
-const ProductIcon = '/product.svg';
-const MeasureRowIcon = '/measure-row.svg';
+const CategoryFilteredDescendantsIcon = `${import.meta.env.BASE_URL}category-filtered-descendants.svg`;
+const ProductIcon = `${import.meta.env.BASE_URL}product.svg`;
+const MeasureRowIcon = `${import.meta.env.BASE_URL}measure-row.svg`;
 /** Measure row when expanded but every descendant is hidden by filters (badge baked into asset). */
-const MeasureRowFilteredDescendantsIcon = '/measure-row-filtered-descendants.svg';
+const MeasureRowFilteredDescendantsIcon = `${import.meta.env.BASE_URL}measure-row-filtered-descendants.svg`;
 import '../styles/components/Grid.css';
 import '../styles/components/CellEditInfoPopover.css';
 

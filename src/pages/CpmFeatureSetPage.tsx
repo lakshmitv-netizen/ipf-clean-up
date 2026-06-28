@@ -10,7 +10,7 @@ const CpmFeatureSetPage: React.FC = () => {
   return (
     <iframe
       title="CPM feature set"
-      src="/fs_page.html"
+      src={`${import.meta.env.BASE_URL}fs_page.html`}
       style={{
         position: 'fixed',
         inset: 0,

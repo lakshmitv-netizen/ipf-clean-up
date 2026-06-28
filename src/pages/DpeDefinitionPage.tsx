@@ -10,7 +10,7 @@ const DpeDefinitionPage: React.FC = () => {
   return (
     <iframe
       title="1st DPE Definition"
-      src="/1st_dpe.html"
+      src={`${import.meta.env.BASE_URL}1st_dpe.html`}
       style={{
         position: 'fixed',
         inset: 0,

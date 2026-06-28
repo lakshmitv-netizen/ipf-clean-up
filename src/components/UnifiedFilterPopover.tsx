@@ -32,13 +32,13 @@ const FieldIcon: React.FC<{ field: string; size?: number }> = ({ field, size = 1
     </svg>
   );
   if (field === 'account') return (
-    <img src="/new_account.svg" width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
+    <img src={`${import.meta.env.BASE_URL}new_account.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
   if (field === 'category') return (
-    <img src="/category.svg" width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
+    <img src={`${import.meta.env.BASE_URL}category.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
   if (field === 'products') return (
-    <img src="/product.svg" width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
+    <img src={`${import.meta.env.BASE_URL}product.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
   // Time Period — inline calendar icon (grey)
   return (

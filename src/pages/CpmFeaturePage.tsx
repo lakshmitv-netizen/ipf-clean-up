@@ -5,9 +5,9 @@ import ManageUserAccessModal from '../components/ManageUserAccessModal';
 import '../styles/pages/CpmFeaturePage.css';
 
 /* Assets captured from the Figma design (served from /public). */
-const A = '/cpm-feature/';
+const A = `${import.meta.env.BASE_URL}cpm-feature/`;
 const MEDIA = `${A}14b012ccd99b9268e1d262f873684086ebc8dc52.png`;
-const CLOUD_ICON = '/manufacturing-cloud-icon.png';
+const CLOUD_ICON = `${import.meta.env.BASE_URL}manufacturing-cloud-icon.png`;
 
 /* ── Inline utility icons (crisp, dependency-free) ───────────────────────── */
 const ChevronDown: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = '#747474' }) => (
