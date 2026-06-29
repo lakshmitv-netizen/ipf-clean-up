@@ -1126,10 +1126,7 @@ const CpmFeaturePage: React.FC = () => {
                           <div className="cpm-req-sub">
                             <span className="cpm-req-ind"><CheckboxOff /></span>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">2.2 Run the DPE for measure calculation</p>
-                              <p className="cpm-req-sub-desc">
-                                Run the Define Baseline Measures for Account Forecasting DPE.
-                              </p>
+                              <p className="cpm-req-sub-title">2.2 Run the "Define Baseline Measures for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
@@ -1137,7 +1134,7 @@ const CpmFeaturePage: React.FC = () => {
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              Go to DPE List
+                              Go to DPE Definition
                               <ExternalLinkIcon />
                             </a>
                           </div>
