@@ -13,7 +13,6 @@ import CpmFeatureSetPage from './pages/CpmFeatureSetPage';
 import CpmFeaturePage from './pages/CpmFeaturePage';
 import DpeDefinitionPage from './pages/DpeDefinitionPage';
 import PlanConfigurationListPage from './pages/PlanConfigurationListPage';
-import PlanConfigPage from './pages/PlanConfigPage';
 import HomePage from './pages/HomePage';
 import IndustryUrlSync from './components/IndustryUrlSync';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -53,7 +52,6 @@ function App() {
             <Route path="/setup/cpm-feature-page" element={<CpmFeaturePage />} />
             <Route path="/setup/dpe-definition" element={<DpeDefinitionPage />} />
             <Route path="/setup/plan-configuration-list" element={<PlanConfigurationListPage />} />
-            <Route path="/setup/plan-config-page" element={<PlanConfigPage />} />
             <Route path="/grid" element={<GridPage />} />
             <Route path="/" element={<Navigate to="/home/grid-264" replace />} />
             <Route path="/home" element={<Navigate to="/home/grid-264" replace />} />
