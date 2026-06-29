@@ -1076,14 +1076,15 @@ const CpmFeaturePage: React.FC = () => {
                                 Run the "Define Dimension Hierarchy for Account Forecasting DPE"
                               </p>
                             </div>
-                            <button
+                            <a
                               className="cpm-btn cpm-btn--outline"
-                              type="button"
-                              onClick={() => window.open(window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html', '_blank')}
+                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html'}
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
                               Go to DPE Definition
                               <ExternalLinkIcon />
-                            </button>
+                            </a>
                           </div>
                           <div className="cpm-req-sub">
                             <span className="cpm-req-ind"><CheckboxOff /></span>
@@ -1095,14 +1096,15 @@ const CpmFeaturePage: React.FC = () => {
                                 Run the "Build Account–Product Relationships for Account Forecasting DPE"
                               </p>
                             </div>
-                            <button
+                            <a
                               className="cpm-btn cpm-btn--outline"
-                              type="button"
-                              onClick={() => window.open(window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html', '_blank')}
+                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html'}
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
                               Go to DPE Definition
                               <ExternalLinkIcon />
-                            </button>
+                            </a>
                           </div>
                         </div>
                       </div>
@@ -1139,14 +1141,15 @@ const CpmFeaturePage: React.FC = () => {
                                 Run the Define Baseline Measures for Account Forecasting DPE.
                               </p>
                             </div>
-                            <button
+                            <a
                               className="cpm-btn cpm-btn--outline"
-                              type="button"
-                              onClick={() => window.open(window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_2_2.html', '_blank')}
+                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_2_2.html'}
+                              target="_blank"
+                              rel="noopener noreferrer"
                             >
                               Go to DPE List
                               <ExternalLinkIcon />
-                            </button>
+                            </a>
                           </div>
                         </div>
                       </div>
