@@ -943,6 +943,7 @@ const CpmFeaturePage: React.FC = () => {
                       onClick={() => {
                         setTurningOn(true);
                         setTurnOnOpen(true);
+                        setPrereqOpen(false);
                       }}
                     >
                       Turn On
