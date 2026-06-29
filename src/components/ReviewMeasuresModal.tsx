@@ -815,6 +815,14 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                     Clone
                   </button>
                 </div>
+                <button
+                  type="button"
+                  className="edit-panel-close"
+                  aria-label="Close panel"
+                  onClick={() => { setEditPanelOpen(false); setSelectedMeasure(null); }}
+                >
+                  ✕
+                </button>
               </div>
 
               {/* Details / Measure Subsets inner tabs */}
