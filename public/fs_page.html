@@ -101,7 +101,7 @@
             cta.addEventListener('click', function(e){
               e.preventDefault();
               e.stopImmediatePropagation();
-              window.top.location.href = '/ipf-clean-up/setup/cpm-feature-page';
+              window.parent.postMessage({type:'navigate',to:'/setup/cpm-feature-page'},'*');
             }, true);
           }
         }

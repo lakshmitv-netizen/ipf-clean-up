@@ -1,23 +1,24 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-/**
- * Renders the Salesforce Go Setup page exactly as captured from the source org.
- * The snapshot is a fully self-contained HTML (CSS + images inlined) served as a
- * static asset from `public/sfgo.html`; embedding it in a full-viewport iframe
- * reproduces the original pixel-for-pixel.
- */
 const SetupSalesforceGoPage: React.FC = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data && e.data.type === 'navigate' && typeof e.data.to === 'string') {
+        navigate(e.data.to);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [navigate]);
+
   return (
     <iframe
       title="Salesforce Go"
-      src={`${import.meta.env.BASE_URL}sfgo.html?v=2`}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        border: 'none',
-      }}
+      src={`${import.meta.env.BASE_URL}sfgo.html?v=3`}
+      style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', border: 'none' }}
     />
   );
 };
