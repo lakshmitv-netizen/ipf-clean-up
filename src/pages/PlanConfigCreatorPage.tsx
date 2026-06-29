@@ -1,11 +1,17 @@
 import React from 'react';
 
-const PlanConfigCreatorPage: React.FC = () => {
-  return (
-    <div style={{ padding: '40px', fontFamily: 'Salesforce Sans, Arial, sans-serif' }}>
-      <h1>PlanConfig Creator Page</h1>
-    </div>
-  );
-};
+const PlanConfigCreatorPage: React.FC = () => (
+  <iframe
+    title="Plan Config Creator"
+    src={`${import.meta.env.BASE_URL}cc_page.html`}
+    style={{
+      position: 'fixed',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+      border: 'none',
+    }}
+  />
+);
 
 export default PlanConfigCreatorPage;
