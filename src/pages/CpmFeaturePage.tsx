@@ -1078,22 +1078,15 @@ const CpmFeaturePage: React.FC = () => {
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html'}
+                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_1_2.html'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              // #region agent log
-                              onClick={(e) => { fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b588fb'},body:JSON.stringify({sessionId:'b588fb',hypothesisId:'A,B,C',location:'CpmFeaturePage.tsx:step1.2-anchor',message:'step 1.2 anchor clicked',data:{href:e.currentTarget.href,defaultPrevented:e.defaultPrevented,target:e.currentTarget.target},timestamp:Date.now()})}).catch(()=>{}); }}
-                              // #endregion
                             >
                               Go to DPE Definition
                               <ExternalLinkIcon />
                             </a>
                           </div>
-                          <div className="cpm-req-sub"
-                            // #region agent log
-                            onClick={(e) => { if ((e.target as HTMLElement).closest('a')) { fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b588fb'},body:JSON.stringify({sessionId:'b588fb',hypothesisId:'A',location:'CpmFeaturePage.tsx:step1.3-parent-div',message:'parent div click fired (anchor inside)',data:{targetTag:(e.target as HTMLElement).tagName,defaultPrevented:e.defaultPrevented,propagationStopped:false},timestamp:Date.now()})}).catch(()=>{}); } }}
-                            // #endregion
-                          >
+                          <div className="cpm-req-sub">
                             <span className="cpm-req-ind"><CheckboxOff /></span>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">
@@ -1108,9 +1101,6 @@ const CpmFeaturePage: React.FC = () => {
                               href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html'}
                               target="_blank"
                               rel="noopener noreferrer"
-                              // #region agent log
-                              onClick={(e) => { fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'b588fb'},body:JSON.stringify({sessionId:'b588fb',hypothesisId:'A,B,C,D,E',location:'CpmFeaturePage.tsx:step1.3-anchor',message:'step 1.3 anchor clicked',data:{href:e.currentTarget.href,defaultPrevented:e.defaultPrevented,target:e.currentTarget.target},timestamp:Date.now()})}).catch(()=>{}); }}
-                              // #endregion
                             >
                               Go to DPE Definition
                               <ExternalLinkIcon />
