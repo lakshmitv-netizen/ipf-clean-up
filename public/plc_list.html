@@ -382,7 +382,7 @@
       document.getElementById('npc-name').style.borderColor = '#ba0517';
       return;
     }
-    window.parent.postMessage({ type: 'navigate', path: '/planning-forecasting-list' }, '*');
+    window.parent.postMessage({ type: 'openTab', path: '/planning-forecasting-list' }, '*');
     npcClose();
   };
 
