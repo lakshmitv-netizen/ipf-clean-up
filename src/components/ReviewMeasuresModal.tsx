@@ -1329,6 +1329,13 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
 
         <div className="modal-footer">
           <button
+            className="modal-cancel-button"
+            type="button"
+            onClick={onClose}
+          >
+            Cancel
+          </button>
+          <button
             className="modal-done-button"
             onClick={handleFooterSave}
             disabled={tableDirty}
