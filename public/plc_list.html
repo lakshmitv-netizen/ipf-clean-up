@@ -169,7 +169,7 @@
     </div>
     <div id="npc-footer">
       <button class="npc-btn npc-btn-cancel" onclick="npcClose()">Cancel</button>
-      <button class="npc-btn npc-btn-create">Create</button>
+      <button class="npc-btn npc-btn-create" onclick="window.parent.postMessage({type:'navigate',path:'/setup/plan-config-page'},'*');npcClose()">Create</button>
     </div>
   </div>
 </div>
