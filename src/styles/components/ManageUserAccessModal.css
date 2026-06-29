@@ -10,6 +10,23 @@
   overflow: hidden;
 }
 
+/* Assign Permission Sets sub-header */
+.mua-assign-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 24px;
+  border-bottom: 1px solid #e5e5e5;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.mua-assign-header-text {
+  font-size: 13px;
+  font-weight: 700;
+  color: #181818;
+}
+
 /* Tabs */
 .mua-tabs {
   display: flex;
@@ -180,10 +197,16 @@
 }
 
 .mua-metric-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #181818;
+  margin: 0 0 2px;
+}
+
+.mua-metric-sublabel {
   font-size: 11px;
   color: #706e6b;
-  margin: 0 0 8px;
-  white-space: nowrap;
+  margin: 0 0 10px;
 }
 
 .mua-metric-values {
@@ -229,11 +252,23 @@
   gap: 2px;
 }
 
+.mua-table-title-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .mua-table-title {
   font-size: 14px;
   font-weight: 700;
   color: #181818;
   cursor: pointer;
+}
+
+.mua-upload-btn {
+  width: 28px;
+  height: 28px;
+  border-color: #0176d3;
 }
 
 .mua-table-meta {
@@ -368,18 +403,21 @@
 }
 
 .mua-btn-assign {
-  background: #0176d3;
-  color: #fff;
-  border: none;
+  background: #f3f3f3;
+  color: #9e9e9e;
+  border: 1px solid #dddbda;
   border-radius: 4px;
-  padding: 8px 20px;
+  padding: 6px 16px;
   font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
+  font-weight: 400;
+  cursor: not-allowed;
 }
 
-.mua-btn-assign:hover {
-  background: #0b5cab;
+.mua-th-num, .mua-td-num {
+  width: 32px;
+  color: #706e6b;
+  font-size: 12px;
+  text-align: center;
 }
 
 /* Footer */
