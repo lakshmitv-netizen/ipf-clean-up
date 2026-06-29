@@ -1069,12 +1069,7 @@ const CpmFeaturePage: React.FC = () => {
                           <div className="cpm-req-sub">
                             <span className="cpm-req-ind"><CheckboxOff /></span>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">
-                                1.2 Run the DPEs for hierarchy building and dimension relationship mapping
-                              </p>
-                              <p className="cpm-req-sub-desc">
-                                Run the "Define Dimension Hierarchy for Account Forecasting DPE"
-                              </p>
+                              <p className="cpm-req-sub-title">1.2 Run the "Define Dimension Hierarchy for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
@@ -1089,12 +1084,7 @@ const CpmFeaturePage: React.FC = () => {
                           <div className="cpm-req-sub">
                             <span className="cpm-req-ind"><CheckboxOff /></span>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">
-                                1.3 Run the DPEs for hierarchy building and dimension relationship mapping
-                              </p>
-                              <p className="cpm-req-sub-desc">
-                                Run the "Build Account–Product Relationships for Account Forecasting DPE"
-                              </p>
+                              <p className="cpm-req-sub-title">1.3 Run the "Build Account–Product Relationships for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
