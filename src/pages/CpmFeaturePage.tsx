@@ -1135,7 +1135,11 @@ const CpmFeaturePage: React.FC = () => {
                                 Run the Define Baseline Measures for Account Forecasting DPE.
                               </p>
                             </div>
-                            <button className="cpm-btn cpm-btn--outline" type="button">
+                            <button
+                              className="cpm-btn cpm-btn--outline"
+                              type="button"
+                              onClick={() => window.open(window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_2_2.html', '_blank')}
+                            >
                               Go to DPE List
                               <ExternalLinkIcon />
                             </button>
