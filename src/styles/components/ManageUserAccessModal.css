@@ -30,29 +30,36 @@
 /* Tabs */
 .mua-tabs {
   display: flex;
-  border-bottom: 2px solid #dddbda;
+  border-bottom: 1px solid #dddbda;
   background: #fff;
   padding: 0 24px;
   flex-shrink: 0;
+  gap: 4px;
 }
 
 .mua-tab {
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
   padding: 10px 16px;
   font-size: 13px;
   font-weight: 400;
-  color: #444;
+  color: #706e6b;
   cursor: pointer;
   line-height: 1.4;
+  white-space: nowrap;
+}
+
+.mua-tab:hover {
+  color: #181818;
+  border-bottom-color: #dddbda;
 }
 
 .mua-tab--active {
   color: #0176d3;
   border-bottom-color: #0176d3;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 /* Body layout */
