@@ -1155,7 +1155,7 @@ const CpmFeaturePage: React.FC = () => {
                         </div>
                         <div className="cpm-req-subs">
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind cpm-req-ind--check"><BlueCheckMark /></span>
+                            <span className="cpm-req-ind"><StepCheckBlueSm /></span>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">3.1 Configure Org Calendar</p>
                               <p className="cpm-req-meta">Fiscal Calendar selected by default</p>
@@ -1166,7 +1166,7 @@ const CpmFeaturePage: React.FC = () => {
                             </button>
                           </div>
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind cpm-req-ind--check"><BlueCheckMark /></span>
+                            <span className="cpm-req-ind"><StepCheckBlueSm /></span>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">3.2 Setup time granularity</p>
                               <p className="cpm-req-meta">
