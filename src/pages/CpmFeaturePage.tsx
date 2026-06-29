@@ -1498,6 +1498,14 @@ const CpmFeaturePage: React.FC = () => {
                                 Clone
                               </button>
                             </div>
+                            <button
+                              type="button"
+                              className="cpm-hier-edit-close"
+                              aria-label="Close panel"
+                              onClick={() => setSelectedHierarchy(null)}
+                            >
+                              ✕
+                            </button>
                           </div>
 
                           <div className="cpm-hier-edit-body">

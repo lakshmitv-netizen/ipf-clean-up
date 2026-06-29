@@ -1556,6 +1556,24 @@
   padding: 8px 16px;
   border-bottom: 1px solid #d9d9d9;
 }
+.cpm-hier-edit-close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #706e6b;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cpm-hier-edit-close:hover {
+  background-color: #f3f3f3;
+  color: #080707;
+}
 
 .cpm-hier-edit-title {
   margin: 0;
