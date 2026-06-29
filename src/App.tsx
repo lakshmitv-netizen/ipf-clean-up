@@ -53,7 +53,8 @@ function App() {
             <Route path="/setup/dpe-definition" element={<DpeDefinitionPage />} />
             <Route path="/setup/plan-configuration-list" element={<PlanConfigurationListPage />} />
             <Route path="/grid" element={<GridPage />} />
-            <Route path="/" element={<Navigate to="/home" replace />} />
+            <Route path="/" element={<Navigate to="/home/grid-264" replace />} />
+            <Route path="/home" element={<Navigate to="/home/grid-264" replace />} />
           </Routes>
         </Router>
         </PlanWorkflowProvider>

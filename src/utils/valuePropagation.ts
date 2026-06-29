@@ -799,12 +799,6 @@ export const updateCrossMeasureDependencies = (
   
   // Handle child row edits (when rowId is a child row, not a measure)
 
-  // #region agent log
-  {
-    const _editedOld = originalData ? findRowById(rowId, originalData)?.values[monthKey] : undefined;
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'qtyrev',hypothesisId:'CLOBBER',location:'valuePropagation.ts:800',message:'cross-measure child edit entry',data:{rowId,measureId,monthKey,newValue,editedOldValue:_editedOld,delta:_editedOld!=null?newValue-_editedOld:null,path},timestamp:Date.now()})}).catch(()=>{});
-  }
-  // #endregion
 
   // Handle Sales Agreement Revenue changes
   if (measureId === 'measure-sa-rev') {
@@ -986,9 +980,6 @@ export const updateCrossMeasureDependencies = (
           newRevenue = newValue * defaultUnitPrice;
         }
         
-        // #region agent log
-        fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'qtyrev',hypothesisId:'CLOBBER',location:'valuePropagation.ts:982',message:'SA Qty -> SA Rev',data:{revenueRowId:revenueRow.id,revenueOld:revenueRow.values[monthKey],unitPrice,newRevenue,newQty:newValue},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         updates.push({ rowId: revenueRow.id, monthKey, newValue: newRevenue });
         const revenueDelta = newRevenue - revenueRow.values[monthKey];
         if (revenueDelta !== 0) {
@@ -1107,9 +1098,6 @@ export const updateCrossMeasureDependencies = (
       const orderRow = findRowByPath(orderMeasure.children, 0);
       console.log('[CROSS-MEASURE] Order Qty row found:', orderRow ? { name: orderRow.name, id: orderRow.id } : 'null');
       if (orderRow) {
-        // #region agent log
-        fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'qtyrev',hypothesisId:'CLOBBER',location:'valuePropagation.ts:1100',message:'SA Qty -> Order Qty (set absolute)',data:{orderRowId:orderRow.id,orderOld:orderRow.values[monthKey],setToNewValue:newValue,resultingDelta:newValue-orderRow.values[monthKey]},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         updates.push({ rowId: orderRow.id, monthKey, newValue });
         const orderDelta = newValue - orderRow.values[monthKey];
         if (orderDelta !== 0) {
@@ -1209,9 +1197,6 @@ export const updateCrossMeasureDependencies = (
       const forecastRow = findRowByPath(forecastMeasure.children, 0);
       console.log('[CROSS-MEASURE] Forecasted Qty row found:', forecastRow ? { name: forecastRow.name, id: forecastRow.id } : 'null');
       if (forecastRow) {
-        // #region agent log
-        fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'qtyrev',hypothesisId:'CLOBBER',location:'valuePropagation.ts:1199',message:'SA Qty -> Forecast Qty (set absolute) [block3]',data:{forecastRowId:forecastRow.id,forecastOld:forecastRow.values[monthKey],setToNewValue:newValue,resultingDelta:newValue-forecastRow.values[monthKey]},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         updates.push({ rowId: forecastRow.id, monthKey, newValue });
         const forecastDelta = newValue - forecastRow.values[monthKey];
         if (forecastDelta !== 0) {
@@ -1371,9 +1356,6 @@ export const updateCrossMeasureDependencies = (
       const forecastRow = findRowByPath(forecastMeasure.children, 0);
       console.log('[CROSS-MEASURE] Forecasted Qty row found:', forecastRow ? { name: forecastRow.name, id: forecastRow.id } : 'null');
       if (forecastRow) {
-        // #region agent log
-        fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'qtyrev',hypothesisId:'DUP',location:'valuePropagation.ts:1358',message:'SA Qty -> Forecast Qty (DUPLICATE block4)',data:{forecastRowId:forecastRow.id,forecastOld:forecastRow.values[monthKey],setToNewValue:newValue,resultingDelta:newValue-forecastRow.values[monthKey]},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         updates.push({ rowId: forecastRow.id, monthKey, newValue });
         const forecastDelta = newValue - forecastRow.values[monthKey];
         if (forecastDelta !== 0) {

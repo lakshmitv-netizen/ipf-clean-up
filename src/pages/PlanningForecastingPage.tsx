@@ -231,9 +231,6 @@ const PlanningForecastingPage: React.FC = () => {
   }, [planStatus, setPlanStatus, selectedPathStepId, openApproverDecisionModal]);
 
   const handleConfirmDraftToInReview = useCallback(() => {
-    // #region agent log
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run2',hypothesisId:'F',location:'PlanningForecastingPage.tsx:189',message:'Plan submit-for-approval confirm fired',data:{currentUserId:currentUser.id,currentUserName:currentUser.name},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const focusContext = buildPlanFocusContextFromEdits(session?.editHistory, currentUser.id);
     publishPlanApprovalRequested({
       requesterName: currentUser.name,
@@ -249,9 +246,6 @@ const PlanningForecastingPage: React.FC = () => {
     setRelatedApprovalsWithdrawn(false);
     setLastRecordedPlanDecision(null);
     setPlanSubmittedForReviewToastVisible(true);
-    // #region agent log
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run2',hypothesisId:'F',location:'PlanningForecastingPage.tsx:200',message:'Plan submit toast set visible=true',data:{},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }, [
     setPlanStatus,
     setPlanSubmittedByUserId,

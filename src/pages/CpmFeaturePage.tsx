@@ -1079,7 +1079,7 @@ const CpmFeaturePage: React.FC = () => {
                             <button
                               className="cpm-btn cpm-btn--outline"
                               type="button"
-                              onClick={() => navigate('/setup/dpe-definition')}
+                              onClick={() => window.open(window.location.origin + import.meta.env.BASE_URL + 'setup/dpe-definition', '_blank')}
                             >
                               Go to DPE Definition
                               <ExternalLinkIcon />

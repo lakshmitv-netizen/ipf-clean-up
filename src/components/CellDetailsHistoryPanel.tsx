@@ -1804,9 +1804,6 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
                           type="button"
                           className="planning-approval-modal-btn planning-approval-modal-btn-confirm"
                           onClick={() => {
-                            // #region agent log
-                            fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'A,E',location:'CellDetailsHistoryPanel.tsx:1806',message:'Request onClick entry',data:{focusedValueCellKey,submitToApprovers,hasOnMassUpdate:!!onMassUpdate,currentUserId:currentUser.id,currentUserName:currentUser.name},timestamp:Date.now()})}).catch(()=>{});
-                            // #endregion
                             if (!focusedValueCellKey || !onMassUpdate) return;
                             onMassUpdate([focusedValueCellKey], 'Set to', 'pending', requestNote.trim() || undefined, undefined, submitToApprovers);
                             // Notify the targeted approver(s) via the header bell.
@@ -1814,9 +1811,6 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
                               .map((role) => APPROVER_ROSTER[role]?.name)
                               .map((name) => (name ? APP_USERS.find((u) => u.name === name)?.id : undefined))
                               .filter((id): id is string => !!id && id !== currentUser.id);
-                            // #region agent log
-                            fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'A,B',location:'CellDetailsHistoryPanel.tsx:1814',message:'recipientUserIds computed',data:{recipientUserIds,submitToApprovers,approverNames:submitToApprovers.map((role)=>APPROVER_ROSTER[role]?.name),currentUserId:currentUser.id},timestamp:Date.now()})}).catch(()=>{});
-                            // #endregion
                             const reqMonthKey = focusedCell?.monthKey;
                             const reqLastDimension =
                               cellInfo?.dimensionPath && cellInfo.dimensionPath.length > 0

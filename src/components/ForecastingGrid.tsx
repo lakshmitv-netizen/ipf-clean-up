@@ -4596,9 +4596,6 @@ const ForecastingGrid: React.FC = () => {
   const handledNotificationFocusRef = useRef<unknown>(null);
   useEffect(() => {
     const incoming = (location.state as { focusFromNotification?: import('../contexts/NotificationsContext').ApprovalNotificationPayload } | null)?.focusFromNotification;
-    // #region agent log
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'D',location:'ForecastingGrid.tsx:4441',message:'Grid deep-link effect ran',data:{pathname:location.pathname,hasState:!!location.state,hasIncoming:!!incoming,incomingCellKey:incoming?.cellKey,alreadyHandled:handledNotificationFocusRef.current===location.state},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!incoming) return;
     // Guard against re-applying the same navigation state on every render.
     if (handledNotificationFocusRef.current === location.state) return;
@@ -4704,9 +4701,6 @@ const ForecastingGrid: React.FC = () => {
     // react-router persists location.state across reloads / re-navigation, and a
     // fresh load (even by a different user who never requested approval) would
     // re-trigger this effect and re-inject the review card.
-    // #region agent log
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'post-fix',hypothesisId:'D',location:'ForecastingGrid.tsx:4501',message:'Clearing notification history state',data:{pathname:location.pathname},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
   }, [location.state, location.pathname, location.search, handleFocusGrid, navigate, data, editHistory]);
 

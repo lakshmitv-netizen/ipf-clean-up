@@ -762,9 +762,6 @@ const TimeDimensionsGrid: React.FC<TimeDimensionsGridProps> = ({
         setTimeout(() => {
           // If an input/textarea is currently focused the user is in edit mode — don't interfere.
           const active = document.activeElement;
-          // #region agent log
-          fetch('http://127.0.0.1:7712/ingest/7ccf0a04-1ab0-4b5b-9e3b-b6f761e482ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fc12f9'},body:JSON.stringify({sessionId:'fc12f9',location:'TimeDimensionsGrid.tsx:useEffect-initialFocusedCell-timer',message:'focus restore timer fired',data:{activeTag:active?.tagName,wouldSteal:!!(active&&(active.tagName==='INPUT'||active.tagName==='TEXTAREA')),cellKey},hypothesisId:'C',timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
           if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
           cellElement.focus();
         }, 100);

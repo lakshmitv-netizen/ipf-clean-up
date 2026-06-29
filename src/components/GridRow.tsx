@@ -5250,9 +5250,6 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                         ref={(el: HTMLTableCellElement | null) => {
                           if (el && cellRefs) {
                             cellRefs.current.set(approvalSelectionKey, el);
-                            // #region agent log
-                            // Debug/analytics logging removed - was using undefined col.id (should use sc.id in sub-column context)
-                            // #endregion
                           }
                         }}
                         data-cell-key={approvalSelectionKey}

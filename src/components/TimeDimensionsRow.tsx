@@ -184,9 +184,6 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
 
   const handleCellValueDoubleClick = (measureId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    // #region agent log
-    fetch('http://127.0.0.1:7712/ingest/7ccf0a04-1ab0-4b5b-9e3b-b6f761e482ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fc12f9'},body:JSON.stringify({sessionId:'fc12f9',location:'TimeDimensionsRow.tsx:handleCellValueDoubleClick',message:'span dblclick fired',data:{rowType:row.type,rowId:row.id,measureId,hasOnCellChange:!!onCellChange},hypothesisId:'A',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Only dimension rows (account, category, product) are editable, not time rows
     if (row.type === 'account' || row.type === 'category' || row.type === 'product') {
       if (!onCellChange) {
@@ -201,9 +198,6 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
   };
 
   const handleCellEnterKey = (measureId: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7712/ingest/7ccf0a04-1ab0-4b5b-9e3b-b6f761e482ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fc12f9'},body:JSON.stringify({sessionId:'fc12f9',location:'TimeDimensionsRow.tsx:handleCellEnterKey',message:'td dblclick → handleCellEnterKey called',data:{rowType:row.type,rowId:row.id,measureId,hasOnCellChange:!!onCellChange,editingCell},hypothesisId:'B_D',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // Only dimension rows are editable
     if (row.type !== 'account' && row.type !== 'category' && row.type !== 'product') {
       return;
@@ -219,9 +213,6 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
   };
 
   const handleCellBlur = (measureId: string, inputValue: string) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7712/ingest/7ccf0a04-1ab0-4b5b-9e3b-b6f761e482ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fc12f9'},body:JSON.stringify({sessionId:'fc12f9',location:'TimeDimensionsRow.tsx:handleCellBlur',message:'input blur fired',data:{measureId,inputValue,savedByEnter:savedByEnterRef.current,activeElement:document.activeElement?.tagName,activeId:document.activeElement?.id},hypothesisId:'C_E',timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     // If this was already saved by Enter key, skip to avoid double-saving
     if (savedByEnterRef.current) {
       savedByEnterRef.current = false;
@@ -888,9 +879,6 @@ const TimeDimensionsRowComponent: React.FC<TimeDimensionsRowProps> = ({
                 setFocusedCellKey(null);
               }}
               onDoubleClick={(e) => {
-                // #region agent log
-                fetch('http://127.0.0.1:7712/ingest/7ccf0a04-1ab0-4b5b-9e3b-b6f761e482ab',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'fc12f9'},body:JSON.stringify({sessionId:'fc12f9',location:'TimeDimensionsRow.tsx:td-onDoubleClick',message:'td onDoubleClick fired',data:{isEditable,editingCell,rowType:row.type,rowId:row.id,measureId:measure.id},hypothesisId:'A_D',timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
                 if (isEditable && !editingCell) {
                   e.preventDefault();
                   e.stopPropagation();

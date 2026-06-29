@@ -49,11 +49,6 @@ const Header: React.FC = () => {
     [myNotifications]
   );
 
-  // #region agent log
-  useEffect(() => {
-    fetch('http://127.0.0.1:7746/ingest/5e1c06e2-df8a-4b22-b4c2-8cf1cdbf138c',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'2059f5'},body:JSON.stringify({sessionId:'2059f5',runId:'run1',hypothesisId:'C',location:'Header.tsx:46',message:'Header notifications state',data:{currentUserId:currentUser.id,currentUserName:currentUser.name,totalNotifications:notifications.length,allRecipientIds:notifications.map((n)=>n.recipientUserId),allKinds:notifications.map((n)=>n.kind),myCount:myNotifications.length,unreadNotificationCount},timestamp:Date.now()})}).catch(()=>{});
-  }, [notifications, currentUser.id, myNotifications.length, unreadNotificationCount]);
-  // #endregion
   
   const tabs = [
     'Home',
