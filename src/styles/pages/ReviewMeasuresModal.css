@@ -155,25 +155,26 @@
   border-color: #c9c9c9;
 }
 .modal-done-button {
-  background-color: #0176d3;
-  color: white;
-  border: 1px solid #0176d3;
-  padding: 7px 16px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 400;
-  cursor: pointer;
-  height: 32px;
+  background-color: #0176d3 !important;
+  color: white !important;
+  border: 1px solid #0176d3 !important;
+  padding: 0 16px !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  height: 32px !important;
+  line-height: 30px !important;
 }
 .modal-done-button:hover {
-  background-color: #014486;
-  border-color: #014486;
+  background-color: #014486 !important;
+  border-color: #014486 !important;
 }
 .modal-done-button:disabled {
-  background-color: #c9c9c9;
-  border-color: #c9c9c9;
-  cursor: not-allowed;
-  opacity: 0.6;
+  background-color: #c9c9c9 !important;
+  border-color: #c9c9c9 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
 }
 .modal-measures {
   height: 80vh;
@@ -1439,29 +1440,36 @@
   cursor: pointer;
 }
 .modal-cancel-button {
-  background-color: white;
-  color: #181818;
-  border: 1px solid #c9c9c9;
-  padding: 8px 24px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  height: 36px;
+  background-color: #ffffff !important;
+  color: #0176d3 !important;
+  border: 1px solid #dddbda !important;
+  padding: 0 16px !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  height: 32px !important;
+  line-height: 30px !important;
 }
 .modal-cancel-button:hover {
-  background-color: #f3f3f3;
+  background-color: #f3f2f2 !important;
+  border-color: #c9c7c5 !important;
 }
 .modal-save-button {
-  background-color: #0176d3;
-  color: white;
-  border: none;
-  padding: 8px 24px;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  height: 36px;
+  background-color: #0176d3 !important;
+  color: white !important;
+  border: 1px solid #0176d3 !important;
+  padding: 0 16px !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  height: 32px !important;
+  line-height: 30px !important;
+}
+.modal-save-button:hover {
+  background-color: #014486 !important;
+  border-color: #014486 !important;
 }
 .modal-header-simple {
   padding: 14px 24px;
@@ -1550,29 +1558,32 @@
   padding: 12px 16px;
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
   border-radius: 0 0 4px 4px;
   flex-shrink: 0;
 }
 .modal-done-button {
-  background-color: #0250d9;
-  color: white;
-  border: 1px solid #0250d9;
-  padding: 7px 16px;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  height: 32px;
+  background-color: #0176d3 !important;
+  color: white !important;
+  border: 1px solid #0176d3 !important;
+  padding: 0 16px !important;
+  border-radius: 4px !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  cursor: pointer !important;
+  height: 32px !important;
+  line-height: 30px !important;
 }
 .modal-done-button:hover {
-  background-color: #0176d3;
-  border-color: #0176d3;
+  background-color: #014486 !important;
+  border-color: #014486 !important;
 }
 .modal-done-button:disabled {
-  background-color: #c9c9c9;
-  border-color: #c9c9c9;
-  cursor: not-allowed;
-  opacity: 0.6;
+  background-color: #c9c9c9 !important;
+  border-color: #c9c9c9 !important;
+  cursor: not-allowed !important;
+  opacity: 0.6 !important;
 }
 .modal-measures {
   height: 80vh;
