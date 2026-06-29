@@ -1058,7 +1058,6 @@ const CpmFeaturePage: React.FC = () => {
                               <p className="cpm-req-sub-title">
                                 1.1 View the Dimensions and Annotate Hierarchy levels
                               </p>
-                              <p className="cpm-req-meta">2 Dimensions and 4 herarchies available</p>
                             </div>
                             <button
                               className="cpm-btn cpm-btn--outline"
@@ -1115,7 +1114,6 @@ const CpmFeaturePage: React.FC = () => {
                             <span className="cpm-req-ind"><CheckboxOff /></span>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">2.1 Review measures and add source DMOs</p>
-                              <p className="cpm-req-meta">100 Measures Available</p>
                             </div>
                             <button
                               className="cpm-btn cpm-btn--outline"
