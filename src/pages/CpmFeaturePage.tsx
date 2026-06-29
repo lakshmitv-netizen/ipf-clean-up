@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReviewMeasuresModal, { Measure } from '../components/ReviewMeasuresModal';
 import ManageUserAccessModal from '../components/ManageUserAccessModal';
+import TimeGranularityModal from '../components/TimeGranularityModal';
 import '../styles/pages/CpmFeaturePage.css';
 
 /* Assets captured from the Figma design (served from /public). */
@@ -383,6 +384,7 @@ const CpmFeaturePage: React.FC = () => {
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
   const [userAccessModalOpen, setUserAccessModalOpen] = useState(false);
+  const [timeGranularityModalOpen, setTimeGranularityModalOpen] = useState(false);
   const [measures, setMeasures] = useState<Measure[]>(INITIAL_MEASURES);
   const [hierarchyTab, setHierarchyTab] = useState<'existing' | 'new'>('existing');
   const [hierarchyDimension, setHierarchyDimension] = useState('All');
@@ -1173,7 +1175,7 @@ const CpmFeaturePage: React.FC = () => {
                                 Time granularity selected to Quarterly and Monthly by default
                               </p>
                             </div>
-                            <button className="cpm-btn cpm-btn--outline" type="button">Review</button>
+                            <button className="cpm-btn cpm-btn--outline" type="button" onClick={() => setTimeGranularityModalOpen(true)}>Review</button>
                           </div>
                         </div>
                       </div>
@@ -1990,6 +1992,11 @@ const CpmFeaturePage: React.FC = () => {
       {userAccessModalOpen && (
         <ManageUserAccessModal onClose={() => setUserAccessModalOpen(false)} />
       )}
+
+      <TimeGranularityModal
+        isOpen={timeGranularityModalOpen}
+        onClose={() => setTimeGranularityModalOpen(false)}
+      />
     </div>
   );
 };
