@@ -1180,7 +1180,7 @@ const CpmFeaturePage: React.FC = () => {
 
                       {/* 4. Setup User & User Roles */}
                       <div className="cpm-req-single">
-                        <span className="cpm-req-ind"><CheckboxOn /></span>
+                        <span className="cpm-req-ind"><CheckboxOff /></span>
                         <div className="cpm-req-lead-text">
                           <div className="cpm-req-title-row">
                             <h3 className="cpm-req-title">4. Setup User &amp; User Roles</h3>
@@ -1195,7 +1195,7 @@ const CpmFeaturePage: React.FC = () => {
 
                       {/* 5. Setup Plan Configurations */}
                       <div className="cpm-req-single">
-                        <span className="cpm-req-ind"><CheckboxOn /></span>
+                        <span className="cpm-req-ind"><CheckboxOff /></span>
                         <div className="cpm-req-lead-text">
                           <h3 className="cpm-req-title">5. Setup Plan Configurations</h3>
                           <p className="cpm-req-desc">
