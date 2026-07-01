@@ -62,8 +62,12 @@ const GlobalSortPanel: React.FC<GlobalSortPanelProps> = ({
   const [preserveHierarchy, setPreserveHierarchy] = useState(initialConfig.preserveHierarchy);
   const [sortMeasures, setSortMeasures] = useState(initialConfig.sortMeasures ?? false);
   const [isDirty, setIsDirty] = useState(false);
-  const [sortDimensionExpanded, setSortDimensionExpanded] = useState(false);
-  const [sortMeasuresExpanded, setSortMeasuresExpanded] = useState(false);
+  const [sortDimensionExpanded, setSortDimensionExpanded] = useState(
+    (initialConfig.dimensionSorts?.some(d => d.level !== '') ?? false),
+  );
+  const [sortMeasuresExpanded, setSortMeasuresExpanded] = useState(
+    initialConfig.criteria.some(c => c.columnKey !== ''),
+  );
   const [dimensionSorts, setDimensionSorts] = useState<DimensionSort[]>(
     initialConfig.dimensionSorts && initialConfig.dimensionSorts.length > 0 
       ? initialConfig.dimensionSorts 
@@ -85,6 +89,9 @@ const GlobalSortPanel: React.FC<GlobalSortPanelProps> = ({
           ? initialConfig.dimensionSorts 
           : [{ id: 'dim-default', level: '', sortBy: 'alphabetical', direction: 'asc' }]
       );
+      // Auto-expand whichever section has an active sort so it's visible on open.
+      setSortDimensionExpanded(initialConfig.dimensionSorts?.some(d => d.level !== '') ?? false);
+      setSortMeasuresExpanded(initialConfig.criteria.some(c => c.columnKey !== ''));
       setIsDirty(false);
     }
   }, [isOpen, sortMeasuresDisabled]);

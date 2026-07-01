@@ -132,6 +132,21 @@
   color: var(--color-accent-blue);
 }
 
+.searchable-select-group + .searchable-select-group {
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--slds-g-spacing-1);
+  padding-top: var(--slds-g-spacing-1);
+}
+
+.searchable-select-group-label {
+  padding: var(--slds-g-spacing-1) var(--slds-g-spacing-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-neutral-text);
+}
+
 .searchable-select-no-results {
   padding: var(--slds-g-spacing-3);
   font-size: 13px;

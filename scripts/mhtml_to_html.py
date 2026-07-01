@@ -1,137 +1,111 @@
 #!/usr/bin/env python3
-"""Convert an MHTML (multipart/related) archive into a single self-contained HTML
-file by inlining every referenced resource as a data: URI.
+"""Convert a (Blink-saved) MHTML archive into a single self-contained HTML file.
 
-Usage: python3 mhtml_to_html.py <input.mhtml> <output.html>
+All sub-resources (CSS, images, fonts) are inlined as data: URIs so the page
+renders standalone with no external/org dependencies.
 """
 import base64
 import email
-import quopri
-import re
 import sys
+from email import policy
+from urllib.parse import urlsplit
 
 
-def decode_part(part):
-    payload = part.get_payload(decode=True)
-    if payload is None:
-        payload = part.get_payload()
-        if isinstance(payload, str):
-            payload = payload.encode("utf-8", "replace")
-        else:
-            payload = b""
-    return payload
+def data_uri(ctype: str, payload: bytes) -> str:
+    b64 = base64.b64encode(payload).decode("ascii")
+    return f"data:{ctype};base64,{b64}"
 
 
-def main(inp, outp):
-    with open(inp, "rb") as f:
-        msg = email.message_from_binary_file(f)
+def rel_path(url: str):
+    """Return the host-relative form (path[?query]) of an absolute http(s) URL.
+
+    The HTML sometimes references a resource by its relative path while the MHTML
+    stores it under the absolute Content-Location, so we must map both forms.
+    """
+    if not url:
+        return None
+    s = urlsplit(url)
+    if s.scheme in ("http", "https") and s.path:
+        return s.path + (("?" + s.query) if s.query else "")
+    return None
+
+
+def add_ref(uri_map: dict, key, uri):
+    if key:
+        uri_map[key] = uri
+
+
+def main(src: str, dst: str) -> None:
+    with open(src, "rb") as f:
+        msg = email.message_from_binary_file(f, policy=policy.default)
 
     parts = []
-    if msg.is_multipart():
-        for p in msg.walk():
-            if p.is_multipart():
-                continue
-            parts.append(p)
-    else:
-        parts.append(msg)
-
-    # Root = first text/html part
-    root = None
-    for p in parts:
-        if p.get_content_type() == "text/html":
-            root = p
-            break
-    if root is None:
-        root = parts[0]
-
-    # Build lookup maps for resources (everything except the root).
-    by_location = {}
-    by_cid = {}
-    for p in parts:
-        if p is root:
+    for part in msg.walk():
+        if part.get_content_maintype() == "multipart":
             continue
-        ctype = p.get_content_type()
-        data = decode_part(p)
-        loc = p.get("Content-Location")
-        cid = p.get("Content-ID")
-        is_text = ctype.startswith("text/") or ctype in (
-            "application/javascript",
-            "application/x-javascript",
-        )
-        entry = {"ctype": ctype, "data": data, "is_text": is_text}
-        if loc:
-            by_location[loc.strip()] = entry
-        if cid:
-            by_cid[cid.strip().strip("<>")] = entry
-
-    def to_data_uri(entry):
-        ctype = entry["ctype"]
-        b64 = base64.b64encode(entry["data"]).decode("ascii")
-        return f"data:{ctype};base64,{b64}"
-
-    # First pass: process CSS text resources so that url(...)/@import inside them
-    # are also inlined. Then convert each resource to a data URI.
-    def process_css_text(text):
-        def repl(m):
-            quote = m.group("q") or ""
-            ref = m.group("u").strip()
-            new = resolve_ref(ref)
-            if new is None:
-                return m.group(0)
-            return f"url({quote}{new}{quote})"
-
-        return re.sub(
-            r"url\(\s*(?P<q>['\"]?)(?P<u>[^)'\"]+)(?P=q)\s*\)",
-            repl,
-            text,
+        parts.append(
+            {
+                "loc": part.get("Content-Location"),
+                "cid": (part.get("Content-ID") or "").strip("<>") or None,
+                "ctype": part.get_content_type(),
+                "payload": part.get_payload(decode=True) or b"",
+            }
         )
 
-    resolved_cache = {}
-
-    def resolve_ref(ref):
-        if ref in resolved_cache:
-            return resolved_cache[ref]
-        entry = None
-        if ref.startswith("cid:"):
-            entry = by_cid.get(ref[4:]) or by_location.get(ref)
+    main_part = None
+    resources = []
+    for p in parts:
+        if main_part is None and p["ctype"] == "text/html":
+            main_part = p
         else:
-            entry = by_location.get(ref) or by_cid.get(ref)
-        if entry is None:
-            resolved_cache[ref] = None
-            return None
-        if entry["is_text"] and entry["ctype"] == "text/css":
-            txt = entry["data"].decode("utf-8", "replace")
-            txt = process_css_text(txt)
-            uri = "data:text/css;base64," + base64.b64encode(
-                txt.encode("utf-8")
-            ).decode("ascii")
-        else:
-            uri = to_data_uri(entry)
-        resolved_cache[ref] = uri
-        return uri
+            resources.append(p)
 
-    html = decode_part(root).decode("utf-8", "replace")
+    if main_part is None:
+        raise SystemExit("No text/html part found in MHTML")
 
-    # Replace cid: references.
-    def cid_repl(m):
-        ref = m.group(1)
-        uri = resolve_ref("cid:" + ref)
-        return uri if uri else m.group(0)
+    binary_res = [r for r in resources if not r["ctype"].startswith("text/")]
+    text_res = [r for r in resources if r["ctype"].startswith("text/")]
 
-    html = re.sub(r"cid:([^\"')\s>]+)", cid_repl, html)
+    # Map: original reference -> data URI. Binary resources first (no nested refs).
+    uri_map = {}
+    for r in binary_res:
+        uri = data_uri(r["ctype"], r["payload"])
+        add_ref(uri_map, r["loc"], uri)
+        add_ref(uri_map, rel_path(r["loc"]), uri)
+        if r["cid"]:
+            add_ref(uri_map, "cid:" + r["cid"], uri)
 
-    # Replace absolute URL references that match known resource locations.
-    # Sort by length desc so longer URLs match first.
-    for loc in sorted(by_location.keys(), key=len, reverse=True):
-        if loc in html:
-            uri = resolve_ref(loc)
-            if uri:
-                html = html.replace(loc, uri)
+    def replace_all(text: str, mapping: dict) -> str:
+        # Longest keys first to avoid partial overlaps.
+        for loc in sorted(mapping, key=len, reverse=True):
+            uri = mapping[loc]
+            if loc in text:
+                text = text.replace(loc, uri)
+            esc = loc.replace("&", "&amp;")
+            if esc != loc and esc in text:
+                text = text.replace(esc, uri)
+        return text
 
-    with open(outp, "w", encoding="utf-8") as f:
+    # Inline binary refs into CSS/text parts, then expose them as data URIs.
+    for r in text_res:
+        txt = r["payload"].decode("utf-8", errors="replace")
+        txt = replace_all(txt, uri_map)
+        r["_text"] = txt
+    for r in text_res:
+        uri = data_uri(r["ctype"], r["_text"].encode("utf-8"))
+        add_ref(uri_map, r["loc"], uri)
+        add_ref(uri_map, rel_path(r["loc"]), uri)
+        if r["cid"]:
+            add_ref(uri_map, "cid:" + r["cid"], uri)
+
+    html = main_part["payload"].decode("utf-8", errors="replace")
+    html = replace_all(html, uri_map)
+
+    with open(dst, "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"Wrote {outp} ({len(html)} chars), {len(parts)} parts inlined")
+    remaining = html.count("orgfarm-816dbc0c56")
+    print(f"Wrote {dst} ({len(html)} bytes). Remaining org URLs: {remaining}")
 
 
 if __name__ == "__main__":

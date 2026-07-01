@@ -1,10 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
 import '../styles/components/SearchableSelect.css';
 
+export interface SearchableSelectOptionGroup {
+  label: string;
+  options: string[];
+}
+
 interface SearchableSelectProps {
   value: string;
   onChange: (value: string) => void;
   options: string[];
+  /** When provided, options are rendered under labelled group headers (after any flat `options`). */
+  optionGroups?: SearchableSelectOptionGroup[];
   placeholder?: string;
   label?: string;
   className?: string;
@@ -15,6 +22,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   value,
   onChange,
   options,
+  optionGroups,
   placeholder = 'Select...',
   label,
   className = '',
@@ -26,9 +34,13 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Filter options based on search term
-  const filteredOptions = options.filter(option =>
-    option.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const matchesSearch = (option: string) =>
+    option.toLowerCase().includes(searchTerm.toLowerCase());
+  const filteredOptions = options.filter(matchesSearch);
+  const filteredGroups = (optionGroups ?? [])
+    .map(g => ({ label: g.label, options: g.options.filter(matchesSearch) }))
+    .filter(g => g.options.length > 0);
+  const hasAnyResult = filteredOptions.length > 0 || filteredGroups.length > 0;
 
   // Get display value
   const displayValue = value || placeholder;
@@ -137,17 +149,34 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               </div>
             )}
             <div className="searchable-select-options">
-              {filteredOptions.length > 0 ? (
-                filteredOptions.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    className={`searchable-select-option ${value === option ? 'selected' : ''}`}
-                    onClick={() => handleSelect(option)}
-                  >
-                    <span>{option}</span>
-                  </button>
-                ))
+              {hasAnyResult ? (
+                <>
+                  {filteredOptions.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      className={`searchable-select-option ${value === option ? 'selected' : ''}`}
+                      onClick={() => handleSelect(option)}
+                    >
+                      <span>{option}</span>
+                    </button>
+                  ))}
+                  {filteredGroups.map((group) => (
+                    <div key={group.label} className="searchable-select-group">
+                      <div className="searchable-select-group-label">{group.label}</div>
+                      {group.options.map((option) => (
+                        <button
+                          key={option}
+                          type="button"
+                          className={`searchable-select-option ${value === option ? 'selected' : ''}`}
+                          onClick={() => handleSelect(option)}
+                        >
+                          <span>{option}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </>
               ) : (
                 <div className="searchable-select-no-results">No results found</div>
               )}

@@ -15,11 +15,15 @@ interface FilterSetDef {
   products: string[];
   from: string; // month key, e.g. 'apr2026'
   to: string;
+  /** 'standard' = shared business presets; 'watchlist' = personal monitoring lists. */
+  group?: 'standard' | 'watchlist';
 }
 
 const FILTER_SETS: FilterSetDef[] = [
+  // ── Standard, shared business presets ──────────────────────────────────────
   {
     name: 'Quarterly Business Review',
+    group: 'standard',
     measures: ['Sales Agreement Revenue', 'Forecasted Revenue', 'Order Revenue', 'Opportunity Revenue'],
     accounts: [],
     categories: [],
@@ -28,16 +32,8 @@ const FILTER_SETS: FilterSetDef[] = [
     to: 'jun2026',
   },
   {
-    name: 'Revenue at Risk',
-    measures: ['Sales Agreement Revenue', 'Forecasted Revenue', 'Order Revenue', 'Opportunity Revenue'],
-    accounts: ['MagnaDrive - Michigan Plant', 'MagnaDrive - Ohio Plant'],
-    categories: ['Transmission Assembly', 'Chassis Components', 'Engine Components'],
-    products: [],
-    from: 'apr2026',
-    to: 'jun2026',
-  },
-  {
     name: 'YoY Performance Review',
+    group: 'standard',
     measures: ['Order Revenue', 'Last Years Order Revenue', 'Order Quantity (No.s)', 'Last Year Order Quantity (No.s)'],
     accounts: [],
     categories: [],
@@ -47,12 +43,47 @@ const FILTER_SETS: FilterSetDef[] = [
   },
   {
     name: 'Monthly Close',
+    group: 'standard',
     measures: ['Order Revenue', 'Forecasted Revenue'],
     accounts: [],
     categories: [],
     products: [],
     from: 'jun2026',
     to: 'jun2026',
+  },
+  // ── My Watchlists — personal, cherry-picked lists to keep an eye on ─────────
+  {
+    // Accounts I suspect will slip and want to stay vigilant on (was "Revenue at Risk").
+    name: 'Accounts on Watch',
+    group: 'watchlist',
+    measures: ['Order Revenue', 'Forecasted Revenue'],
+    accounts: ['MagnaDrive - Georgia Plant', 'MagnaDrive - California Plant', 'MagnaDrive - Illinois Plant'],
+    categories: [],
+    products: [],
+    from: 'jan2026',
+    to: 'dec2026',
+  },
+  {
+    // Cherry-picked products/categories I keep hearing about in customer calls.
+    name: 'Customer Call Watchlist',
+    group: 'watchlist',
+    measures: ['Order Revenue', 'Opportunity Revenue'],
+    accounts: [],
+    categories: ['Transmission Assembly', 'Engine Components'],
+    products: [],
+    from: 'jan2026',
+    to: 'dec2026',
+  },
+  {
+    // Specific SKUs I'm watching closely for a slip.
+    name: 'Products to Watch',
+    group: 'watchlist',
+    measures: ['Order Revenue', 'Forecasted Revenue'],
+    accounts: [],
+    categories: [],
+    products: ['TRN 950 - Xtreme', 'CVT Module - Gen3', 'Head Gasket Kit'],
+    from: 'jan2026',
+    to: 'dec2026',
   },
 ];
 
@@ -215,6 +246,14 @@ interface FiltersPanelProps {
   externalMeasures?: string[];
   // Registers a handler the parent can call to clear all filter cards back to "All".
   onRegisterClearAll?: (handler: () => void) => void;
+  /** When the panel opens, force this tab (e.g. 'advanced' for Agentforce hand-off). */
+  initialTab?: 'basic' | 'advanced';
+  /** Bumped by the parent to force re-applying initialTab on a fresh open. */
+  initialTabSignal?: number;
+  /** Pre-populate the "Filter Logic" box (e.g. an agent-derived "1 AND 2"). */
+  externalFilterLogic?: string;
+  /** Bumped by the parent to (re)apply externalFilterLogic. */
+  externalFilterLogicSignal?: number;
 }
 
 const FiltersPanel: React.FC<FiltersPanelProps> = ({ 
@@ -226,7 +265,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   onDimensionLevelsChange: _onDimensionLevelsChange,
   data = [],
   showAllPeriods = true,
-  onShowAllPeriodsChange: _onShowAllPeriodsChange,
+  onShowAllPeriodsChange,
   startPeriod = '',
   endPeriod = '',
   onStartPeriodChange,
@@ -243,6 +282,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   externalCategories = [],
   externalMeasures = [],
   onRegisterClearAll,
+  initialTab,
+  initialTabSignal,
+  externalFilterLogic,
+  externalFilterLogicSignal,
 }) => {
   // Track original values for Cancel functionality (only for filter cards)
   const [originalFilters, setOriginalFilters] = useState<Filter[]>([
@@ -382,6 +425,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       }
       setOriginalStartPeriod(startPeriod);
       setOriginalEndPeriod(endPeriod);
+      setOriginalSelectedFilterSet(selectedFilterSet);
       setLocalPropagateIntoNoMatchRows(propagateIntoNoMatchRowsProp);
       setOriginalPropagateIntoNoMatchRows(propagateIntoNoMatchRowsProp);
       setLocalParentTotalsRollupMode(parentTotalsRollupModeProp);
@@ -442,8 +486,18 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   }, [filters, onActiveFilterCountChange]);
 
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  // When opened via an Agentforce hand-off, force the requested tab (e.g. Advanced).
+  useEffect(() => {
+    if (isOpen && initialTab) {
+      setActiveTab(initialTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialTab, initialTabSignal]);
   const [editingFilterId, setEditingFilterId] = useState<string | null>(null);
   const [selectedFilterSet, setSelectedFilterSet] = useState<string>('');
+  // Remember the selected set as of when the panel opened / was last applied, so Cancel
+  // can restore the dropdown (and grid) to the pre-preview state.
+  const [originalSelectedFilterSet, setOriginalSelectedFilterSet] = useState<string>('');
 
   // User-created filter sets (persisted in localStorage); system presets stay read-only.
   const [userFilterSets, setUserFilterSets] = useState<FilterSetDef[]>(() => {
@@ -485,17 +539,40 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return `Equals ${fromLabel} to ${toLabel}`.replace(/2026/g, '26');
   };
 
-  // Parse the current time-filter card back into month-key from/to range.
+  // Parse the current time-filter card back into a month-key from/to range.
+  // Handles both the Basic range format ("Equals Apr 26 to Jun 26") and the
+  // Advanced discrete multi-select format ("Apr 2026, May 2026, Jun 2026"),
+  // for which we collapse the selection to its earliest→latest month.
+  const MONTH_ORDER = [
+    'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+    'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+  ];
+  const tokenToMonthKey = (token?: string): string | null => {
+    const abbr = (token || '').trim().slice(0, 3).toLowerCase();
+    const key = `${abbr}2026`;
+    return MONTH_ORDER.includes(key) ? key : null;
+  };
   const parseTimeCardToRange = (): { from: string; to: string } => {
     const f = filters.find(fi => fi.type === 'time');
-    if (!f || !f.value || f.value.includes('Jan 26 to Dec 26')) return { from: 'jan2026', to: 'dec2026' };
-    const body = f.value.replace(/^Equals\s*/, '');
-    const [fromPart, toPart] = body.split(' to ');
-    const toKey = (label?: string): string => {
-      const mon = (label || '').trim().split(' ')[0];
-      return MONTHS.find(mm => mm.label.startsWith(mon))?.key ?? 'jan2026';
-    };
-    return { from: toKey(fromPart), to: toKey(toPart) };
+    const raw = (f?.value ?? '').trim();
+    if (!raw || raw === 'All' || raw === 'Equals All' || raw.includes('Jan 26 to Dec 26')) {
+      return { from: 'jan2026', to: 'dec2026' };
+    }
+    const body = raw.replace(/^Equals\s*/i, '');
+    // Basic range format: "Apr 26 to Jun 26"
+    if (/\sto\s/i.test(body)) {
+      const [fromPart, toPart] = body.split(/\sto\s/i);
+      return {
+        from: tokenToMonthKey(fromPart) ?? 'jan2026',
+        to: tokenToMonthKey(toPart) ?? 'dec2026',
+      };
+    }
+    // Advanced discrete list: "Apr 2026, May 2026, Jun 2026" → earliest→latest
+    const present = MONTH_ORDER.filter(key =>
+      body.split(',').some(tok => tokenToMonthKey(tok) === key),
+    );
+    if (present.length === 0) return { from: 'jan2026', to: 'dec2026' };
+    return { from: present[0], to: present[present.length - 1] };
   };
 
   const buildFiltersFromSet = (set: FilterSetDef): Filter[] => [
@@ -515,24 +592,48 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   ];
 
   // Apply a predefined or user filter set — populates every basic & advanced filter field.
+  // Push a set of filters + time range onto the grid without committing them as the new
+  // baseline. Used to live-preview a filter set the moment it is selected; Apply commits
+  // this view, Cancel restores the pre-preview view.
+  const previewFilterViewOnGrid = (previewFilters: Filter[], from: string, to: string) => {
+    const isAllTime = from === 'jan2026' && to === 'dec2026';
+    const nextStartPeriod = isAllTime ? '' : from;
+    const nextEndPeriod = isAllTime ? '' : to;
+    onShowAllPeriodsChange?.(isAllTime);
+    onStartPeriodChange?.(nextStartPeriod);
+    onEndPeriodChange?.(nextEndPeriod);
+    if (onApplyFilters && data.length > 0) {
+      const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(previewFilters, data);
+      onApplyFilters(applyFilters(data, previewFilters), { ensureMeasureIdsVisible });
+    }
+  };
+
   const handleSelectFilterSet = (name: string) => {
     setSelectedFilterSet(name);
     setIsSaveMenuOpen(false);
     setSaveAsName('');
 
+    let nextFilters: Filter[];
+    let nextFrom: string;
+    let nextTo: string;
+
     if (name === 'None') {
-      setFilters(buildAllFilters());
-      setLocalStartPeriod('jan2026');
-      setLocalEndPeriod('dec2026');
-      return;
+      nextFilters = buildAllFilters();
+      nextFrom = 'jan2026';
+      nextTo = 'dec2026';
+    } else {
+      const set = allFilterSets.find(s => s.name === name);
+      if (!set) return;
+      nextFilters = buildFiltersFromSet(set);
+      nextFrom = set.from;
+      nextTo = set.to;
     }
 
-    const set = allFilterSets.find(s => s.name === name);
-    if (!set) return;
-
-    setFilters(buildFiltersFromSet(set));
-    setLocalStartPeriod(set.from);
-    setLocalEndPeriod(set.to);
+    setFilters(nextFilters);
+    setLocalStartPeriod(nextFrom);
+    setLocalEndPeriod(nextTo);
+    // Show the filtered view immediately (before Apply). Cancel reverts it.
+    previewFilterViewOnGrid(nextFilters, nextFrom, nextTo);
   };
 
   // ── Modified detection: compare current filters against the selected set ────────
@@ -581,6 +682,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       return f.value.split(',').map(v => v.trim()).filter(Boolean);
     };
     const { from, to } = parseTimeCardToRange();
+    // Preserve the existing group if overwriting a known set; brand-new user sets
+    // are personal watchlists.
+    const group = allFilterSets.find(s => s.name === name)?.group ?? 'watchlist';
     return {
       name,
       measures: vals('measures'),
@@ -589,6 +693,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       products: vals('products'),
       from,
       to,
+      group,
     };
   };
 
@@ -743,19 +848,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   // The time card stores a human-readable value ("Equals Apr 26 to Jun 26"),
   // so parse the month labels back into month keys (e.g. 'apr2026') that match
   // the <select> options — otherwise the dropdowns fall back to the first month.
-  const getBasicTimeRange = (): { from: string; to: string } => {
-    const f = filters.find(fi => fi.type === 'time');
-    if (!f || !f.value || f.value.includes('Jan 26 to Dec 26') || f.value === 'Equals All') {
-      return { from: 'jan2026', to: 'dec2026' };
-    }
-    const body = f.value.replace(/^Equals\s*/, '');
-    const [fromPart, toPart] = body.split(' to ');
-    const toKey = (label?: string): string => {
-      const mon = (label || '').trim().split(' ')[0];
-      return MONTHS.find(mm => mm.label.startsWith(mon))?.key ?? 'jan2026';
-    };
-    return { from: toKey(fromPart), to: toKey(toPart) };
-  };
+  const getBasicTimeRange = (): { from: string; to: string } => parseTimeCardToRange();
 
   const setBasicTimeRange = (from: string, to: string) => {
     const display = `${MONTHS.find(m => m.key === from)?.label ?? from} to ${MONTHS.find(m => m.key === to)?.label ?? to}`;
@@ -768,6 +861,15 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   };
   const [showFilterLogic, setShowFilterLogic] = useState(false);
   const [filterLogicValue, setFilterLogicValue] = useState('');
+
+  // Pre-populate the Filter Logic box when an Agentforce hand-off provides a derived expression.
+  useEffect(() => {
+    if (externalFilterLogic && externalFilterLogic.trim()) {
+      setShowFilterLogic(true);
+      setFilterLogicValue(externalFilterLogic);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalFilterLogicSignal]);
   const filterCardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const handleRemoveFilter = (filterId: string) => {
@@ -834,6 +936,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setLocalMeasureEditDisaggregateToVisibleChildrenOnly(originalMeasureEditDisaggregateToVisibleChildrenOnly);
     onParentTotalsRollupModeChange?.(originalParentTotalsRollupMode);
     onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(originalMeasureEditDisaggregateToVisibleChildrenOnly);
+    // Restore the filter-set dropdown and the grid view to the pre-preview state so that
+    // any live-previewed filter set is undone.
+    setSelectedFilterSet(originalSelectedFilterSet);
+    onShowAllPeriodsChange?.(originalStartPeriod === '' && originalEndPeriod === '');
+    if (onApplyFilters && data.length > 0) {
+      const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(originalFilters, data);
+      onApplyFilters(applyFilters(data, originalFilters), { ensureMeasureIdsVisible });
+    }
     setIsDirty(false);
   };
 
@@ -1189,8 +1299,17 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                 className="filters-header-apply-only-btn"
                 onClick={() => {
                   applyClickedRef.current = true;
-                  if (onStartPeriodChange && localStartPeriod !== originalStartPeriod) onStartPeriodChange(localStartPeriod);
-                  if (onEndPeriodChange && localEndPeriod !== originalEndPeriod) onEndPeriodChange(localEndPeriod);
+                  // Derive the active time range from the "Filter by Time" card so the grid's
+                  // visible time columns match it. A full-year range means "show all periods".
+                  const { from: appliedFrom, to: appliedTo } = parseTimeCardToRange();
+                  const isAllTime = appliedFrom === 'jan2026' && appliedTo === 'dec2026';
+                  const nextStartPeriod = isAllTime ? '' : appliedFrom;
+                  const nextEndPeriod = isAllTime ? '' : appliedTo;
+                  onShowAllPeriodsChange?.(isAllTime);
+                  onStartPeriodChange?.(nextStartPeriod);
+                  onEndPeriodChange?.(nextEndPeriod);
+                  setLocalStartPeriod(nextStartPeriod);
+                  setLocalEndPeriod(nextEndPeriod);
                   if (onApplyFilters && data.length > 0) {
                     const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(filters, data);
                     onApplyFilters(applyFilters(data), { ensureMeasureIdsVisible });
@@ -1202,8 +1321,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                   setOriginalPropagateIntoNoMatchRows(localPropagateIntoNoMatchRows);
                   setOriginalMeasureEditDisaggregateToVisibleChildrenOnly(localMeasureEditDisaggregateToVisibleChildrenOnly);
                   setOriginalFilters([...filters]);
-                  setOriginalStartPeriod(localStartPeriod);
-                  setOriginalEndPeriod(localEndPeriod);
+                  setOriginalStartPeriod(nextStartPeriod);
+                  setOriginalEndPeriod(nextEndPeriod);
+                  setOriginalSelectedFilterSet(selectedFilterSet);
                   setIsDirty(false);
                   onClose();
                 }}
@@ -1356,7 +1476,17 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
             <SearchableSelect
               value={selectedFilterSet}
               onChange={handleSelectFilterSet}
-              options={['None', ...allFilterSets.map(s => s.name)]}
+              options={['None']}
+              optionGroups={[
+                {
+                  label: 'Standard Filters',
+                  options: allFilterSets.filter(s => s.group === 'standard').map(s => s.name),
+                },
+                {
+                  label: 'My Watchlists',
+                  options: allFilterSets.filter(s => (s.group ?? 'watchlist') !== 'standard').map(s => s.name),
+                },
+              ]}
               placeholder="Select a filter set…"
               showSearch={false}
             />

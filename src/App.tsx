@@ -4,6 +4,7 @@ import { PlanWorkflowProvider } from './contexts/PlanWorkflowContext';
 import { UserProvider } from './contexts/UserContext';
 import { NotificationsProvider } from './contexts/NotificationsContext';
 import { PlanningGridSessionProvider } from './contexts/PlanningGridSessionContext';
+import { AgentforceProvider } from './contexts/AgentforceContext';
 import Header from './components/Header';
 import ForecastingGrid from './components/ForecastingGrid';
 import PlanningForecastingPage from './pages/PlanningForecastingPage';
@@ -39,6 +40,7 @@ function App() {
       <IndustryProvider>
         <PlanningGridSessionProvider>
         <PlanWorkflowProvider>
+        <AgentforceProvider>
         <Router basename={import.meta.env.BASE_URL}>
           <IndustryUrlSync />
           <Routes>
@@ -59,6 +61,7 @@ function App() {
             <Route path="/home" element={<Navigate to="/home/grid-264" replace />} />
           </Routes>
         </Router>
+        </AgentforceProvider>
         </PlanWorkflowProvider>
         </PlanningGridSessionProvider>
       </IndustryProvider>

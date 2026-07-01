@@ -116,7 +116,8 @@
       if(n.children.length !== 0) return;
       var txt = (n.textContent || '').trim();
       if(txt === '12 Features') n.textContent = '1 Feature';
-      else if(txt === '2 of 12 Features Configured') n.textContent = '1 of 1 Features Configured';
+      else if(txt === '2 of 12 Features Configured') n.textContent = '0 of 1 Features Configured';
+      else if(txt === 'In Progress') n.textContent = 'Yet to Start';
     });
   }
   if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', apply); } else { apply(); }

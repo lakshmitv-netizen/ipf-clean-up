@@ -16,6 +16,9 @@ export interface ColumnFilter {
     value: string;
     collapsed?: boolean;
     selectedNames?: string[]; // For name-based filtering
+    // Top-N/Bottom-N ranking scope override (independent of the Sort panel's
+    // preserveHierarchy): 'global' ranks across the whole grid, 'siblings' per parent.
+    rankScope?: 'global' | 'siblings';
   }>;
   // For approval status columns, value is one of: 'notSubmitted', 'pending', 'approved', 'rejected'
 }

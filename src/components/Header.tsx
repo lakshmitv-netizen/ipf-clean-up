@@ -8,6 +8,7 @@ import {
   formatNotificationTimestamp,
 } from '../contexts/NotificationsContext';
 import { getAppUserInitialsStyle } from '../utils/appUserAvatar';
+import { useAgentforce } from '../contexts/AgentforceContext';
 import '../styles/components/Header.css';
 import '../styles/components/HeaderNotificationsPanel.css';
 
@@ -23,6 +24,7 @@ const Header: React.FC = () => {
     consumeNotificationsPanelOpenRequest,
   } = useNotifications();
   const currentAvatar = getAppUserInitialsStyle(currentUser.name);
+  const { isOpen: isAgentforceOpen, toggle: toggleAgentforce } = useAgentforce();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState<{ top: number; right: number } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -227,6 +229,23 @@ const Header: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
               </svg>
             </div>
+            <button
+              type="button"
+              className={`header-icon header-agentforce-trigger${isAgentforceOpen ? ' header-agentforce-trigger--open' : ''}`}
+              aria-label="Agentforce assistant"
+              aria-pressed={isAgentforceOpen}
+              title="Ask Agentforce"
+              onClick={toggleAgentforce}
+            >
+              <img
+                className="header-agentforce-icon"
+                src={`${import.meta.env.BASE_URL}agentforce-icon.png`}
+                alt=""
+                width={22}
+                height={22}
+                aria-hidden
+              />
+            </button>
             <div className="header-icon">
               <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

@@ -300,6 +300,8 @@ interface HierarchicalGridProps {
   columnWidth?: number; // Column width in pixels for time period columns
   onExpandAllRows?: (handler: () => void) => void; // Callback to register expand handler
   onCollapseAllRows?: (handler: () => void) => void; // Callback to register collapse handler
+  onExpandMeasuresOnly?: (handler: () => void) => void; // Register handler that expands only measure rows (top level)
+  onExpandToCategories?: (handler: () => void) => void; // Register handler that expands measures + accounts (categories collapsed)
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
   onClearAllFilters?: (handler: () => void) => void; // Callback to register clear all filters handler
   onSettingsClick?: () => void; // Callback to open settings panel
@@ -427,6 +429,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   columnWidth = 100, 
   onExpandAllRows, 
   onCollapseAllRows,
+  onExpandMeasuresOnly,
+  onExpandToCategories,
   onResetColumnWidths,
   onClearAllFilters,
   onCellFocusWithHistory,
@@ -974,7 +978,13 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
             const n = parseInt(cond.value, 10);
             if (!Number.isFinite(n) || n <= 0) return false;
 
-            const cacheKey = `${colKey}|${cond.dimension}|${cond.measureId ?? ''}|${cond.operator}|${n}|ph:${preserveHierarchyForTopBottom ? '1' : '0'}`;
+            // A per-condition rankScope overrides the Sort panel's preserveHierarchy so a
+            // filter can rank globally (exactly N rows) while the tree stays nested/expanded.
+            const rankWithinSiblings = cond.rankScope
+              ? cond.rankScope === 'siblings'
+              : preserveHierarchyForTopBottom;
+
+            const cacheKey = `${colKey}|${cond.dimension}|${cond.measureId ?? ''}|${cond.operator}|${n}|ph:${rankWithinSiblings ? '1' : '0'}`;
             let allowedRowIds = topBottomCache.get(cacheKey);
             if (!allowedRowIds) {
               allowedRowIds = new Set<string>();
@@ -993,7 +1003,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                 return val;
               };
 
-              if (preserveHierarchyForTopBottom) {
+              if (rankWithinSiblings) {
                 /** Top/Bottom N among direct children of each parent that match the dimension */
                 const rankSiblingsUnderParent = (children: GridRowType[] | undefined) => {
                   if (!children?.length) return;
@@ -1168,6 +1178,19 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     if (row.type === 'account' && hasActiveConditionsForDimension('account') && !selfPasses) return null;
     if (row.type === 'category' && hasActiveConditionsForDimension('category') && !selfPasses) return null;
     if (row.type === 'product' && hasActiveConditionsForDimension('product') && !selfPasses) return null;
+
+    // When a *deeper* dimension is actively filtered (e.g. product), drop ancestor rows
+    // that have no surviving descendants — e.g. categories/accounts with no matching
+    // products. (Such ancestors otherwise "pass" because the condition is skipped for
+    // their dimension.) Only applies when the ancestor's own dimension isn't constrained.
+    const descendantDimActive =
+      (row.type === 'account' &&
+        (hasActiveConditionsForDimension('category') || hasActiveConditionsForDimension('product')) &&
+        !hasActiveConditionsForDimension('account')) ||
+      (row.type === 'category' &&
+        hasActiveConditionsForDimension('product') &&
+        !hasActiveConditionsForDimension('category'));
+    if (descendantDimActive && !hasMatchingChild) return null;
 
     if (!selfPasses && !hasMatchingChild) return null;
     const next: GridRowType = { ...row, children: filteredChildren };
@@ -1762,6 +1785,38 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   const handleCollapseAll = useCallback(() => {
     setExpandedRows(new Set());
   }, []);
+
+  // Expand only the top-level measure rows (their direct children — accounts — become
+  // visible but stay collapsed). Used to present a tidy "filtered" view.
+  const handleExpandMeasuresOnly = useCallback(() => {
+    const ids = new Set<string>();
+    for (const measure of gridData) {
+      if (measure.children && measure.children.length > 0) ids.add(measure.id);
+    }
+    setExpandedRows(ids);
+  }, [gridData]);
+
+  // Expand measures and accounts (so categories are visible) but leave categories
+  // collapsed — accounts → categories only, no products. Used for the "categories behind"
+  // focus so the referenced categories read clearly without drilling into SKUs.
+  const handleExpandToCategories = useCallback(() => {
+    const ids = new Set<string>();
+    const walkAccounts = (rows: GridRowType[]) => {
+      for (const row of rows) {
+        if (row.type === 'account' && row.children && row.children.length > 0) {
+          ids.add(row.id);
+        }
+        if (row.children && row.children.length > 0) walkAccounts(row.children);
+      }
+    };
+    for (const measure of gridData) {
+      if (measure.children && measure.children.length > 0) {
+        ids.add(measure.id);
+        walkAccounts(measure.children);
+      }
+    }
+    setExpandedRows(ids);
+  }, [gridData]);
 
   // Handle toggle for "Show Only Impacted KPI" - collapse all when checked, expand latest edited measure when unchecked
   const handleToggleShowOnlyImpactedKPI = useCallback((checked: boolean) => {
@@ -3474,6 +3529,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     if (onCollapseAllRows) {
       onCollapseAllRows(handleCollapseAll);
     }
+    if (onExpandMeasuresOnly) {
+      onExpandMeasuresOnly(handleExpandMeasuresOnly);
+    }
+    if (onExpandToCategories) {
+      onExpandToCategories(handleExpandToCategories);
+    }
     if (onClearAllFilters) {
       onClearAllFilters(handleClearAllFilters);
     }
@@ -3489,7 +3550,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         setColumnWidths(new Map());
       });
     }
-  }, [handleExpandAll, handleCollapseAll, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
+  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
 
   // Handle keyboard navigation
   // Note: handleSave is defined later, so we'll use a ref or move this callback after handleSave

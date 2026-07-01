@@ -44,8 +44,13 @@
     var completed = leafByText(card, '2 Completed');
     if(completed){ var badge = completed.closest('.slds-badge'); if(badge) badge.style.display = 'none'; }
     var progress = leafByText(card, '1 In Progress');
-    if(progress) progress.textContent = 'In Progress';
+    if(progress) progress.textContent = 'Yet to Start';
+    var ctaText = leafByText(card, 'Keep Going');
+    if(ctaText) ctaText.textContent = 'Set it Up';
     var cta = card.querySelector('.item-card__cta');
+    if(cta){
+      cta.setAttribute('aria-label', 'Set it Up: Commercial Planning for Manufacturing');
+    }
     if(cta && !cta.dataset.cpmWired){
       cta.dataset.cpmWired = '1';
       cta.setAttribute('href', '/ipf-clean-up/setup/cpm-feature-set');

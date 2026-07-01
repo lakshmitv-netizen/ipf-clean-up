@@ -43,6 +43,8 @@ import EditFrozenColumnsModal, { FrozenColumn } from './EditFrozenColumnsModal';
 import EditSubColumnsModal, { SubColumn } from './EditSubColumnsModal';
 import GlobalSortPanel, { GlobalSortConfig } from './GlobalSortPanel';
 import AlertsPanel, { FocusGridParams } from './AlertsPanel';
+import AgentforcePanel from './AgentforcePanel';
+import { useAgentforce } from '../contexts/AgentforceContext';
 import { ColumnFilter } from './ColumnFilterPopover';
 import ScopedNotification from './ScopedNotification';
 import { getMeasureName } from '../utils/cellInfoUtils';
@@ -3461,6 +3463,30 @@ const ForecastingGrid: React.FC = () => {
     return () => clearTimeout(t);
   }, [filteredData]);
 
+  // After an Agentforce "Show on grid" filter lands, collapse the hierarchy to a tidy
+  // measures-only view (accounts visible but collapsed) so the grid clearly reads as filtered.
+  useEffect(() => {
+    if (!pendingIntentCollapseRef.current) return;
+    pendingIntentCollapseRef.current = false;
+    const t = setTimeout(() => {
+      if (expandMeasuresOnlyRef.current) expandMeasuresOnlyRef.current();
+      else if (collapseAllRef.current) collapseAllRef.current();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [filteredData]);
+
+  // Focus that targets categories (e.g. "3 categories behind"): expand accounts to reveal
+  // their categories, but leave categories collapsed so the referenced categories read cleanly.
+  useEffect(() => {
+    if (!pendingIntentExpandCategoriesRef.current) return;
+    pendingIntentExpandCategoriesRef.current = false;
+    const t = setTimeout(() => {
+      if (expandToCategoriesRef.current) expandToCategoriesRef.current();
+      else if (expandAllRef.current) expandAllRef.current();
+    }, 0);
+    return () => clearTimeout(t);
+  }, [filteredData]);
+
   // Determine which measures are read-only based on selected measure groups and per-measure context
   const readonlyMeasureIds = useMemo(() => {
     const readonlyIds = new Set<string>();
@@ -3499,6 +3525,12 @@ const ForecastingGrid: React.FC = () => {
   const [isEditSubColumnsModalOpen, setIsEditSubColumnsModalOpen] = useState(false);
   const [showSubColumns, setShowSubColumns] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  // When the Filters panel is opened via an Agentforce hand-off, force the Advanced tab.
+  const [filtersInitialTab, setFiltersInitialTab] = useState<'basic' | 'advanced' | undefined>(undefined);
+  const [filtersInitialTabSignal, setFiltersInitialTabSignal] = useState(0);
+  // Filter Logic expression the agent derived (e.g. "1 AND 2"), pre-populated into the panel.
+  const [externalFilterLogic, setExternalFilterLogic] = useState<string>('');
+  const [externalFilterLogicSignal, setExternalFilterLogicSignal] = useState(0);
   const [isSortPanelOpen, setIsSortPanelOpen] = useState(false);
   const [globalSortConfig, setGlobalSortConfig] = useState<GlobalSortConfig>({ criteria: [], preserveHierarchy: true, sortMeasures: false });
   const [isCellDetailsHistoryOpen, setIsCellDetailsHistoryOpen] = useState(false);
@@ -3549,8 +3581,14 @@ const ForecastingGrid: React.FC = () => {
       base = conditionalFormattingRules;
     }
     // Design-system edited/impacted styling vs user CF (modifyCells) are mutually exclusive.
+    // Agent root-cause highlights (`agent-highlight-*`) are exempt: they must show even
+    // while design-system styling is on, without waking the other modifyCells rules.
     if (isDesignSystemRulesEnabled) {
-      return base.map(r => (r.mode === 'modifyCells' ? { ...r, isActive: false } : r));
+      return base.map(r =>
+        r.mode === 'modifyCells' && !r.id.startsWith('agent-highlight-')
+          ? { ...r, isActive: false }
+          : r
+      );
     }
     return base;
   }, [conditionalFormattingRules, activePreviewRule, isDesignSystemRulesEnabled]);
@@ -3572,11 +3610,12 @@ const ForecastingGrid: React.FC = () => {
   }, []);
 
   // If design-system rules are on, user-defined modifyCells rules must be inactive (sync corrupt / external state).
+  // Agent root-cause highlights (`agent-highlight-*`) are intentionally kept active and excluded here.
   useEffect(() => {
     if (!isDesignSystemRulesEnabled) return;
-    if (!conditionalFormattingRules.some(r => r.mode === 'modifyCells' && r.isActive)) return;
+    if (!conditionalFormattingRules.some(r => r.mode === 'modifyCells' && r.isActive && !r.id.startsWith('agent-highlight-'))) return;
     setConditionalFormattingRules(prev =>
-      prev.map(r => (r.mode === 'modifyCells' ? { ...r, isActive: false } : r))
+      prev.map(r => (r.mode === 'modifyCells' && !r.id.startsWith('agent-highlight-') ? { ...r, isActive: false } : r))
     );
   }, [isDesignSystemRulesEnabled, conditionalFormattingRules]);
 
@@ -3646,6 +3685,9 @@ const ForecastingGrid: React.FC = () => {
   const [cfFromSelectionOpen, setCfFromSelectionOpen] = useState(false);
   const [cfFromSelectionCellKeys, setCfFromSelectionCellKeys] = useState<string[]>([]);
   const [cfLaunchFromSelectionSignal, setCfLaunchFromSelectionSignal] = useState(0);
+  // Bumped to jump to the Formatting tab WITHOUT launching the "rule from selection"
+  // flow — e.g. when the Agentforce reply's "N conditional formatting rules applied" is clicked.
+  const [cfViewFormattingSignal, setCfViewFormattingSignal] = useState(0);
   
   // State for cell edit info popover
   const [editInfoPopover, setEditInfoPopover] = useState<{
@@ -4502,6 +4544,8 @@ const ForecastingGrid: React.FC = () => {
   // Refs to store expand/collapse handlers from HierarchicalGrid
   const expandAllRef = useRef<(() => void) | null>(null);
   const collapseAllRef = useRef<(() => void) | null>(null);
+  const expandMeasuresOnlyRef = useRef<(() => void) | null>(null);
+  const expandToCategoriesRef = useRef<(() => void) | null>(null);
   const resetColumnWidthsRef = useRef<(() => void) | null>(null);
   const clearAllFiltersRef = useRef<(() => void) | null>(null);
   // Registered by FiltersPanel so we can reset its filter cards from the grid hint.
@@ -4509,6 +4553,12 @@ const ForecastingGrid: React.FC = () => {
   // Set when intent-based (Focus grid) filters are applied so we auto-expand the
   // filtered hierarchy once the new data has propagated to the grid.
   const pendingIntentExpandRef = useRef(false);
+  // Set by the Agentforce "Show on grid" action so the grid lands in a tidy collapsed
+  // state (measures expanded, accounts collapsed) that visibly reads as "filtered".
+  const pendingIntentCollapseRef = useRef(false);
+  // Set when a focus wants accounts → categories only (categories collapsed, no products),
+  // e.g. the "3 categories behind" alert card.
+  const pendingIntentExpandCategoriesRef = useRef(false);
 
   // Injected "Review approval request from <requester>" card (set when arriving from a
   // header-bell approval notification). Rendered at the top of the Alerts/Tasks panel.
@@ -4539,7 +4589,24 @@ const ForecastingGrid: React.FC = () => {
       if (params.timeGranularities && params.timeGranularities.length > 0) {
         setSelectedTimeGranularities(new Set(params.timeGranularities));
       }
-      if (params.bottomNCategories) {
+      if (params.bottomNColumnFilter) {
+        const { n, dimension, measureId, columnKey, operator = 'bottomN' } = params.bottomNColumnFilter;
+        const filterMap = new Map<string, ColumnFilter>([
+          [columnKey, {
+            conditions: [{
+              id: 'focus-bottom-n',
+              dimension,
+              measureId,
+              operator,
+              value: String(n),
+              // Rank across the whole grid (exactly N rows) without flattening the tree —
+              // the hierarchy stays nested and is expanded to reveal the matches.
+              ...(params.preserveHierarchy === false ? { rankScope: 'global' as const } : {}),
+            }],
+          }],
+        ]);
+        setExternalColumnFilters(filterMap);
+      } else if (params.bottomNCategories) {
         const { n, measureId, columnKey } = params.bottomNCategories;
         const filterMap = new Map<string, ColumnFilter>([
           [columnKey, {
@@ -4582,11 +4649,178 @@ const ForecastingGrid: React.FC = () => {
       if (params.categories) setExternalCategories(params.categories);
       if (params.measures) setExternalMeasures(params.measures);
       if (params.accounts || params.categories || params.measures) {
-        pendingIntentExpandRef.current = true;
+        if (params.expandLevel === 'categories') {
+          pendingIntentExpandCategoriesRef.current = true;
+          pendingIntentExpandRef.current = false;
+        } else {
+          pendingIntentExpandRef.current = true;
+        }
       }
     }
     if (resetColumnWidthsRef.current) resetColumnWidthsRef.current();
   }, []);
+
+  // ── Agentforce assistant wiring ───────────────────────────────────────────
+  const { isOpen: isAgentforceOpen, close: closeAgentforce } = useAgentforce();
+  // True while an Agentforce "Show on grid" focus is currently applied, so we can
+  // revert to the original view if the panel is dismissed without clearing it.
+  const agentShowAppliedRef = useRef(false);
+  // Id of the conditional-formatting rule the agent injected to highlight a
+  // root-cause cell/period, so we can remove exactly that rule when clearing.
+  const agentHighlightRuleIdRef = useRef<string | null>(null);
+  // Snapshot of the user's sort before the agent applied its own ranking sort, so we
+  // can restore it (instead of blowing it away) when the agent view is cleared.
+  const agentPrevSortConfigRef = useRef<GlobalSortConfig | null>(null);
+
+  const applyAgentSort = useCallback((sort: NonNullable<FocusGridParams['sort']>) => {
+    // Valid "Sort by" measure values the Sort panel understands; fall back to alphabetical.
+    const VALID_SORT_BY = new Set([
+      'measure-sa-qty', 'measure-sa-rev', 'measure-opp-qty', 'measure-opp-rev',
+      'measure-order-qty', 'measure-order-rev',
+    ]);
+    const sortBy = VALID_SORT_BY.has(sort.measureId)
+      ? (sort.measureId as import('./GlobalSortPanel').DimensionSort['sortBy'])
+      : 'alphabetical';
+    setGlobalSortConfig(prev => {
+      if (agentPrevSortConfigRef.current === null) agentPrevSortConfigRef.current = prev;
+      return {
+        criteria: [],
+        preserveHierarchy: true,
+        sortMeasures: false,
+        // Expressed as a dimension sort so the Sort panel shows "<Level> · <Measure> · <dir>".
+        dimensionSorts: [{ id: 'agent-sort', level: sort.dimension, sortBy, direction: sort.direction }],
+      };
+    });
+  }, []);
+
+  const clearAgentSort = useCallback(() => {
+    if (agentPrevSortConfigRef.current === null) return;
+    const prior = agentPrevSortConfigRef.current;
+    agentPrevSortConfigRef.current = null;
+    setGlobalSortConfig(prior);
+  }, []);
+
+  // Soft red "alert" tint used for agent root-cause highlights.
+  const AGENT_HIGHLIGHT_COLOR = '#FCD5D2';
+
+  const clearAgentHighlight = useCallback(() => {
+    const id = agentHighlightRuleIdRef.current;
+    if (!id) return;
+    agentHighlightRuleIdRef.current = null;
+    setConditionalFormattingRules(prev => prev.filter(r => r.id !== id));
+  }, []);
+
+  const applyAgentHighlight = useCallback((highlight: NonNullable<FocusGridParams['highlight']>) => {
+    // Agent highlights are `agent-highlight-*` modifyCells rules that stay active even
+    // while design-system styling is on (see effectiveConditionalFormattingRules), so we
+    // don't flip the global toggle and accidentally light up the pre-existing admin rules.
+    const now = new Date();
+    const id = `agent-highlight-${now.getTime()}`;
+    const rule: ConditionalFormattingRule = {
+      id,
+      name: highlight.name,
+      isActive: true,
+      priority: 0, // highest precedence so the highlight wins over other cell styling
+      mode: 'modifyCells',
+      target: {
+        measureIds: highlight.measureIds ?? [],
+        dimensionLevels: highlight.dimensionLevels ?? [],
+        timeKeys: highlight.timeKeys ?? [],
+        cellKeys: highlight.cellKeys,
+      },
+      // Always-true condition — the target (cellKeys / period) decides what lights up.
+      condition: { type: 'formula', formula: 'VALUE = VALUE' },
+      visualization: { type: 'background', color: highlight.color ?? AGENT_HIGHLIGHT_COLOR },
+      createdAt: now,
+      updatedAt: now,
+    };
+    setConditionalFormattingRules(prev => {
+      const prior = agentHighlightRuleIdRef.current;
+      const cleaned = prior ? prev.filter(r => r.id !== prior) : prev;
+      return [...cleaned, rule];
+    });
+    agentHighlightRuleIdRef.current = id;
+  }, []);
+
+  const handleAgentShowOnGrid = useCallback((params: FocusGridParams | null) => {
+    if (params) {
+      handleFocusGrid(params);
+      if (params.expandHierarchy) {
+        // Deep (e.g. product) matches: expand the full parent→child tree so the user can
+        // correlate the agent's named rows with the grid hierarchy.
+        pendingIntentCollapseRef.current = false;
+        pendingIntentExpandRef.current = true;
+      } else {
+        // Override the default Focus-grid auto-expand: present a collapsed, clearly-filtered view.
+        pendingIntentExpandRef.current = false;
+        pendingIntentCollapseRef.current = true;
+      }
+      if (params.highlight) {
+        applyAgentHighlight(params.highlight);
+      } else {
+        clearAgentHighlight();
+      }
+      if (params.sort) {
+        applyAgentSort(params.sort);
+      } else {
+        clearAgentSort();
+      }
+      agentShowAppliedRef.current = true;
+    } else {
+      handleFocusGrid(null);
+      clearAgentHighlight();
+      clearAgentSort();
+      agentShowAppliedRef.current = false;
+    }
+  }, [handleFocusGrid, applyAgentHighlight, clearAgentHighlight, applyAgentSort, clearAgentSort]);
+
+  // Open Settings on the Formatting tab so the user can see the rule(s) the agent applied.
+  const handleAgentShowConditionalFormatting = useCallback(() => {
+    setCfViewFormattingSignal((s) => s + 1);
+    setIsSettingsOpen(true);
+    setIsFiltersOpen(false);
+    setIsSortPanelOpen(false);
+    setIsCellDetailsHistoryOpen(false);
+    setIsAlertsOpen(false);
+  }, []);
+
+  // Open the Sort panel so the user can see/adjust the ranking sort the agent applied.
+  const handleAgentShowSort = useCallback(() => {
+    setIsSortPanelOpen(true);
+    setIsFiltersOpen(false);
+    setIsSettingsOpen(false);
+    setIsCellDetailsHistoryOpen(false);
+    setIsAlertsOpen(false);
+  }, []);
+
+  const handleAgentEditFilters = useCallback((params: FocusGridParams, filterLogic?: string) => {
+    // Apply (so the cards pre-populate) and hand off to the Filters panel in Advanced mode.
+    handleFocusGrid(params);
+    if (params.highlight) applyAgentHighlight(params.highlight);
+    else clearAgentHighlight();
+    if (params.sort) applyAgentSort(params.sort);
+    else clearAgentSort();
+    // This is a hand-off, not a dismiss — don't let the close-effect revert the grid.
+    agentShowAppliedRef.current = false;
+    setFiltersInitialTab('advanced');
+    setFiltersInitialTabSignal((s) => s + 1);
+    // Pre-populate the derived AND/OR expression into the Filter Logic box.
+    setExternalFilterLogic(filterLogic ?? '');
+    setExternalFilterLogicSignal((s) => s + 1);
+    setIsFiltersOpen(true);
+    closeAgentforce();
+  }, [handleFocusGrid, closeAgentforce, applyAgentHighlight, clearAgentHighlight, applyAgentSort, clearAgentSort]);
+
+  // When the Agentforce panel is dismissed while a "Show on grid" view is active,
+  // revert the grid to its original (unapplied) view.
+  useEffect(() => {
+    if (!isAgentforceOpen && agentShowAppliedRef.current) {
+      handleFocusGrid(null);
+      clearAgentHighlight();
+      clearAgentSort();
+      agentShowAppliedRef.current = false;
+    }
+  }, [isAgentforceOpen, handleFocusGrid, clearAgentHighlight, clearAgentSort]);
 
   // When arriving via a header-bell approval notification, open the Alerts panel,
   // inject the "Review approval request from <requester>" card, and focus the grid
@@ -4978,10 +5212,10 @@ const ForecastingGrid: React.FC = () => {
               isSettingsActive={isSettingsOpen}
               isFilterActive={isFiltersOpen}
               isNotesActive={isCellDetailsHistoryOpen}
-              isSortActive={isSortPanelOpen || globalSortConfig.criteria.length > 0}
+              isSortActive={isSortPanelOpen || globalSortConfig.criteria.length > 0 || (globalSortConfig.dimensionSorts?.length ?? 0) > 0}
               isAlertActive={isAlertsOpen}
               activeFilterCount={activeFilterCount}
-              activeSortCount={globalSortConfig.criteria.length}
+              activeSortCount={globalSortConfig.criteria.length + (globalSortConfig.dimensionSorts?.length ?? 0)}
               globalSortConfig={globalSortConfig}
             />
           </div>
@@ -5155,6 +5389,8 @@ const ForecastingGrid: React.FC = () => {
             columnWidth={columnWidth}
             onExpandAllRows={(handler) => { expandAllRef.current = handler; }}
             onCollapseAllRows={(handler) => { collapseAllRef.current = handler; }}
+            onExpandMeasuresOnly={(handler) => { expandMeasuresOnlyRef.current = handler; }}
+            onExpandToCategories={(handler) => { expandToCategoriesRef.current = handler; }}
             onResetColumnWidths={(handler) => { resetColumnWidthsRef.current = handler; }}
             onClearAllFilters={(handler) => { clearAllFiltersRef.current = handler; }}
             onSettingsClick={() => setIsSettingsOpen(true)}
@@ -5348,7 +5584,7 @@ const ForecastingGrid: React.FC = () => {
           designSystemRulesEnabled={isDesignSystemRulesEnabled}
           onDesignSystemRulesChange={handleDesignSystemRulesChange}
           selectedCellKey={lastSelectedCell}
-          forceFormattingTabSignal={cfLaunchFromSelectionSignal}
+          forceFormattingTabSignal={cfLaunchFromSelectionSignal + cfViewFormattingSignal}
           cfLaunchFromSelectionSignal={cfLaunchFromSelectionSignal}
           cfLaunchFromSelectionCellKeys={cfFromSelectionCellKeys}
           selectedCalendarId={selectedCalendarId}
@@ -5430,6 +5666,10 @@ const ForecastingGrid: React.FC = () => {
           externalCategories={externalCategories}
           externalMeasures={externalMeasures}
           onRegisterClearAll={(handler) => { filtersPanelClearAllRef.current = handler; }}
+          initialTab={filtersInitialTab}
+          initialTabSignal={filtersInitialTabSignal}
+          externalFilterLogic={externalFilterLogic}
+          externalFilterLogicSignal={externalFilterLogicSignal}
         />
         <GlobalSortPanel
           isOpen={isSortPanelOpen}
@@ -5510,6 +5750,16 @@ const ForecastingGrid: React.FC = () => {
           reviewApprovalCard={reviewApprovalCard}
           onDismissReviewApprovalCard={() => setReviewApprovalCard(null)}
           onFocusGrid={handleFocusGrid}
+        />
+
+        <AgentforcePanel
+          isOpen={isAgentforceOpen}
+          onClose={closeAgentforce}
+          data={originalData}
+          onShowOnGrid={handleAgentShowOnGrid}
+          onEditFilters={handleAgentEditFilters}
+          onShowConditionalFormatting={handleAgentShowConditionalFormatting}
+          onShowSort={handleAgentShowSort}
         />
 
         {/* Cell Edit Info Popover - shown when a cell with edit history is focused */}

@@ -105,6 +105,11 @@
   background-color: var(--color-surface-gray);
 }
 
+.header-agentforce-icon {
+  display: block;
+  object-fit: contain;
+}
+
 .header-icon svg {
   width: 18px;
   height: 18px;

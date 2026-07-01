@@ -327,6 +327,10 @@ type HierarchyRow = {
   levelNames?: string[];
 };
 
+// Left-panel dimension filter list in the Setup Hierarchies modal (step 1.1).
+// 'All' is a filter-all option; the real dimensions are the rest.
+const DIMENSION_FILTERS = ['All', 'Account', 'Product'];
+
 const HIERARCHY_ROWS: HierarchyRow[] = [
   { id: 'fy26-acc', name: 'FY 26 Accounts', active: true, dim: 'Account', levels: 4, status: 'ok', sync: '12/05/2026, 10:30 AM' },
   { id: 'fy25-acc', name: 'FY 25 Accounts', active: false, dim: 'Account', levels: 3, status: 'ok', sync: '12/05/2026, 10:30 AM' },
@@ -389,7 +393,14 @@ const CpmFeaturePage: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'edit' | 'clone'>('edit');
   const [newDimension, setNewDimension] = useState('');
   const [levelColWidth, setLevelColWidth] = useState(300);
-  const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(HIERARCHY_ROWS);
+  const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(() => {
+    try {
+      const saved = localStorage.getItem('cpm_hierarchies');
+      return saved ? JSON.parse(saved) : HIERARCHY_ROWS;
+    } catch {
+      return HIERARCHY_ROWS;
+    }
+  });
   const [editLevelNames, setEditLevelNames] = useState<string[]>([]);
   const [cloneName, setCloneName] = useState('');
   const [cloneLevelNames, setCloneLevelNames] = useState<string[]>([]);
@@ -547,6 +558,15 @@ const CpmFeaturePage: React.FC = () => {
     setHierarchyTab('existing');
     resetNewForm();
   };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cpm_hierarchies', JSON.stringify(hierarchies));
+      // Save the actual dimensions (left panel of the hierarchy modal, excluding the 'All' filter)
+      const dimensions = DIMENSION_FILTERS.filter((d) => d !== 'All');
+      localStorage.setItem('cpm_dimensions', JSON.stringify(dimensions));
+    } catch {}
+  }, [hierarchies]);
 
   useEffect(() => {
     if (!turningOn) return;
@@ -1072,7 +1092,7 @@ const CpmFeaturePage: React.FC = () => {
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_1_2.html'}
+                              href={`${import.meta.env.BASE_URL}1stdpe.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -1087,7 +1107,7 @@ const CpmFeaturePage: React.FC = () => {
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition.html'}
+                              href={`${import.meta.env.BASE_URL}dpe_definition.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -1128,7 +1148,7 @@ const CpmFeaturePage: React.FC = () => {
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={window.location.origin + import.meta.env.BASE_URL + 'dpe_definition_2_2.html'}
+                              href={`${import.meta.env.BASE_URL}dpe_definition_2_2.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -1330,7 +1350,7 @@ const CpmFeaturePage: React.FC = () => {
                     </button>
                   </div>
                   <ul className="cpm-hier-dims">
-                    {['All', 'Account', 'Product'].map((d) => (
+                    {DIMENSION_FILTERS.map((d) => (
                       <li key={d}>
                         <button
                           type="button"

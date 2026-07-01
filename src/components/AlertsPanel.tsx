@@ -13,6 +13,9 @@ interface DeadlineTask {
   timeKey?: string;
   cellKeys?: string[];
   type: 'submit' | 'review' | 'approve';
+  // Which tab this item belongs to: 'alert' (system-surfaced risk/anomaly) or 'task'
+  // (a scheduled to-do). Defaults to 'task' when omitted.
+  category?: 'alert' | 'task';
   // Grid focus params
   searchTerm?: string;
   startPeriod?: string;
@@ -33,6 +36,41 @@ export interface FocusGridParams {
   timeGranularities?: string[];
   // Column-level Bottom-N filter on the category dimension (e.g. the 3 worst-performing categories).
   bottomNCategories?: { n: number; measureId: string; columnKey: string };
+  // Generic column-level Top-N / Bottom-N filter (e.g. Bottom 3 accounts by FY26 Order Revenue).
+  bottomNColumnFilter?: {
+    n: number;
+    dimension: 'account' | 'category' | 'product';
+    measureId: string;
+    columnKey: string; // e.g. 'year' for the FY26 column
+    operator?: 'bottomN' | 'topN';
+  };
+  // For Top-N/Bottom-N: false ranks across the whole grid (exactly N rows total);
+  // true (default) ranks within each parent. Used so product Bottom-N shows N rows, not N per category.
+  preserveHierarchy?: boolean;
+  // When the agent applies this view, expand the full hierarchy (parent → child chevrons)
+  // instead of the default tidy collapsed view — used for deep (product) matches.
+  expandHierarchy?: boolean;
+  // Controls how far the focused view auto-expands: 'all' (default, down to products)
+  // or 'categories' (accounts expanded to show categories, categories left collapsed).
+  expandLevel?: 'all' | 'categories';
+  // When the agent ranks rows (e.g. Bottom-3 accounts by FY26), it can also sort the
+  // grid so rows appear in the same order the agent lists them. Expressed as a dimension
+  // sort (level + measure) so it shows up in the Sort panel exactly as the user expects.
+  sort?: {
+    dimension: 'account' | 'category' | 'product';
+    measureId: string;                 // measure to sort by (labels the "Sort by" field)
+    direction: 'asc' | 'desc';
+  };
+  // When the agent pins a root-cause to specific cells/periods, it hands over a
+  // conditional-formatting highlight spec so those cells light up on the grid.
+  highlight?: {
+    name: string;
+    color?: string;                // hex; defaults to an amber "watch" tint
+    cellKeys?: string[];           // explicit `${rowId}-${timeKey}` cells
+    measureIds?: string[];         // column-target scope (when cellKeys is empty)
+    timeKeys?: string[];           // period columns to highlight
+    dimensionLevels?: string[];    // 'account' | 'category' | 'product'
+  };
 }
 
 const TODAY = new Date('2026-03-17');
@@ -48,18 +86,6 @@ const MOCK_DEADLINES: DeadlineTask[] = [
     searchTerm: 'Sales Agreement',
     startPeriod: 'jan2026',
     endPeriod: 'mar2026',
-  },
-  {
-    id: 'dl-2',
-    title: 'Review YoY variance > 20%',
-    description: 'Transmission Assembly · Apr 2026',
-    dueDate: new Date('2026-03-20'),
-    measureId: 'measure-sa-qty',
-    timeKey: 'apr2026',
-    type: 'review',
-    searchTerm: 'Transmission',
-    startPeriod: 'apr2026',
-    endPeriod: 'apr2026',
   },
   {
     id: 'dl-3',
@@ -87,9 +113,10 @@ const MOCK_DEADLINES: DeadlineTask[] = [
     id: 'dl-5',
     title: 'Urgent: Q2 at Risk - 3 Categories Behind Plan',
     description: 'Michigan + Ohio · Bottom 3 categories by Q2 revenue · $2.3M gap',
-    dueDate: new Date('2026-06-30'),
+    dueDate: new Date('2026-03-19'),
     measureId: 'measure-revenue',
     type: 'review',
+    category: 'alert',
     searchTerm: '',
     startPeriod: 'apr2026',
     endPeriod: 'jun2026',
@@ -120,7 +147,7 @@ function formatTimeKey(tk: string): string {
   );
 }
 
-type TabType = 'overdue' | 'soon' | 'all';
+type TabType = 'all' | 'alerts' | 'tasks';
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 interface AlertsPanelProps {
@@ -293,30 +320,21 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
     setDismissedIds(ids);
   };
 
+  // ── Alert / Task partitions ────────────────────────────────────────────────
+  const alertDeadlines = deadlineTasks.filter(t => t.category === 'alert');
+  const taskDeadlines = deadlineTasks.filter(t => (t.category ?? 'task') === 'task');
+  const unreadNotifCount = approvalNotifications.filter(n => !dismissedIds.has(n.notifId)).length;
+
   // ── Tab badge counts ───────────────────────────────────────────────────────
-  const overdueDeadlines = deadlineTasks.filter(t => diffDays(t.dueDate, TODAY) > 0);
-  const soonDeadlines = deadlineTasks.filter(t => {
-    const d = diffDays(t.dueDate, TODAY);
-    return d <= 0 && d > -7;
-  });
-  const overdueApprovals = approvalSlaTasks.filter(t => t.daysRemaining < 0);
-  const soonApprovals = approvalSlaTasks.filter(t => t.daysRemaining >= 0 && t.daysRemaining <= 3);
-  const overdueBadge = overdueDeadlines.length + overdueApprovals.length;
-  const soonBadge = soonDeadlines.length + soonApprovals.length;
-  const allBadge = deadlineTasks.length + approvalSlaTasks.length + approvalNotifications.filter(n => !dismissedIds.has(n.notifId)).length;
+  // Notifications (approval status updates) surface under Alerts; approvals + the injected
+  // review-approval card are actionable Tasks.
+  const alertsBadge = alertDeadlines.length + unreadNotifCount;
+  const tasksBadge = taskDeadlines.length + approvalSlaTasks.length + (reviewApprovalCard ? 1 : 0);
+  const allBadge = alertsBadge + tasksBadge;
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
-  const showDeadline = (t: DeadlineTask) => {
-    const days = diffDays(t.dueDate, TODAY);
-    if (activeTab === 'overdue') return days > 0;
-    if (activeTab === 'soon') return days <= 0 && days > -7;
-    return true;
-  };
-  const showApprovalSla = (t: typeof approvalSlaTasks[0]) => {
-    if (activeTab === 'overdue') return t.daysRemaining < 0;
-    if (activeTab === 'soon') return t.daysRemaining >= 0 && t.daysRemaining <= 3;
-    return true;
-  };
+  const showAlertsGroup = activeTab === 'all' || activeTab === 'alerts';
+  const showTasksGroup = activeTab === 'all' || activeTab === 'tasks';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -339,7 +357,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
   if (!isOpen) return null;
 
-  const visibleApprovalSlaCards = approvalSlaTasks.filter(showApprovalSla);
+  // Approvals are all Tasks; the Tasks-group gate controls whether they render.
+  const visibleApprovalSlaCards = approvalSlaTasks;
   const contextualPendingCards = visibleApprovalSlaCards.filter(t =>
     Boolean(t.approval.focusContext?.selectedCellKeys?.length)
   );
@@ -351,6 +370,78 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
   // Whether any card is focused — used to dim all others
   const anyFocused = focusedCardId !== null;
+
+  // Shared renderer for a deadline card (used by both the Alerts and Tasks sections).
+  const renderDeadlineCard = (task: DeadlineTask) => {
+    const days = diffDays(task.dueDate, TODAY);
+    const urgency = deadlineUrgency(days);
+    const isFocused = focusedCardId === task.id;
+    const isDimmed = anyFocused && !isFocused;
+
+    // Build focus params - special handling for intent-based filtering task.
+    // dl-5 ("Q2 at Risk – 3 Categories Behind Plan"): surface the Q2 quarter column and
+    // apply a column-level Bottom-3 filter on the category dimension (by Q2 revenue) so the
+    // "3 categories behind" are explicitly the 3 worst-performing categories.
+    const focusParams: FocusGridParams = task.id === 'dl-5'
+      ? {
+          accounts: ['MagnaDrive - Michigan Plant', 'MagnaDrive - Ohio Plant'],
+          measures: ['Sales Agreement Revenue'],
+          startPeriod: task.startPeriod,
+          endPeriod: task.endPeriod,
+          timeGranularities: ['month', 'quarter'],
+          bottomNCategories: { n: 3, measureId: 'measure-sa-rev', columnKey: 'q2' },
+          // Show accounts → categories only (categories collapsed) so the "3 categories
+          // behind" read clearly against the card without drilling into products.
+          expandLevel: 'categories',
+        }
+      : {
+          searchTerm: task.searchTerm,
+          startPeriod: task.startPeriod,
+          endPeriod: task.endPeriod,
+        };
+
+    return (
+      <div
+        key={task.id}
+        className={`alerts-card alerts-card--${urgency}${isFocused ? ' alerts-card--focused' : ''}${isDimmed ? ' alerts-card--dimmed' : ''}`}
+      >
+        {/* Card header row */}
+        <div className="alerts-card-header">
+          <div className="alerts-card-header-left">
+            <span className={`alerts-urgency-dot alerts-urgency-dot--${urgency}`}></span>
+            <span className="alerts-card-title">{task.title}</span>
+          </div>
+          <span className={`alerts-type-badge alerts-type-badge--${task.type}`}>
+            {task.type === 'submit' ? 'Submit' : 'Review'}
+          </span>
+        </div>
+
+        {/* Sub / context */}
+        <div className="alerts-card-sub">{task.description}</div>
+
+        {/* Deadline chip */}
+        <div className="alerts-card-meta">
+          {days > 0
+            ? <span className="alerts-chip alerts-chip--red">⏱ {days} day{days !== 1 ? 's' : ''} overdue · was due {formatDate(task.dueDate)}</span>
+            : days === 0
+              ? <span className="alerts-chip alerts-chip--amber">⏱ Due today</span>
+              : <span className="alerts-chip alerts-chip--amber">⏱ Due in {-days} day{-days !== 1 ? 's' : ''} ({formatDate(task.dueDate)})</span>
+          }
+        </div>
+
+        {/* Focus action */}
+        {onFocusGrid && (
+          <div className="alerts-card-actions">
+            <FocusToggleBtn
+              active={isFocused}
+              disabled={isDimmed}
+              onClick={() => handleFocusToggle(task.id, focusParams)}
+            />
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="alerts-panel">
@@ -430,16 +521,16 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
       {/* Tabs */}
       <div className="alerts-panel-tabs">
-        {(['overdue', 'soon', 'all'] as TabType[]).map(tab => (
+        {(['all', 'alerts', 'tasks'] as TabType[]).map(tab => (
           <button
             key={tab}
             className={`alerts-panel-tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === 'overdue' ? 'Overdue' : tab === 'soon' ? 'Due Soon' : 'All'}
-            {tab === 'overdue' && overdueBadge > 0 && <span className="alerts-tab-badge alerts-tab-badge--red">{overdueBadge}</span>}
-            {tab === 'soon'    && soonBadge   > 0 && <span className="alerts-tab-badge alerts-tab-badge--amber">{soonBadge}</span>}
-            {tab === 'all'     && allBadge    > 0 && <span className="alerts-tab-badge alerts-tab-badge--grey">{allBadge}</span>}
+            {tab === 'all' ? 'All' : tab === 'alerts' ? 'Alerts' : 'Tasks'}
+            {tab === 'all'    && allBadge    > 0 && <span className="alerts-tab-badge alerts-tab-badge--grey">{allBadge}</span>}
+            {tab === 'alerts' && alertsBadge > 0 && <span className="alerts-tab-badge alerts-tab-badge--red">{alertsBadge}</span>}
+            {tab === 'tasks'  && tasksBadge  > 0 && <span className="alerts-tab-badge alerts-tab-badge--amber">{tasksBadge}</span>}
           </button>
         ))}
       </div>
@@ -448,7 +539,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
       <div className="alerts-panel-body">
 
         {/* ── Injected review-approval card (from a header-bell notification) ── */}
-        {reviewApprovalCard && (() => {
+        {showTasksGroup && reviewApprovalCard && (() => {
           const t = reviewApprovalCard;
           const chunks = t.chunks ?? [];
           const hasChunks = chunks.length > 0;
@@ -509,8 +600,19 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           );
         })()}
 
+        {/* ── ALERTS ────────────────────────────────────────────── */}
+        {showAlertsGroup && showTasks && alertDeadlines.length > 0 && (
+          <>
+            <div className="alerts-section-header">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+              Alerts
+            </div>
+            {alertDeadlines.map(renderDeadlineCard)}
+          </>
+        )}
+
         {/* ── TASKS ─────────────────────────────────────────────── */}
-        {((showTasks && deadlineTasks.some(showDeadline)) || (showApprovals && visibleApprovalSlaCards.length > 0)) && (
+        {showTasksGroup && ((showTasks && taskDeadlines.length > 0) || (showApprovals && visibleApprovalSlaCards.length > 0)) && (
           <>
             <div className="alerts-section-header">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
@@ -576,73 +678,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
             })()}
 
             {/* Deadline task cards */}
-            {showTasks && deadlineTasks.filter(showDeadline).map(task => {
-              const days = diffDays(task.dueDate, TODAY);
-              const urgency = deadlineUrgency(days);
-              const isFocused = focusedCardId === task.id;
-              const isDimmed = anyFocused && !isFocused;
-              
-              // Build focus params - special handling for intent-based filtering task.
-              // dl-5 ("Q2 at Risk – 3 Categories Behind Plan"): surface the Q2 quarter column and
-              // apply a column-level Bottom-3 filter on the category dimension (by Q2 revenue) so the
-              // "3 categories behind" are explicitly the 3 worst-performing categories.
-              const focusParams: FocusGridParams = task.id === 'dl-5' 
-                ? {
-                    accounts: ['MagnaDrive - Michigan Plant', 'MagnaDrive - Ohio Plant'],
-                    measures: ['Sales Agreement Revenue'],
-                    startPeriod: task.startPeriod,
-                    endPeriod: task.endPeriod,
-                    timeGranularities: ['month', 'quarter'],
-                    bottomNCategories: { n: 3, measureId: 'measure-sa-rev', columnKey: 'q2' },
-                  }
-                : {
-                    searchTerm: task.searchTerm,
-                    startPeriod: task.startPeriod,
-                    endPeriod: task.endPeriod,
-                  };
-
-              return (
-                <div
-                  key={task.id}
-                  className={`alerts-card alerts-card--${urgency}${isFocused ? ' alerts-card--focused' : ''}${isDimmed ? ' alerts-card--dimmed' : ''}`}
-                >
-                  {/* Card header row */}
-                  <div className="alerts-card-header">
-                    <div className="alerts-card-header-left">
-                      <span className={`alerts-urgency-dot alerts-urgency-dot--${urgency}`}></span>
-                      <span className="alerts-card-title">{task.title}</span>
-                    </div>
-                    <span className={`alerts-type-badge alerts-type-badge--${task.type}`}>
-                      {task.type === 'submit' ? 'Submit' : 'Review'}
-                    </span>
-                  </div>
-
-                  {/* Sub / context */}
-                  <div className="alerts-card-sub">{task.description}</div>
-
-                  {/* Deadline chip */}
-                  <div className="alerts-card-meta">
-                    {days > 0
-                      ? <span className="alerts-chip alerts-chip--red">⏱ {days} day{days !== 1 ? 's' : ''} overdue · was due {formatDate(task.dueDate)}</span>
-                      : days === 0
-                        ? <span className="alerts-chip alerts-chip--amber">⏱ Due today</span>
-                        : <span className="alerts-chip alerts-chip--amber">⏱ Due in {-days} day{-days !== 1 ? 's' : ''} ({formatDate(task.dueDate)})</span>
-                    }
-                  </div>
-
-                  {/* Focus action */}
-                  {onFocusGrid && (
-                    <div className="alerts-card-actions">
-                      <FocusToggleBtn
-                        active={isFocused}
-                        disabled={isDimmed}
-                        onClick={() => handleFocusToggle(task.id, focusParams)}
-                      />
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {showTasks && taskDeadlines.map(renderDeadlineCard)}
 
             {/* Remaining approval cards (keep in regular order below tasks) */}
             {showApprovals && remainingApprovalSlaCards.map(t => {
@@ -703,8 +739,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           </>
         )}
 
-        {/* ── NOTIFICATIONS ─────────────────────────────────────── */}
-        {showNotifications && activeTab !== 'overdue' && approvalNotifications.some(n => !dismissedIds.has(n.notifId)) && (
+        {/* ── NOTIFICATIONS (surfaced under Alerts) ─────────────── */}
+        {showAlertsGroup && showNotifications && approvalNotifications.some(n => !dismissedIds.has(n.notifId)) && (
           <>
             <div className="alerts-section-header">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
@@ -804,18 +840,18 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
         )}
 
         {/* ── Empty states ───────────────────────────────────────── */}
-        {activeTab === 'overdue' && overdueBadge === 0 && (
+        {activeTab === 'alerts' && alertsBadge === 0 && (
           <div className="alerts-empty">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-            <p>No overdue items</p>
-            <span>You're all caught up!</span>
+            <p>No alerts</p>
+            <span>Nothing needs your attention right now</span>
           </div>
         )}
-        {activeTab === 'soon' && soonBadge === 0 && (
+        {activeTab === 'tasks' && tasksBadge === 0 && (
           <div className="alerts-empty">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-            <p>Nothing due soon</p>
-            <span>No deadlines in the next 7 days</span>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
+            <p>No tasks</p>
+            <span>You're all caught up!</span>
           </div>
         )}
         {activeTab === 'all' && allBadge === 0 && (
