@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { IndustryProvider } from './contexts/IndustryContext';
 import { PlanWorkflowProvider } from './contexts/PlanWorkflowContext';
 import { UserProvider } from './contexts/UserContext';
@@ -32,6 +32,13 @@ const GridPage: React.FC = () => (
   </div>
 );
 
+// Embed builds (e.g. inside the IPF_Shell iframe) set VITE_ROUTER=hash so routing works
+// from a static subfolder without server rewrites; VITE_HOME_ROUTE picks the landing view.
+const useHashRouter = import.meta.env.VITE_ROUTER === 'hash';
+const Router = useHashRouter ? HashRouter : BrowserRouter;
+const routerProps = useHashRouter ? {} : { basename: import.meta.env.BASE_URL };
+const homeRoute = (import.meta.env.VITE_HOME_ROUTE as string) || '/home/grid-264';
+
 function App() {
   console.log('App component rendering');
   return (
@@ -41,7 +48,7 @@ function App() {
         <PlanningGridSessionProvider>
         <PlanWorkflowProvider>
         <AgentforceProvider>
-        <Router basename={import.meta.env.BASE_URL}>
+        <Router {...routerProps}>
           <IndustryUrlSync />
           <Routes>
             <Route path="/home" element={<HomePage />} />
@@ -57,8 +64,7 @@ function App() {
             <Route path="/setup/plan-configuration-list" element={<PlanConfigurationListPage />} />
             <Route path="/setup/plan-config-creator" element={<PlanConfigCreatorPage />} />
             <Route path="/grid" element={<GridPage />} />
-            <Route path="/" element={<Navigate to="/home/grid-264" replace />} />
-            <Route path="/home" element={<Navigate to="/home/grid-264" replace />} />
+            <Route path="/" element={<Navigate to={homeRoute} replace />} />
           </Routes>
         </Router>
         </AgentforceProvider>
