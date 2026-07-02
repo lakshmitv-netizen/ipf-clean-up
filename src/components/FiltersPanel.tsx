@@ -903,12 +903,20 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       const [mName] = value.split('|');
       if (mName) label = mName;
     }
-    setFilters(prev => prev.map(f =>
+    const newFilters = filters.map(f =>
       f.id === filterId
         ? { ...f, type: newType, label, value, field, operator }
         : f
-    ));
+    );
+    setFilters(newFilters);
+    setIsDirty(true);
     setEditingFilterId(null);
+    // Live-preview the change on the grid immediately so the effect is visible without a
+    // separate Apply click. Cancel/Close still reverts to the pre-edit (original) filters.
+    if (onApplyFilters && data.length > 0) {
+      const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(newFilters, data);
+      onApplyFilters(applyFilters(data, newFilters), { ensureMeasureIdsVisible });
+    }
   };
 
   const handleUnifiedFilterCancel = () => {

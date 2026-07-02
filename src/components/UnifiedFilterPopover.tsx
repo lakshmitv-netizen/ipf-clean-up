@@ -87,6 +87,52 @@ const dimensionMeasureOperatorOptions = [
 const DIMENSION_FIELDS = new Set(['account', 'category', 'products']);
 const DIM_MEASURE_OPS = new Set(['gt', 'gte', 'lt', 'lte', 'eq', 'neq', 'topN', 'bottomN']);
 
+const MATCH_MONTH_KEYS = [
+  'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+  'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+];
+
+// Live preview of how many dimension members a measure-based filter keeps. Mirrors the
+// apply logic in FiltersPanel: Top/Bottom-N ranks by the summed value; comparison
+// operators keep a member only when every period satisfies the operator.
+const computeDimMatchCount = (
+  data: MeasureData[], field: string, measureName: string, op: string, rawVal: string,
+): { matched: number; total: number } => {
+  const dimType = field === 'products' ? 'product' : field;
+  const measure = data.find(m => (m.name ?? m.id) === measureName);
+  const rows: any[] = [];
+  const collect = (arr: any[] | undefined) => arr?.forEach((r: any) => {
+    if (r.type === dimType && (dimType !== 'product' || !r.children || r.children.length === 0)) rows.push(r);
+    if (r.children) collect(r.children);
+  });
+  if (measure) collect(measure.children);
+  const total = new Set(rows.map(r => (r.name ?? '').trim()).filter(Boolean)).size;
+  if (!measure || rows.length === 0) return { matched: 0, total };
+
+  if (op === 'topN' || op === 'bottomN') {
+    const n = Math.max(0, Math.floor(parseFloat(rawVal) || 0));
+    return { matched: Math.min(n, total), total };
+  }
+  const threshold = parseFloat(rawVal);
+  if (isNaN(threshold)) return { matched: total, total };
+  const holds = (v: number): boolean =>
+    op === 'gt' ? v > threshold
+    : op === 'gte' ? v >= threshold
+    : op === 'lt' ? v < threshold
+    : op === 'lte' ? v <= threshold
+    : op === 'eq' ? v === threshold
+    : op === 'neq' ? v !== threshold
+    : true;
+  const matchedNames = new Set<string>();
+  rows.forEach(r => {
+    const nm = (r.name ?? '').trim();
+    if (!nm) return;
+    const vals = MATCH_MONTH_KEYS.map(k => Number(r?.values?.[k]) || 0);
+    if (vals.length > 0 && vals.every(holds)) matchedNames.add(nm);
+  });
+  return { matched: matchedNames.size, total };
+};
+
 const extractMeasures = (data: MeasureData[]): string[] => {
   return data.map(m => m.name ?? m.id).filter(Boolean).sort((a, b) => a.localeCompare(b));
 };
@@ -377,6 +423,10 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   const dimFilterByLabel = dimFilterBy === 'name' ? 'Name' : dimFilterBy;
   const dimMeasureOpLabel = dimensionMeasureOperatorOptions.find(o => o.value === dimMeasureOp)?.label ?? dimMeasureOp;
   const dimValueIsRank = dimMeasureOp === 'topN' || dimMeasureOp === 'bottomN';
+  const dimMemberNoun = field === 'products' ? 'products' : field === 'account' ? 'accounts' : 'categories';
+  const dimMatch = isDimensionField && dimFilterBy !== 'name' && dimMeasureValue.trim() !== ''
+    ? computeDimMatchCount(data, field, dimFilterBy, dimMeasureOp, dimMeasureValue)
+    : null;
 
   const nubbinOuterStyle: React.CSSProperties = pos.side === 'left'
     ? {
@@ -622,6 +672,23 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
                 value={dimMeasureValue}
                 onChange={e => setDimMeasureValue(e.target.value)}
               />
+              {dimMatch && (
+                <div
+                  className="ufp-match-hint"
+                  style={{
+                    marginTop: 6,
+                    fontSize: 12,
+                    color: dimMatch.matched === 0 ? '#ba0517' : '#3e3e3c',
+                  }}
+                >
+                  {dimMatch.matched === 0
+                    ? `No ${dimMemberNoun} match — the grid will be empty. Try a different value.`
+                    : `${dimMatch.matched} of ${dimMatch.total} ${dimMemberNoun} match`}
+                  {!dimValueIsRank && (
+                    <span style={{ color: '#706e6b' }}> (every period must satisfy the condition)</span>
+                  )}
+                </div>
+              )}
             </div>
           </>
         ) : (
