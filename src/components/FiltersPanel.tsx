@@ -911,6 +911,24 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setFilters(newFilters);
     setIsDirty(true);
     setEditingFilterId(null);
+    // For a Time range, live-preview the grid's visible time columns too (mirrors Apply).
+    if (field === 'time') {
+      const body = value.replace(/^Equals\s*/i, '').trim();
+      let from = 'jan2026', to = 'dec2026';
+      if (/\sto\s/i.test(body)) {
+        const [a, b] = body.split(/\sto\s/i);
+        from = tokenToMonthKey(a) ?? 'jan2026';
+        to = tokenToMonthKey(b) ?? 'dec2026';
+      }
+      const isAllTime = from === 'jan2026' && to === 'dec2026';
+      const nextStart = isAllTime ? '' : from;
+      const nextEnd = isAllTime ? '' : to;
+      onShowAllPeriodsChange?.(isAllTime);
+      onStartPeriodChange?.(nextStart);
+      onEndPeriodChange?.(nextEnd);
+      setLocalStartPeriod(nextStart);
+      setLocalEndPeriod(nextEnd);
+    }
     // Live-preview the change on the grid immediately so the effect is visible without a
     // separate Apply click. Cancel/Close still reverts to the pre-edit (original) filters.
     if (onApplyFilters && data.length > 0) {
