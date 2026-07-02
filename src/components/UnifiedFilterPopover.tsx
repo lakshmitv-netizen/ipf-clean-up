@@ -71,6 +71,22 @@ const numericOperatorOptions = [
   { value: 'neq', label: 'Not equals' },
 ];
 
+// Operators available when a dimension (Account/Category/Product) is filtered by a
+// measure value instead of by its name — mirrors the column-level filter options.
+const dimensionMeasureOperatorOptions = [
+  { value: 'gt',  label: 'Greater than' },
+  { value: 'gte', label: 'Greater than or equal' },
+  { value: 'lt',  label: 'Less than' },
+  { value: 'lte', label: 'Less than or equal' },
+  { value: 'eq',  label: 'Equals' },
+  { value: 'neq', label: 'Not equals' },
+  { value: 'topN', label: 'Top-N' },
+  { value: 'bottomN', label: 'Bottom-N' },
+];
+
+const DIMENSION_FIELDS = new Set(['account', 'category', 'products']);
+const DIM_MEASURE_OPS = new Set(['gt', 'gte', 'lt', 'lte', 'eq', 'neq', 'topN', 'bottomN']);
+
 const extractMeasures = (data: MeasureData[]): string[] => {
   return data.map(m => m.name ?? m.id).filter(Boolean).sort((a, b) => a.localeCompare(b));
 };
@@ -140,6 +156,16 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   const measureNameDropRef = useRef<HTMLDivElement>(null);
   const measureOpDropRef = useRef<HTMLDivElement>(null);
 
+  // Dimension "Filter By" state: 'name' (default) or a measure name. When a measure is
+  // chosen, the dimension is filtered by that measure's value (numeric ops + Top/Bottom-N).
+  const [dimFilterBy, setDimFilterBy] = useState('name');
+  const [dimMeasureOp, setDimMeasureOp] = useState('gt');
+  const [dimMeasureValue, setDimMeasureValue] = useState('');
+  const [dimFilterByDropOpen, setDimFilterByDropOpen] = useState(false);
+  const [dimOpDropOpen, setDimOpDropOpen] = useState(false);
+  const dimFilterByDropRef = useRef<HTMLDivElement>(null);
+  const dimOpDropRef = useRef<HTMLDivElement>(null);
+
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const fieldDropRef = useRef<HTMLDivElement>(null);
@@ -160,6 +186,9 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
       setMeasureName('');
       setMeasureOperator('gt');
       setMeasureValue('');
+      setDimFilterBy('name');
+      setDimMeasureOp('gt');
+      setDimMeasureValue('');
 
       if ((initialField || '') === 'measure' && initialValue && initialValue.includes('|')) {
         const parts = initialValue.split('|');
@@ -173,19 +202,31 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
           setMeasureValue(parts[2]);
         }
       }
+
+      // Revisiting a dimension filtered by a measure: value encoded as measureName|op|val
+      if (DIMENSION_FIELDS.has(initialField || '') && initialValue && initialValue.includes('|')) {
+        const parts = initialValue.split('|');
+        if (parts.length >= 3 && DIM_MEASURE_OPS.has(parts[1] ?? '')) {
+          setDimFilterBy(parts[0]);
+          setDimMeasureOp(parts[1]);
+          setDimMeasureValue(parts.slice(2).join('|'));
+        }
+      }
     }
   }, [isOpen, initialField, initialValue]);
 
-  // Close measure dropdowns on outside click
+  // Close measure / dimension-measure dropdowns on outside click
   useEffect(() => {
-    if (!measureNameDropOpen && !measureOpDropOpen) return;
+    if (!measureNameDropOpen && !measureOpDropOpen && !dimFilterByDropOpen && !dimOpDropOpen) return;
     const handler = (e: MouseEvent) => {
       if (!measureNameDropRef.current?.contains(e.target as Node)) setMeasureNameDropOpen(false);
       if (!measureOpDropRef.current?.contains(e.target as Node)) setMeasureOpDropOpen(false);
+      if (!dimFilterByDropRef.current?.contains(e.target as Node)) setDimFilterByDropOpen(false);
+      if (!dimOpDropRef.current?.contains(e.target as Node)) setDimOpDropOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [measureNameDropOpen, measureOpDropOpen]);
+  }, [measureNameDropOpen, measureOpDropOpen, dimFilterByDropOpen, dimOpDropOpen]);
 
   useEffect(() => {
     if (!isOpen) { setFieldDropOpen(false); setOpDropOpen(false); }
@@ -230,6 +271,12 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
     setSearch('');
     setValueExpanded(false);
     setFieldDropOpen(false);
+    // Reset dimension "Filter By" back to Name whenever the field changes.
+    setDimFilterBy('name');
+    setDimMeasureOp('gt');
+    setDimMeasureValue('');
+    setDimFilterByDropOpen(false);
+    setDimOpDropOpen(false);
   };
 
   // Value options based on field
@@ -273,6 +320,10 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
       // Encode as: measureName|operator|value (main grid cell values)
       const encoded = `${measureName}|${measureOperator}|${measureValue}`;
       onSave(field, measureOperator, [encoded]);
+    } else if (DIMENSION_FIELDS.has(field) && dimFilterBy !== 'name') {
+      // Dimension filtered by a measure value. Encode as: measureName|op|value
+      const encoded = `${dimFilterBy}|${dimMeasureOp}|${dimMeasureValue}`;
+      onSave(field, dimMeasureOp, [encoded]);
     } else {
       onSave(field, operator, selectedValues);
     }
@@ -287,6 +338,9 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
     setMeasureName('');
     setMeasureOperator('gt');
     setMeasureValue('');
+    setDimFilterBy('name');
+    setDimMeasureOp('gt');
+    setDimMeasureValue('');
     onCancel();
   };
 
@@ -318,6 +372,11 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   const measureNames = extractMeasures(data);
   const measureNameLabel = measureName || 'Select measure…';
   const measureOpLabel = numericOperatorOptions.find(o => o.value === measureOperator)?.label ?? measureOperator;
+
+  const isDimensionField = DIMENSION_FIELDS.has(field);
+  const dimFilterByLabel = dimFilterBy === 'name' ? 'Name' : dimFilterBy;
+  const dimMeasureOpLabel = dimensionMeasureOperatorOptions.find(o => o.value === dimMeasureOp)?.label ?? dimMeasureOp;
+  const dimValueIsRank = dimMeasureOp === 'topN' || dimMeasureOp === 'bottomN';
 
   const nubbinOuterStyle: React.CSSProperties = pos.side === 'left'
     ? {
@@ -485,6 +544,88 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
           </>
         ) : (
           <>
+        {/* Filter By (dimension fields only): Name or a measure */}
+        {isDimensionField && (
+          <div className="ufp-section">
+            <label className="ufp-label">Filter By</label>
+            <div className="ufp-dropdown-wrap" ref={dimFilterByDropRef}>
+              <button
+                className="ufp-dropdown-trigger"
+                onClick={() => { setDimFilterByDropOpen(p => !p); setFieldDropOpen(false); setDimOpDropOpen(false); }}
+              >
+                <span>{dimFilterByLabel}</span>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              {dimFilterByDropOpen && (
+                <div className="ufp-dropdown-menu">
+                  <button
+                    className={`ufp-dropdown-option${dimFilterBy === 'name' ? ' selected' : ''}`}
+                    onClick={() => { setDimFilterBy('name'); setDimFilterByDropOpen(false); }}
+                  >
+                    Name
+                  </button>
+                  {measureNames.map(mn => (
+                    <button
+                      key={mn}
+                      className={`ufp-dropdown-option${dimFilterBy === mn ? ' selected' : ''}`}
+                      onClick={() => { setDimFilterBy(mn); setDimFilterByDropOpen(false); }}
+                    >
+                      {mn}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isDimensionField && dimFilterBy !== 'name' ? (
+          <>
+            {/* Measure-based operator (numeric + Top/Bottom-N) */}
+            <div className="ufp-section">
+              <label className="ufp-label">Operator</label>
+              <div className="ufp-dropdown-wrap" ref={dimOpDropRef}>
+                <button
+                  className="ufp-dropdown-trigger"
+                  onClick={() => { setDimOpDropOpen(p => !p); setDimFilterByDropOpen(false); setFieldDropOpen(false); }}
+                >
+                  <span>{dimMeasureOpLabel}</span>
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+                {dimOpDropOpen && (
+                  <div className="ufp-dropdown-menu">
+                    {dimensionMeasureOperatorOptions.map(opt => (
+                      <button
+                        key={opt.value}
+                        className={`ufp-dropdown-option${dimMeasureOp === opt.value ? ' selected' : ''}`}
+                        onClick={() => { setDimMeasureOp(opt.value); setDimOpDropOpen(false); }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Value: threshold, or N for Top/Bottom-N */}
+            <div className="ufp-section">
+              <label className="ufp-label">{dimValueIsRank ? 'N' : 'Value'}</label>
+              <input
+                className="ufp-measure-value-input"
+                type="number"
+                placeholder={dimValueIsRank ? 'Enter N…' : 'Enter a number…'}
+                value={dimMeasureValue}
+                onChange={e => setDimMeasureValue(e.target.value)}
+              />
+            </div>
+          </>
+        ) : (
+          <>
         {/* Operator */}
         <div className="ufp-section">
           <label className="ufp-label">Operator</label>
@@ -557,6 +698,8 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
             </div>
           )}
         </div>
+          </>
+        )}
           </>
         )}
 

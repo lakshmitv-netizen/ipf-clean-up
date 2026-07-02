@@ -968,6 +968,22 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return null;
   };
 
+  /**
+   * Parse a dimension-filtered-by-measure value: `measureName|op|val`, where op includes
+   * the numeric operators plus topN / bottomN. Used when an Account/Category/Product filter
+   * is set to filter by a measure value instead of by name.
+   */
+  const parseDimensionMeasureFilter = (
+    encoded: string,
+  ): { mName: string; op: string; rawVal: string } | null => {
+    const parts = encoded.split('|');
+    const ops = new Set(['gt', 'gte', 'lt', 'lte', 'eq', 'neq', 'topN', 'bottomN']);
+    if (parts.length >= 3 && ops.has(parts[1] ?? '')) {
+      return { mName: parts[0], op: parts[1], rawVal: parts.slice(2).join('|') };
+    }
+    return null;
+  };
+
   /** Top-level measure ids referenced by Basic or Advanced measure filters (so the grid can show those columns). */
   const collectMeasureIdsReferencedInFilters = (
     filtersList: Filter[],
@@ -1007,6 +1023,19 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       const parsed = parseMeasureNumericFilter(filter.value);
       const opLabels: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=', neq: '≠' };
       if (parsed) {
+        return `${parsed.mName} ${opLabels[parsed.op] ?? parsed.op} ${parsed.rawVal}`;
+      }
+    }
+    // Dimension filtered by a measure value: "measureName|operator|value" incl. topN/bottomN
+    if (
+      (filter.type === 'account' || filter.type === 'category' || filter.type === 'products') &&
+      filter.value.includes('|')
+    ) {
+      const parsed = parseDimensionMeasureFilter(filter.value);
+      if (parsed) {
+        if (parsed.op === 'topN') return `${parsed.mName} · Top ${parsed.rawVal}`;
+        if (parsed.op === 'bottomN') return `${parsed.mName} · Bottom ${parsed.rawVal}`;
+        const opLabels: Record<string, string> = { gt: '>', gte: '≥', lt: '<', lte: '≤', eq: '=', neq: '≠' };
         return `${parsed.mName} ${opLabels[parsed.op] ?? parsed.op} ${parsed.rawVal}`;
       }
     }
@@ -1054,13 +1083,89 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return normSelected.some(s => n === s);
   };
 
-  const getActiveDimensionFilter = (
+  // ── Dimension-by-measure filtering helpers ─────────────────────────────────────
+  const MONTH_KEYS = [
+    'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+    'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+  ];
+
+  // The month columns currently visible on the grid; measure values are summed across
+  // these to produce one number per dimension row for comparison / ranking.
+  const getVisibleMonthKeys = (): string[] => {
+    if (showAllPeriods || (!startPeriod && !endPeriod)) return MONTH_KEYS;
+    const si = startPeriod && MONTH_KEYS.includes(startPeriod) ? MONTH_KEYS.indexOf(startPeriod) : 0;
+    const ei = endPeriod && MONTH_KEYS.includes(endPeriod) ? MONTH_KEYS.indexOf(endPeriod) : MONTH_KEYS.length - 1;
+    return MONTH_KEYS.slice(Math.min(si, ei), Math.max(si, ei) + 1);
+  };
+
+  const sumRowOverVisible = (row: any, months: string[]): number =>
+    months.reduce((sum, k) => sum + (Number(row?.values?.[k]) || 0), 0);
+
+  const collectDimRows = (rows: any[], dimRowType: string, out: any[]): void => {
+    rows.forEach(r => {
+      if (r.type === dimRowType && (dimRowType !== 'product' || !r.children || r.children.length === 0)) {
+        out.push(r);
+      }
+      if (r.children) collectDimRows(r.children, dimRowType, out);
+    });
+  };
+
+  // Compute the dimension member names that satisfy a measure-based filter, ranking/
+  // comparing by the chosen measure summed across the visible time range.
+  const qualifyingDimNames = (
+    measureTree: MeasureData[], dimRowType: string, mName: string, op: string, rawVal: string,
+  ): string[] => {
+    const measure = measureTree.find(m => (m.name ?? m.id) === mName);
+    if (!measure) return [];
+    const rows: any[] = [];
+    collectDimRows(measure.children || [], dimRowType, rows);
+    const months = getVisibleMonthKeys();
+    const byName = new Map<string, number>();
+    rows.forEach(r => {
+      const nm = (r.name ?? '').trim();
+      if (!nm) return;
+      byName.set(nm, (byName.get(nm) ?? 0) + sumRowOverVisible(r, months));
+    });
+    const list = Array.from(byName.entries()).map(([name, val]) => ({ name, val }));
+    if (op === 'topN' || op === 'bottomN') {
+      const n = Math.max(0, Math.floor(parseFloat(rawVal) || 0));
+      return [...list]
+        .sort((a, b) => (op === 'topN' ? b.val - a.val : a.val - b.val))
+        .slice(0, n)
+        .map(x => x.name);
+    }
+    const threshold = parseFloat(rawVal);
+    if (isNaN(threshold)) return list.map(x => x.name);
+    const passes = (v: number): boolean =>
+      op === 'gt' ? v > threshold
+      : op === 'gte' ? v >= threshold
+      : op === 'lt' ? v < threshold
+      : op === 'lte' ? v <= threshold
+      : op === 'eq' ? v === threshold
+      : op === 'neq' ? v !== threshold
+      : true;
+    return list.filter(x => passes(x.val)).map(x => x.name);
+  };
+
+  // Resolve a dimension filter to a concrete { names, operator } pair. Name-based filters
+  // pass through; measure-based filters are converted to the set of qualifying member names.
+  const resolveDimensionFilter = (
     type: 'account' | 'category' | 'products',
-    srcFilters: Filter[] = filters,
+    currentTree: MeasureData[],
+    srcFilters: Filter[],
   ): { values: string[] | null; operator: string } => {
     const f = srcFilters.find(fi => fi.type === type);
     if (!f || !f.value || f.value === 'Equals All' || f.value === 'All') {
       return { values: null, operator: 'equals' };
+    }
+    if (f.value.includes('|')) {
+      const parsed = parseDimensionMeasureFilter(f.value);
+      if (parsed) {
+        const dimRowType = type === 'products' ? 'product' : type;
+        const names = qualifyingDimNames(currentTree, dimRowType, parsed.mName, parsed.op, parsed.rawVal);
+        // Use a sentinel when nothing qualifies so the equals-match yields an empty result.
+        return { values: names.length > 0 ? names : ['\u0000__none__'], operator: 'equals' };
+      }
     }
     const vals = f.value.split(',').map(v => v.trim()).filter(Boolean);
     return { values: vals.length > 0 ? vals : null, operator: f.operator || 'equals' };
@@ -1070,9 +1175,6 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const applyFilters = (dataToFilter: MeasureData[], srcFilters: Filter[] = filters): MeasureData[] => {
     let filtered: MeasureData[] = JSON.parse(JSON.stringify(dataToFilter));
 
-    const { values: selectedAccounts, operator: accountOp } = getActiveDimensionFilter('account', srcFilters);
-    const { values: selectedCategories, operator: categoryOp } = getActiveDimensionFilter('category', srcFilters);
-    const { values: selectedProducts, operator: productsOp } = getActiveDimensionFilter('products', srcFilters);
     const selectedMeasures   = getActiveValues('measures', srcFilters);
     const measureFilter = srcFilters.find(fi => fi.type === 'measures' && fi.value && fi.value.includes('|'));
 
@@ -1104,28 +1206,40 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       filtered = filtered.filter(m => selectedMeasures.includes(m.name ?? m.id));
     }
 
-    // 2. Filter by accounts
-    if (selectedAccounts) {
-      filtered = filtered.map(measure => ({
-        ...measure,
-        children: filterByAccounts(measure.children || [], selectedAccounts, accountOp),
-      }));
+    // 2. Filter by accounts (by name, or by a measure value / Top-N / Bottom-N)
+    {
+      const { values: selectedAccounts, operator: accountOp } =
+        resolveDimensionFilter('account', filtered, srcFilters);
+      if (selectedAccounts) {
+        filtered = filtered.map(measure => ({
+          ...measure,
+          children: filterByAccounts(measure.children || [], selectedAccounts, accountOp),
+        }));
+      }
     }
 
-    // 3. Filter by categories
-    if (selectedCategories) {
-      filtered = filtered.map(measure => ({
-        ...measure,
-        children: filterByCategories(measure.children || [], selectedCategories, categoryOp),
-      }));
+    // 3. Filter by categories (by name, or by a measure value / Top-N / Bottom-N)
+    {
+      const { values: selectedCategories, operator: categoryOp } =
+        resolveDimensionFilter('category', filtered, srcFilters);
+      if (selectedCategories) {
+        filtered = filtered.map(measure => ({
+          ...measure,
+          children: filterByCategories(measure.children || [], selectedCategories, categoryOp),
+        }));
+      }
     }
 
-    // 4. Filter by products
-    if (selectedProducts) {
-      filtered = filtered.map(measure => ({
-        ...measure,
-        children: filterByProducts(measure.children || [], selectedProducts, productsOp),
-      }));
+    // 4. Filter by products (by name, or by a measure value / Top-N / Bottom-N)
+    {
+      const { values: selectedProducts, operator: productsOp } =
+        resolveDimensionFilter('products', filtered, srcFilters);
+      if (selectedProducts) {
+        filtered = filtered.map(measure => ({
+          ...measure,
+          children: filterByProducts(measure.children || [], selectedProducts, productsOp),
+        }));
+      }
     }
 
     // 5. Filter by time periods (date-range from props)
