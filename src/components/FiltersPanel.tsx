@@ -1110,8 +1110,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     });
   };
 
-  // Compute the dimension member names that satisfy a measure-based filter, ranking/
-  // comparing by the chosen measure summed across the visible time range.
+  // Compute the dimension member names that satisfy a measure-based filter.
+  //  • Top-N / Bottom-N: rank members by the measure summed across the visible range.
+  //  • Comparison operators (>, <, =, …): apply the operator to the actual per-period
+  //    cell values — keep a member when every visible period satisfies the operator.
   const qualifyingDimNames = (
     measureTree: MeasureData[], dimRowType: string, mName: string, op: string, rawVal: string,
   ): string[] => {
@@ -1120,23 +1122,26 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     const rows: any[] = [];
     collectDimRows(measure.children || [], dimRowType, rows);
     const months = getVisibleMonthKeys();
-    const byName = new Map<string, number>();
-    rows.forEach(r => {
-      const nm = (r.name ?? '').trim();
-      if (!nm) return;
-      byName.set(nm, (byName.get(nm) ?? 0) + sumRowOverVisible(r, months));
-    });
-    const list = Array.from(byName.entries()).map(([name, val]) => ({ name, val }));
+
     if (op === 'topN' || op === 'bottomN') {
+      const byName = new Map<string, number>();
+      rows.forEach(r => {
+        const nm = (r.name ?? '').trim();
+        if (!nm) return;
+        byName.set(nm, (byName.get(nm) ?? 0) + sumRowOverVisible(r, months));
+      });
       const n = Math.max(0, Math.floor(parseFloat(rawVal) || 0));
-      return [...list]
-        .sort((a, b) => (op === 'topN' ? b.val - a.val : a.val - b.val))
+      return Array.from(byName.entries())
+        .sort((a, b) => (op === 'topN' ? b[1] - a[1] : a[1] - b[1]))
         .slice(0, n)
-        .map(x => x.name);
+        .map(([name]) => name);
     }
+
     const threshold = parseFloat(rawVal);
-    if (isNaN(threshold)) return list.map(x => x.name);
-    const passes = (v: number): boolean =>
+    if (isNaN(threshold)) {
+      return Array.from(new Set(rows.map(r => (r.name ?? '').trim()).filter(Boolean)));
+    }
+    const holds = (v: number): boolean =>
       op === 'gt' ? v > threshold
       : op === 'gte' ? v >= threshold
       : op === 'lt' ? v < threshold
@@ -1144,7 +1149,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       : op === 'eq' ? v === threshold
       : op === 'neq' ? v !== threshold
       : true;
-    return list.filter(x => passes(x.val)).map(x => x.name);
+    const out = new Set<string>();
+    rows.forEach(r => {
+      const nm = (r.name ?? '').trim();
+      if (!nm) return;
+      const vals = months.map(k => Number(r?.values?.[k]) || 0);
+      if (vals.length > 0 && vals.every(holds)) out.add(nm);
+    });
+    return Array.from(out);
   };
 
   // Resolve a dimension filter to a concrete { names, operator } pair. Name-based filters
