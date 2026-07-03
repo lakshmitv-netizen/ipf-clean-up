@@ -183,38 +183,40 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
       ref={wrapRef}
       onKeyDown={onKeyDown}
     >
-      <button
-        type="button"
-        id={id}
+      <div
         className="filters-basic-ms-trigger"
-        aria-labelledby={labelId}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
+        onClick={() => { setOpen(true); searchRef.current?.focus(); }}
       >
-        <span className="filters-basic-ms-trigger-text" title={selected.size > 1 ? Array.from(selected).join(', ') : undefined}>
-          {summary}
-        </span>
-        <svg className="filters-basic-ms-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden>
+        <input
+          ref={searchRef}
+          id={id}
+          type="text"
+          className="filters-basic-ms-input"
+          role="combobox"
+          aria-labelledby={labelId}
+          aria-expanded={open}
+          aria-autocomplete="list"
+          autoComplete="off"
+          placeholder={summary}
+          value={open ? query : summary}
+          title={selected.size > 1 ? Array.from(selected).join(', ') : undefined}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setOpen(true); setQuery(e.target.value); }}
+        />
+        <svg
+          className="filters-basic-ms-chevron"
+          width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden
+          onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        >
           <path d="M2 4l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-      </button>
+      </div>
       {open && (
         <div className="filters-basic-ms-dropdown" role="listbox" aria-multiselectable="true">
           <div className="filters-basic-ms-dropdown-head">
             <button type="button" className="filters-basic-ms-reset" onClick={clearToAll}>
               All (no filter)
             </button>
-          </div>
-          <div className="filters-basic-ms-search-row">
-            <input
-              ref={searchRef}
-              type="text"
-              className="filters-basic-ms-search"
-              placeholder="Search…"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-            />
           </div>
           <div className="filters-basic-ms-list">
             {options.length === 0 ? (
