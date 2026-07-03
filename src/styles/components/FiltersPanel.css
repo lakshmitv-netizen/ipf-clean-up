@@ -1497,11 +1497,6 @@
   text-decoration: underline;
 }
 
-.filters-basic-ms-all {
-  font-weight: var(--slds-g-font-weight-6, 600);
-  color: var(--slds-g-color-accent-1);
-}
-
 .filters-basic-ms-list {
   overflow-y: auto;
   padding: 4px 0;

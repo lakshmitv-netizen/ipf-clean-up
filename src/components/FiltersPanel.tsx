@@ -227,7 +227,7 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
       {open && (
         <div className="filters-basic-ms-dropdown" role="listbox" aria-multiselectable="true">
           <div className="filters-basic-ms-dropdown-head">
-            <label className="filters-basic-ms-option filters-basic-ms-all">
+            <label className="filters-basic-ms-option">
               <input
                 ref={allCheckboxRef}
                 type="checkbox"
@@ -235,9 +235,7 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
                 onChange={toggleAllFiltered}
                 disabled={filteredOptions.length === 0}
               />
-              <span className="filters-basic-ms-option-label">
-                {query.trim() ? `All matching (${filteredOptions.length})` : 'All'}
-              </span>
+              <span className="filters-basic-ms-option-label">All</span>
             </label>
           </div>
           <div className="filters-basic-ms-list">
