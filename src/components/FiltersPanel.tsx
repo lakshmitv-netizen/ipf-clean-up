@@ -152,6 +152,24 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
     ? options.filter(o => o.toLowerCase().includes(query.trim().toLowerCase()))
     : options;
 
+  const allCheckboxRef = useRef<HTMLInputElement>(null);
+  const allFilteredSelected = filteredOptions.length > 0 && filteredOptions.every(o => selected.has(o));
+  const someFilteredSelected = filteredOptions.some(o => selected.has(o));
+
+  useEffect(() => {
+    if (allCheckboxRef.current) {
+      allCheckboxRef.current.indeterminate = someFilteredSelected && !allFilteredSelected;
+    }
+  }, [someFilteredSelected, allFilteredSelected]);
+
+  // "All" checkbox: select / deselect every option currently shown (respects the search term).
+  const toggleAllFiltered = () => {
+    const next = new Set(selected);
+    if (allFilteredSelected) filteredOptions.forEach(o => next.delete(o));
+    else filteredOptions.forEach(o => next.add(o));
+    onChange(Array.from(next));
+  };
+
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') setOpen(false);
   }, []);
@@ -161,11 +179,6 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
     if (next.has(opt)) next.delete(opt);
     else next.add(opt);
     onChange(Array.from(next));
-  };
-
-  const clearToAll = () => {
-    onChange([]);
-    setOpen(false);
   };
 
   const summary =
@@ -214,9 +227,18 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
       {open && (
         <div className="filters-basic-ms-dropdown" role="listbox" aria-multiselectable="true">
           <div className="filters-basic-ms-dropdown-head">
-            <button type="button" className="filters-basic-ms-reset" onClick={clearToAll}>
-              All (no filter)
-            </button>
+            <label className="filters-basic-ms-option filters-basic-ms-all">
+              <input
+                ref={allCheckboxRef}
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={toggleAllFiltered}
+                disabled={filteredOptions.length === 0}
+              />
+              <span className="filters-basic-ms-option-label">
+                {query.trim() ? `All matching (${filteredOptions.length})` : 'All'}
+              </span>
+            </label>
           </div>
           <div className="filters-basic-ms-list">
             {options.length === 0 ? (
