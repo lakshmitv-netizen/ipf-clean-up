@@ -1481,6 +1481,29 @@
   text-decoration: underline;
 }
 
+.filters-basic-ms-search-row {
+  flex-shrink: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--slds-g-color-neutral-base-90);
+}
+
+.filters-basic-ms-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  border: 1px solid var(--slds-g-color-neutral-base-80);
+  border-radius: 4px;
+  font-size: var(--slds-g-font-size-3);
+  font-family: var(--font-family-base);
+  color: var(--slds-g-color-on-surface-2);
+  outline: none;
+}
+
+.filters-basic-ms-search:focus {
+  border-color: var(--slds-g-color-accent-1);
+  box-shadow: 0 0 0 1px var(--slds-g-color-accent-1);
+}
+
 .filters-basic-ms-list {
   overflow-y: auto;
   padding: 4px 0;

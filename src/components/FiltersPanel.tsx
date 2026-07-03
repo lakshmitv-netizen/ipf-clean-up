@@ -133,16 +133,24 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
   onChange,
 }) => {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const wrapRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setQuery(''); return; }
     const onDoc = (e: MouseEvent) => {
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    // Focus the search box so the user can type immediately.
+    const t = setTimeout(() => searchRef.current?.focus(), 0);
+    return () => { document.removeEventListener('mousedown', onDoc); clearTimeout(t); };
   }, [open]);
+
+  const filteredOptions = query.trim()
+    ? options.filter(o => o.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
 
   const onKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') setOpen(false);
@@ -198,11 +206,23 @@ const BasicFilterMultiSelect: React.FC<BasicFilterMultiSelectProps> = ({
               All (no filter)
             </button>
           </div>
+          <div className="filters-basic-ms-search-row">
+            <input
+              ref={searchRef}
+              type="text"
+              className="filters-basic-ms-search"
+              placeholder="Search…"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+            />
+          </div>
           <div className="filters-basic-ms-list">
             {options.length === 0 ? (
               <div className="filters-basic-ms-empty">No options</div>
+            ) : filteredOptions.length === 0 ? (
+              <div className="filters-basic-ms-empty">No matches</div>
             ) : (
-              options.map(opt => (
+              filteredOptions.map(opt => (
                 <label key={opt} className="filters-basic-ms-option">
                   <input
                     type="checkbox"
