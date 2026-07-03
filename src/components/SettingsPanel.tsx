@@ -557,53 +557,6 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                 </div>
 
                 <div className="settings-field settings-field-spaced">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                    <label className="settings-field-label" style={{ marginBottom: 0 }}>Measure subsets</label>
-                    <a
-                      href="#"
-                      className="settings-link"
-                      style={{ marginBottom: 0 }}
-                      onClick={(e) => { e.preventDefault(); setIsReorderModalOpen(true); }}
-                    >
-                      Configure Measures
-                    </a>
-                  </div>
-                  <div className="settings-dropdown-wrapper" ref={measureSubgroupDropdownRef}>
-                    <div
-                      className={`settings-dropdown-trigger ${isMeasureSubgroupDropdownOpen ? 'open' : ''}`}
-                      onClick={() => setIsMeasureSubgroupDropdownOpen(!isMeasureSubgroupDropdownOpen)}
-                    >
-                      <span className={getMeasureSubgroupSelectedCount() > 0 ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
-                        {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Subset${getMeasureSubgroupSelectedCount() !== 1 ? 's' : ''} Selected` : 'Select Measure Subset'}
-                      </span>
-                      <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                    {isMeasureSubgroupDropdownOpen && (
-                      <div className="settings-dropdown-list settings-dimension-dropdown">
-                        {measureSubgroupOptions.map((option, index) => {
-                          const isSelected = selectedMeasureSubgroup.has(option.value);
-                          return (
-                            <div key={index} className="settings-dropdown-checkbox-option" onClick={() => toggleMeasureSubgroup(option.value)}>
-                              <div className={`settings-checkbox-wrapper ${isSelected ? 'checked' : ''}`}>
-                                {isSelected && <svg className="settings-checkbox-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
-                              </div>
-                              <span className="settings-dropdown-checkbox-label">{option.value}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                  {measures.length > 0 && (
-                    <p className="settings-field-helper-text">
-                      Showing {visibleMeasureIds.size === 0 ? measures.length : measures.filter(m => visibleMeasureIds.has(m.id)).length} of {totalMeasuresAvailable} measures
-                    </p>
-                  )}
-                </div>
-
-                <div className="settings-field settings-field-spaced">
                   <label className="settings-field-label">Dimension levels</label>
                   <div className="settings-dropdown-wrapper" ref={dimensionDropdownRef}>
                     <div

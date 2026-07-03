@@ -5638,6 +5638,10 @@ const ForecastingGrid: React.FC = () => {
           selectedDimensionLevels={selectedDimensionLevels}
           onDimensionLevelsChange={handleDimensionLevelsChange}
           data={originalData}
+          measures={data}
+          visibleMeasureIds={visibleMeasureIds}
+          autoLockMeasureIds={autoLockMeasureIds}
+          onMeasuresReorder={handleMeasuresReorder}
           showAllPeriods={showAllPeriods}
           onShowAllPeriodsChange={setShowAllPeriods}
           startPeriod={startPeriod}

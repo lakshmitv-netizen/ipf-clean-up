@@ -3,6 +3,11 @@ import { MeasureData, GridRow, ParentTotalsRollupMode } from '../types';
 
 import UnifiedFilterPopover from './UnifiedFilterPopover';
 import SearchableSelect from './SearchableSelect';
+import ReorderMeasuresModal from './ReorderMeasuresModal';
+import { measureSubgroupOptions } from './SettingsPanel';
+import { getMockData } from '../data/mockData';
+import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
+import { useIndustry } from '../contexts/IndustryContext';
 import '../styles/components/FiltersPanel.css';
 
 // ── Predefined filter sets (intent-driven presets) ──────────────────────────────
@@ -223,6 +228,12 @@ interface FiltersPanelProps {
   selectedDimensionLevels?: Set<string>;
   onDimensionLevelsChange?: (levels: Set<string>) => void;
   data?: MeasureData[];
+  // Measure subsets control (moved here from Settings): current measure tree, visibility,
+  // reorder callback, and auto-lock ids so "Configure Measures" works from Filters.
+  measures?: MeasureData[];
+  visibleMeasureIds?: Set<string>;
+  autoLockMeasureIds?: Set<string>;
+  onMeasuresReorder?: (orderedMeasures: MeasureData[], visibleMeasureIds: Set<string>, autoLockMeasureIds?: Set<string>) => void;
   showAllPeriods?: boolean;
   onShowAllPeriodsChange?: (showAll: boolean) => void;
   startPeriod?: string;
@@ -260,10 +271,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   isOpen, 
   onClose,
   selectedMeasureSubgroup,
-  onMeasureSubgroupChange: _onMeasureSubgroupChange,
+  onMeasureSubgroupChange,
   selectedDimensionLevels: _selectedDimensionLevels,
   onDimensionLevelsChange: _onDimensionLevelsChange,
   data = [],
+  measures = [],
+  visibleMeasureIds = new Set<string>(),
+  autoLockMeasureIds,
+  onMeasuresReorder,
   showAllPeriods = true,
   onShowAllPeriodsChange,
   startPeriod = '',
@@ -287,6 +302,41 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   externalFilterLogic,
   externalFilterLogicSignal,
 }) => {
+  const { industry } = useIndustry();
+
+  // ── Measure subsets control (relocated from Settings) ───────────────────────
+  const measureSubgroups = selectedMeasureSubgroup ?? new Set<string>([measureSubgroupOptions[0].value]);
+  const [isMeasureSubgroupDropdownOpen, setIsMeasureSubgroupDropdownOpen] = useState(false);
+  const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
+  const measureSubgroupDropdownRef = useRef<HTMLDivElement>(null);
+
+  const getMeasureSubgroupSelectedCount = () => measureSubgroups.size;
+
+  const toggleMeasureSubgroup = (subgroupValue: string) => {
+    const newSet = new Set(measureSubgroups);
+    if (newSet.has(subgroupValue)) newSet.delete(subgroupValue);
+    else newSet.add(subgroupValue);
+    onMeasureSubgroupChange?.(newSet);
+  };
+
+  const totalMeasuresAvailable = useMemo(() => {
+    let total = 0;
+    const currentIndustry = industry || 'manufacturing';
+    if (measureSubgroups.has('Revenue & Quantity Measures')) total += getMockData(currentIndustry).length;
+    if (measureSubgroups.has('Adjustment Measures')) total += adjustmentMeasuresData.length;
+    if (total === 0) total = getMockData(currentIndustry).length;
+    return total;
+  }, [measureSubgroups, industry]);
+
+  useEffect(() => {
+    if (!isMeasureSubgroupDropdownOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (!measureSubgroupDropdownRef.current?.contains(e.target as Node)) setIsMeasureSubgroupDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [isMeasureSubgroupDropdownOpen]);
+
   // Track original values for Cancel functionality (only for filter cards)
   const [originalFilters, setOriginalFilters] = useState<Filter[]>([
     { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
@@ -1735,6 +1785,54 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         {activeTab === 'basic' && (
           <div className="filters-basic">
 
+            {/* Measure subsets */}
+            <div className="filters-basic-group">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span className="filters-basic-label" style={{ marginBottom: 0 }}>Measure subsets</span>
+                <a
+                  href="#"
+                  className="settings-link"
+                  style={{ marginBottom: 0 }}
+                  onClick={(e) => { e.preventDefault(); setIsReorderModalOpen(true); }}
+                >
+                  Configure Measures
+                </a>
+              </div>
+              <div className="settings-dropdown-wrapper" ref={measureSubgroupDropdownRef}>
+                <div
+                  className={`settings-dropdown-trigger ${isMeasureSubgroupDropdownOpen ? 'open' : ''}`}
+                  onClick={() => setIsMeasureSubgroupDropdownOpen(!isMeasureSubgroupDropdownOpen)}
+                >
+                  <span className={getMeasureSubgroupSelectedCount() > 0 ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
+                    {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Subset${getMeasureSubgroupSelectedCount() !== 1 ? 's' : ''} Selected` : 'Select Measure Subset'}
+                  </span>
+                  <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                {isMeasureSubgroupDropdownOpen && (
+                  <div className="settings-dropdown-list settings-dimension-dropdown">
+                    {measureSubgroupOptions.map((option, index) => {
+                      const isSelected = measureSubgroups.has(option.value);
+                      return (
+                        <div key={index} className="settings-dropdown-checkbox-option" onClick={() => toggleMeasureSubgroup(option.value)}>
+                          <div className={`settings-checkbox-wrapper ${isSelected ? 'checked' : ''}`}>
+                            {isSelected && <svg className="settings-checkbox-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                          </div>
+                          <span className="settings-dropdown-checkbox-label">{option.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              {measures.length > 0 && (
+                <p className="settings-field-helper-text">
+                  Showing {visibleMeasureIds.size === 0 ? measures.length : measures.filter(m => visibleMeasureIds.has(m.id)).length} of {totalMeasuresAvailable} measures
+                </p>
+              )}
+            </div>
+
             {/* Measures */}
             <div className="filters-basic-group">
               <span className="filters-basic-label" id="basic-measures-label">Measures</span>
@@ -1926,6 +2024,22 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
           />
         );
       })()}
+
+      {/* Configure Measures modal (relocated with the Measure subsets control) */}
+      {measures.length > 0 && (
+        <ReorderMeasuresModal
+          isOpen={isReorderModalOpen}
+          onClose={() => setIsReorderModalOpen(false)}
+          measures={measures}
+          measureSubgroup={Array.from(measureSubgroups).join(', ') || ''}
+          selectedMeasureSubgroups={measureSubgroups}
+          visibleMeasureIds={visibleMeasureIds}
+          autoLockMeasureIds={autoLockMeasureIds}
+          onSave={(orderedMeasures, nextVisibleMeasureIds, nextAutoLockMeasureIds) => {
+            onMeasuresReorder?.(orderedMeasures, nextVisibleMeasureIds, nextAutoLockMeasureIds);
+          }}
+        />
+      )}
     </div>
   );
 };
