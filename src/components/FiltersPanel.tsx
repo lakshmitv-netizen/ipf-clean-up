@@ -644,9 +644,21 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     const key = `${abbr}2026`;
     return MONTH_ORDER.includes(key) ? key : null;
   };
+  // Structured Time value "T|<op>|<from>|<to>" → month-key window. Returns null for legacy.
+  const parseStructuredTimeValue = (raw: string): { from: string; to: string } | null => {
+    const s = (raw || '').trim();
+    if (!s.startsWith('T|')) return null;
+    const [, , from, to] = s.split('|');
+    return {
+      from: MONTH_ORDER.includes(from) ? from : 'jan2026',
+      to: MONTH_ORDER.includes(to) ? to : 'dec2026',
+    };
+  };
   const parseTimeCardToRange = (): { from: string; to: string } => {
     const f = filters.find(fi => fi.type === 'time');
     const raw = (f?.value ?? '').trim();
+    const structured = parseStructuredTimeValue(raw);
+    if (structured) return structured;
     if (!raw || raw === 'All' || raw === 'Equals All' || raw.includes('Jan 26 to Dec 26')) {
       return { from: 'jan2026', to: 'dec2026' };
     }
@@ -1005,12 +1017,18 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setEditingFilterId(null);
     // For a Time range, live-preview the grid's visible time columns too (mirrors Apply).
     if (field === 'time') {
-      const body = value.replace(/^Equals\s*/i, '').trim();
       let from = 'jan2026', to = 'dec2026';
-      if (/\sto\s/i.test(body)) {
-        const [a, b] = body.split(/\sto\s/i);
-        from = tokenToMonthKey(a) ?? 'jan2026';
-        to = tokenToMonthKey(b) ?? 'dec2026';
+      const structured = parseStructuredTimeValue(value);
+      if (structured) {
+        from = structured.from;
+        to = structured.to;
+      } else {
+        const body = value.replace(/^Equals\s*/i, '').trim();
+        if (/\sto\s/i.test(body)) {
+          const [a, b] = body.split(/\sto\s/i);
+          from = tokenToMonthKey(a) ?? 'jan2026';
+          to = tokenToMonthKey(b) ?? 'dec2026';
+        }
       }
       const isAllTime = from === 'jan2026' && to === 'dec2026';
       const nextStart = isAllTime ? '' : from;
@@ -1136,6 +1154,19 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const getFilterDisplayValue = (filter: Filter): string => {
     if (filter.type === 'new' || !filter.value) return 'Click to configure…';
     if (filter.value === 'Equals All' || filter.value === 'All') return 'Equals All';
+    // Structured Time filter: "T|<op>|<from>|<to>"
+    if (filter.type === 'time' && filter.value.startsWith('T|')) {
+      const [, op, from, to] = filter.value.split('|');
+      const short = (k: string) => (MONTHS.find(m => m.key === k)?.label ?? k).replace('2026', '26');
+      if (op === 'is') return short(from);
+      if (op === 'after') return `On or after ${short(from)}`;
+      if (op === 'before') return `On or before ${short(to)}`;
+      if (op === 'lastN') {
+        const n = MONTH_ORDER.indexOf(to) - MONTH_ORDER.indexOf(from) + 1;
+        return `Last ${n > 0 ? n : 1} periods`;
+      }
+      return `${short(from)} to ${short(to)}`;
+    }
     // Measure numeric filter: "measureName|operator|value" (or legacy four-part with sub-column)
     if (filter.type === 'measures' && filter.value.includes('|')) {
       const parsed = parseMeasureNumericFilter(filter.value);

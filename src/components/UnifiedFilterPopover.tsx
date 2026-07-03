@@ -118,6 +118,33 @@ const parseTimeValueToRange = (raw: string): { start: string; end: string } => {
   return { start: present[0], end: present[present.length - 1] };
 };
 
+// Time Period operators (Option A). "Between" is a start→end range; the others map to a
+// single reference month (or a rolling count for "Last N periods").
+const timeOperatorOptions = [
+  { value: 'between', label: 'Between' },
+  { value: 'is', label: 'Is' },
+  { value: 'after', label: 'On or after' },
+  { value: 'before', label: 'On or before' },
+];
+const timeOpLabel = (v: string): string => timeOperatorOptions.find(o => o.value === v)?.label ?? v;
+
+// Parse a stored time value into operator + month keys. Understands the structured
+// "T|<op>|<from>|<to>" encoding plus the legacy "Equals <start> to <end>" / discrete list.
+const parseTimeValue = (raw: string): { op: string; start: string; end: string; point: string; n: number } => {
+  const s = (raw || '').trim();
+  const has = (k: string) => RANGE_MONTHS.some(m => m.key === k);
+  if (s.startsWith('T|')) {
+    const [, op, from, to] = s.split('|');
+    const fromKey = has(from) ? from : 'jan2026';
+    const toKey = has(to) ? to : 'dec2026';
+    const fi = RANGE_MONTHS.findIndex(m => m.key === fromKey);
+    const ti = RANGE_MONTHS.findIndex(m => m.key === toKey);
+    return { op, start: fromKey, end: toKey, point: op === 'before' ? toKey : fromKey, n: Math.max(1, ti - fi + 1) };
+  }
+  const { start, end } = parseTimeValueToRange(s);
+  return { op: 'between', start, end, point: start, n: 12 };
+};
+
 // Live preview of how many dimension members a measure-based filter keeps. Mirrors the
 // apply logic in FiltersPanel: Top/Bottom-N ranks by the summed value; comparison
 // operators keep a member only when every period satisfies the operator.
@@ -238,13 +265,19 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   const dimFilterByDropRef = useRef<HTMLDivElement>(null);
   const dimOpDropRef = useRef<HTMLDivElement>(null);
 
-  // Time Period start/end range state.
+  // Time Period operator + value state.
+  const [timeOp, setTimeOp] = useState('between');
   const [timeStart, setTimeStart] = useState('jan2026');
   const [timeEnd, setTimeEnd] = useState('dec2026');
+  const [timePoint, setTimePoint] = useState('jan2026');
+  const [timeOpDropOpen, setTimeOpDropOpen] = useState(false);
   const [timeStartDropOpen, setTimeStartDropOpen] = useState(false);
   const [timeEndDropOpen, setTimeEndDropOpen] = useState(false);
+  const [timePointDropOpen, setTimePointDropOpen] = useState(false);
+  const timeOpDropRef = useRef<HTMLDivElement>(null);
   const timeStartDropRef = useRef<HTMLDivElement>(null);
   const timeEndDropRef = useRef<HTMLDivElement>(null);
+  const timePointDropRef = useRef<HTMLDivElement>(null);
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -270,14 +303,19 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
       setDimMeasureOp('gt');
       setDimMeasureValue('');
 
-      // Hydrate the Time Period range from the existing card value (defaults to full year).
+      // Hydrate the Time Period operator + range from the existing card value.
       if ((initialField || '') === 'time' && initialValue) {
-        const { start, end } = parseTimeValueToRange(initialValue);
-        setTimeStart(start);
-        setTimeEnd(end);
+        const t = parseTimeValue(initialValue);
+        // "lastN" was removed; fall back to a Between range if an old card still uses it.
+        setTimeOp(t.op === 'lastN' ? 'between' : t.op);
+        setTimeStart(t.start);
+        setTimeEnd(t.end);
+        setTimePoint(t.point);
       } else {
+        setTimeOp('between');
         setTimeStart('jan2026');
         setTimeEnd('dec2026');
+        setTimePoint('jan2026');
       }
 
       if ((initialField || '') === 'measure' && initialValue && initialValue.includes('|')) {
@@ -307,18 +345,20 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
 
   // Close measure / dimension-measure dropdowns on outside click
   useEffect(() => {
-    if (!measureNameDropOpen && !measureOpDropOpen && !dimFilterByDropOpen && !dimOpDropOpen && !timeStartDropOpen && !timeEndDropOpen) return;
+    if (!measureNameDropOpen && !measureOpDropOpen && !dimFilterByDropOpen && !dimOpDropOpen && !timeOpDropOpen && !timeStartDropOpen && !timeEndDropOpen && !timePointDropOpen) return;
     const handler = (e: MouseEvent) => {
       if (!measureNameDropRef.current?.contains(e.target as Node)) setMeasureNameDropOpen(false);
       if (!measureOpDropRef.current?.contains(e.target as Node)) setMeasureOpDropOpen(false);
       if (!dimFilterByDropRef.current?.contains(e.target as Node)) setDimFilterByDropOpen(false);
       if (!dimOpDropRef.current?.contains(e.target as Node)) setDimOpDropOpen(false);
+      if (!timeOpDropRef.current?.contains(e.target as Node)) setTimeOpDropOpen(false);
       if (!timeStartDropRef.current?.contains(e.target as Node)) setTimeStartDropOpen(false);
       if (!timeEndDropRef.current?.contains(e.target as Node)) setTimeEndDropOpen(false);
+      if (!timePointDropRef.current?.contains(e.target as Node)) setTimePointDropOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [measureNameDropOpen, measureOpDropOpen, dimFilterByDropOpen, dimOpDropOpen, timeStartDropOpen, timeEndDropOpen]);
+  }, [measureNameDropOpen, measureOpDropOpen, dimFilterByDropOpen, dimOpDropOpen, timeOpDropOpen, timeStartDropOpen, timeEndDropOpen, timePointDropOpen]);
 
   useEffect(() => {
     if (!isOpen) { setFieldDropOpen(false); setOpDropOpen(false); }
@@ -409,12 +449,23 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
 
   const handleSave = () => {
     if (field === 'time') {
-      // Time is a start→end range. Keep chronological order, then encode as the
-      // "Equals <start> to <end>" string the grid understands.
-      const si = RANGE_MONTHS.findIndex(m => m.key === timeStart);
-      const ei = RANGE_MONTHS.findIndex(m => m.key === timeEnd);
-      const [fromKey, toKey] = si <= ei ? [timeStart, timeEnd] : [timeEnd, timeStart];
-      onSave('time', 'equals', [`Equals ${rangeMonthLabel(fromKey)} to ${rangeMonthLabel(toKey)}`]);
+      // Encode the chosen operator + resolved window as "T|<op>|<from>|<to>". A full-year
+      // "Between" collapses to the legacy all-periods sentinel so it reads as "no filter".
+      const idx = (k: string) => RANGE_MONTHS.findIndex(m => m.key === k);
+      let value = '';
+      if (timeOp === 'between') {
+        const [fromKey, toKey] = idx(timeStart) <= idx(timeEnd) ? [timeStart, timeEnd] : [timeEnd, timeStart];
+        value = (fromKey === 'jan2026' && toKey === 'dec2026')
+          ? 'Equals Jan 26 to Dec 26'
+          : `T|between|${fromKey}|${toKey}`;
+      } else if (timeOp === 'is') {
+        value = `T|is|${timePoint}|${timePoint}`;
+      } else if (timeOp === 'after') {
+        value = `T|after|${timePoint}|dec2026`;
+      } else {
+        value = `T|before|jan2026|${timePoint}`;
+      }
+      onSave('time', 'equals', [value]);
       onClose();
       return;
     }
@@ -691,28 +742,28 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
 
         {field === 'time' ? (
           <>
-            {/* Start month */}
+            {/* Operator */}
             <div className="ufp-section">
-              <label className="ufp-label">Start</label>
-              <div className="ufp-dropdown-wrap" ref={timeStartDropRef}>
+              <label className="ufp-label">Operator</label>
+              <div className="ufp-dropdown-wrap" ref={timeOpDropRef}>
                 <button
                   className="ufp-dropdown-trigger"
-                  onClick={() => { setTimeStartDropOpen(p => !p); setTimeEndDropOpen(false); setFieldDropOpen(false); }}
+                  onClick={() => { setTimeOpDropOpen(p => !p); setTimeStartDropOpen(false); setTimeEndDropOpen(false); setTimePointDropOpen(false); setFieldDropOpen(false); }}
                 >
-                  <span>{rangeMonthLabel(timeStart)}</span>
+                  <span>{timeOpLabel(timeOp)}</span>
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                     <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </button>
-                {timeStartDropOpen && (
+                {timeOpDropOpen && (
                   <div className="ufp-dropdown-menu">
-                    {RANGE_MONTHS.map(m => (
+                    {timeOperatorOptions.map(o => (
                       <button
-                        key={m.key}
-                        className={`ufp-dropdown-option${timeStart === m.key ? ' selected' : ''}`}
-                        onClick={() => { setTimeStart(m.key); setTimeStartDropOpen(false); }}
+                        key={o.value}
+                        className={`ufp-dropdown-option${timeOp === o.value ? ' selected' : ''}`}
+                        onClick={() => { setTimeOp(o.value); setTimeOpDropOpen(false); }}
                       >
-                        {m.label}
+                        {o.label}
                       </button>
                     ))}
                   </div>
@@ -720,34 +771,96 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
               </div>
             </div>
 
-            {/* End month */}
-            <div className="ufp-section">
-              <label className="ufp-label">End</label>
-              <div className="ufp-dropdown-wrap" ref={timeEndDropRef}>
-                <button
-                  className="ufp-dropdown-trigger"
-                  onClick={() => { setTimeEndDropOpen(p => !p); setTimeStartDropOpen(false); setFieldDropOpen(false); }}
-                >
-                  <span>{rangeMonthLabel(timeEnd)}</span>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                </button>
-                {timeEndDropOpen && (
-                  <div className="ufp-dropdown-menu">
-                    {RANGE_MONTHS.map(m => (
-                      <button
-                        key={m.key}
-                        className={`ufp-dropdown-option${timeEnd === m.key ? ' selected' : ''}`}
-                        onClick={() => { setTimeEnd(m.key); setTimeEndDropOpen(false); }}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
+            {timeOp === 'between' ? (
+              <>
+                {/* Start month */}
+                <div className="ufp-section">
+                  <label className="ufp-label">Start</label>
+                  <div className="ufp-dropdown-wrap" ref={timeStartDropRef}>
+                    <button
+                      className="ufp-dropdown-trigger"
+                      onClick={() => { setTimeStartDropOpen(p => !p); setTimeEndDropOpen(false); setTimeOpDropOpen(false); setFieldDropOpen(false); }}
+                    >
+                      <span>{rangeMonthLabel(timeStart)}</span>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {timeStartDropOpen && (
+                      <div className="ufp-dropdown-menu">
+                        {RANGE_MONTHS.map(m => (
+                          <button
+                            key={m.key}
+                            className={`ufp-dropdown-option${timeStart === m.key ? ' selected' : ''}`}
+                            onClick={() => { setTimeStart(m.key); setTimeStartDropOpen(false); }}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+
+                {/* End month */}
+                <div className="ufp-section">
+                  <label className="ufp-label">End</label>
+                  <div className="ufp-dropdown-wrap" ref={timeEndDropRef}>
+                    <button
+                      className="ufp-dropdown-trigger"
+                      onClick={() => { setTimeEndDropOpen(p => !p); setTimeStartDropOpen(false); setTimeOpDropOpen(false); setFieldDropOpen(false); }}
+                    >
+                      <span>{rangeMonthLabel(timeEnd)}</span>
+                      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                        <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                    {timeEndDropOpen && (
+                      <div className="ufp-dropdown-menu">
+                        {RANGE_MONTHS.map(m => (
+                          <button
+                            key={m.key}
+                            className={`ufp-dropdown-option${timeEnd === m.key ? ' selected' : ''}`}
+                            onClick={() => { setTimeEnd(m.key); setTimeEndDropOpen(false); }}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* Single reference month for Is / On or after / On or before */
+              <div className="ufp-section">
+                <label className="ufp-label">{timeOp === 'after' ? 'From' : timeOp === 'before' ? 'Until' : 'Month'}</label>
+                <div className="ufp-dropdown-wrap" ref={timePointDropRef}>
+                  <button
+                    className="ufp-dropdown-trigger"
+                    onClick={() => { setTimePointDropOpen(p => !p); setTimeOpDropOpen(false); setFieldDropOpen(false); }}
+                  >
+                    <span>{rangeMonthLabel(timePoint)}</span>
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                      <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                  {timePointDropOpen && (
+                    <div className="ufp-dropdown-menu">
+                      {RANGE_MONTHS.map(m => (
+                        <button
+                          key={m.key}
+                          className={`ufp-dropdown-option${timePoint === m.key ? ' selected' : ''}`}
+                          onClick={() => { setTimePoint(m.key); setTimePointDropOpen(false); }}
+                        >
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </>
         ) : isDimensionField && dimFilterBy !== 'name' ? (
           <>
