@@ -15,7 +15,6 @@ import CpmFeaturePage from './pages/CpmFeaturePage';
 import DpeDefinitionPage from './pages/DpeDefinitionPage';
 import PlanConfigurationListPage from './pages/PlanConfigurationListPage';
 import PlanConfigCreatorPage from './pages/PlanConfigCreatorPage';
-import HomePage from './pages/HomePage';
 import IndustryUrlSync from './components/IndustryUrlSync';
 import ErrorBoundary from './components/ErrorBoundary';
 import './styles/App.css';
@@ -51,7 +50,7 @@ function App() {
         <Router {...routerProps}>
           <IndustryUrlSync />
           <Routes>
-            <Route path="/home" element={<HomePage />} />
+            <Route path="/home" element={<Navigate to={homeRoute} replace />} />
             <Route path="/home/manufacturing" element={<GridPage />} />
             <Route path="/home/consumergoods" element={<GridPage />} />
             <Route path="/home/grid-264" element={<GridPage />} />
