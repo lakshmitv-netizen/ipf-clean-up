@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { MeasureData, ApprovalRequest, GridRow, ParentTotalsRollupMode } from '../types';
 import { ApproverState, APPROVER_ROSTER, deriveAggregateStatus } from '../types/approvalRequest';
@@ -3537,8 +3538,12 @@ const ForecastingGrid: React.FC = () => {
   const [cellDetailsInitialTab, setCellDetailsInitialTab] = useState<'single' | 'multi' | 'details'>('multi');
   const [cellDetailsFocusSection, setCellDetailsFocusSection] = useState<'approval' | 'explainability' | null>(null);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
-  const [isScopedNotificationHidden, setIsScopedNotificationHidden] = useState(false);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
+  const [isScopePopoverOpen, setIsScopePopoverOpen] = useState(false);
+  const scopePopoverRef = useRef<HTMLDivElement>(null);
+  const scopeTriggerRef = useRef<HTMLButtonElement>(null);
+  const [scopePopoverPos, setScopePopoverPos] = useState<{ top: number; left: number } | null>(null);
+  const [scopeDraftEverything, setScopeDraftEverything] = useState(false);
   /** In-grid column / quick filters (from HierarchicalGrid) that can hide hierarchy rows. */
   const [hierarchyRowHidingFromGrid, setHierarchyRowHidingFromGrid] = useState<{
     hasColumnFilters: boolean;
@@ -3549,10 +3554,12 @@ const ForecastingGrid: React.FC = () => {
     hasQuickFilters: false,
     columnFilters: new Map(),
   });
-  const [parentTotalsRollupMode, setParentTotalsRollupMode] = useState<ParentTotalsRollupMode>('fullHierarchy');
+  // Default: parent totals + edit disaggregation apply to VISIBLE children only.
+  // The grid banner's "Include even filtered out children" toggle flips both to full hierarchy.
+  const [parentTotalsRollupMode, setParentTotalsRollupMode] = useState<ParentTotalsRollupMode>('visibleOnly');
   const [propagateIntoNoMatchRows, setPropagateIntoNoMatchRows] = useState(false);
   const [measureEditDisaggregateToVisibleChildrenOnly, setMeasureEditDisaggregateToVisibleChildrenOnly] =
-    useState(false);
+    useState(true);
   const [panelKey, setPanelKey] = useState(0); // Key to force panel remount when switching tabs
   const [isCellHistoryApprovalView, setIsCellHistoryApprovalView] = useState(false);
   const [bulkActionPreselect, setBulkActionPreselect] = useState<string | null>(null);
@@ -4509,37 +4516,55 @@ const ForecastingGrid: React.FC = () => {
     return filterDescriptions.length > 0 ? ` Column filters: ${filterDescriptions.join('; ')}` : '';
   }, [hierarchyRowHidingFromGrid.columnFilters]);
 
-  /** Summary of Totals & splits (Filters card) for the banner above the hierarchical grid. */
-  const hierarchicalTotalsModeSummaryLine = useMemo(() => {
-    const filters = hierarchyRowHidingFromGrid.columnFilters;
-    const filterCount = filters.size;
-    
-    const filterPrefix = filterCount > 0 
-      ? `${filterCount} Filter${filterCount > 1 ? 's' : ''} applied • ` 
-      : '';
-    
-    const baseMessage = (() => {
-      if (parentTotalsRollupMode === 'fullHierarchy' && !measureEditDisaggregateToVisibleChildrenOnly) {
-        return (
-          'Parent totals count every child row, including ones your filters hide from the list. ' +
-          'Changing a rolled-up parent value spreads to every child row not just the visible rows.'
-        );
-      }
-      const totalsPhrase: Record<ParentTotalsRollupMode, string> = {
-        fullHierarchy:
-          'Parent totals count every child row, including ones your filters hide from the list',
-        visibleOnly: 'Parent totals count only child rows you can still see after filters',
-        columnFilterBuckets:
-          'Parent totals are split into rows for what matches your column filters and what does not',
-      };
-      const editsPhrase = measureEditDisaggregateToVisibleChildrenOnly
-        ? 'Changing a rolled-up parent value only spreads to child rows you can still see'
-        : 'Changing a rolled-up parent value spreads to every child row';
-      return `${totalsPhrase[parentTotalsRollupMode]}. ${editsPhrase}.`;
-    })();
+  /**
+   * Totals & edits scope. The two settings move together: "Everything" = full hierarchy
+   * (rollups + edits over all children); "Filter Aware" = visible children only. Surfaced
+   * inline in the grid subtitle via an SLDS 2 popover.
+   */
+  const includeFilteredOutChildren =
+    parentTotalsRollupMode === 'fullHierarchy' && !measureEditDisaggregateToVisibleChildrenOnly;
 
-    return filterPrefix + baseMessage;
-  }, [parentTotalsRollupMode, measureEditDisaggregateToVisibleChildrenOnly, hierarchyRowHidingFromGrid.columnFilters]);
+  const setScopeEverything = (everything: boolean) => {
+    if (everything) {
+      setParentTotalsRollupMode('fullHierarchy');
+      setMeasureEditDisaggregateToVisibleChildrenOnly(false);
+    } else {
+      setParentTotalsRollupMode('visibleOnly');
+      setMeasureEditDisaggregateToVisibleChildrenOnly(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!isScopePopoverOpen) return;
+    const reposition = () => {
+      const rect = scopeTriggerRef.current?.getBoundingClientRect();
+      if (rect) setScopePopoverPos({ top: rect.bottom + 8, left: rect.left });
+    };
+    reposition();
+    const handlePointer = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        scopeTriggerRef.current?.contains(target) ||
+        scopePopoverRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsScopePopoverOpen(false);
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsScopePopoverOpen(false);
+    };
+    document.addEventListener('mousedown', handlePointer);
+    document.addEventListener('keydown', handleKey);
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      document.removeEventListener('mousedown', handlePointer);
+      document.removeEventListener('keydown', handleKey);
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [isScopePopoverOpen]);
   
   // Refs to store expand/collapse handlers from HierarchicalGrid
   const expandAllRef = useRef<(() => void) | null>(null);
@@ -4980,51 +5005,65 @@ const ForecastingGrid: React.FC = () => {
   });
 
   const headerSummaryText = useMemo(() => {
+    // Measure categories (M of N)
     const allMeasureCategories = ['Revenue & Quantity Measures', 'Adjustment Measures'];
-    const selectedCategories = allMeasureCategories.filter(c => selectedMeasureSubgroup.has(c));
-    const measureSummary =
-      selectedCategories.length === allMeasureCategories.length
-        ? 'All measure categories'
-        : selectedCategories.length === 0
-          ? 'No measure categories'
-          : selectedCategories.map(c => c.replace(' Category', '')).join(', ');
+    const selectedCategoryCount = allMeasureCategories.filter(c => selectedMeasureSubgroup.has(c)).length;
 
-    // Generate detailed filter summary
-    const columnFilterCount = hierarchyRowHidingFromGrid.columnFilters.size;
-    const panelFilterCount = activeFilterCount;
-    
-    let filterSummary = 'No filters';
-    if (columnFilterCount > 0 || panelFilterCount > 0) {
-      const parts = [];
-      if (panelFilterCount > 0) {
-        parts.push(`${panelFilterCount} panel filter${panelFilterCount === 1 ? '' : 's'}`);
-      }
-      if (columnFilterCount > 0) {
-        parts.push(`${columnFilterCount} column filter${columnFilterCount === 1 ? '' : 's'}`);
-      }
-      filterSummary = parts.join(' + ') + ' applied';
+    // Measures (A of B) — visible measures vs. the full measure set
+    const totalMeasures = originalData.length;
+    const visibleMeasures = hierarchicalGridData.length;
+
+    // Count dimension rows per level in a measure's subtree.
+    const countLevels = (measure?: any) => {
+      let accounts = 0, categories = 0, products = 0;
+      const walk = (rows?: any[]) => {
+        rows?.forEach((r: any) => {
+          if (r.type === 'account') accounts++;
+          else if (r.type === 'category') categories++;
+          else if (r.type === 'product') products++;
+          walk(r.children);
+        });
+      };
+      walk(measure?.children);
+      return { accounts, categories, products };
+    };
+    const totalLevels = countLevels(originalData[0]);
+    const visibleLevels = countLevels(hierarchicalGridData[0]);
+    const visibleRecords = visibleLevels.products || visibleLevels.categories || visibleLevels.accounts;
+    const totalRecords = totalLevels.products || totalLevels.categories || totalLevels.accounts;
+
+    // Dimensions filtered (K) — levels where fewer rows are visible than exist in full.
+    let dimensionsFiltered = 0;
+    if (visibleLevels.accounts < totalLevels.accounts) dimensionsFiltered++;
+    if (visibleLevels.categories < totalLevels.categories) dimensionsFiltered++;
+    if (visibleLevels.products < totalLevels.products) dimensionsFiltered++;
+
+    // Time periods (L)
+    const monthOrder = [
+      'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+      'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+    ];
+    let periodCount = monthOrder.length;
+    if (!showAllPeriods && startPeriod && endPeriod) {
+      const i = monthOrder.indexOf(startPeriod);
+      const j = monthOrder.indexOf(endPeriod);
+      if (i >= 0 && j >= 0) periodCount = Math.abs(j - i) + 1;
     }
 
-    const monthLabels: Record<string, string> = {
-      jan2026: 'Jan 2026', feb2026: 'Feb 2026', mar2026: 'Mar 2026', apr2026: 'Apr 2026',
-      may2026: 'May 2026', jun2026: 'Jun 2026', jul2026: 'Jul 2026', aug2026: 'Aug 2026',
-      sep2026: 'Sep 2026', oct2026: 'Oct 2026', nov2026: 'Nov 2026', dec2026: 'Dec 2026',
-    };
-    const formatPeriod = (period: string) => monthLabels[period] ?? period;
-    const selectedGranularities = Array.from(selectedTimeGranularities);
-    const granularityLabel = selectedGranularities.length > 0 ? selectedGranularities.join(', ') : 'month';
-    const timeSummary = showAllPeriods
-      ? `All periods (${granularityLabel})`
-      : (startPeriod && endPeriod)
-        ? `${formatPeriod(startPeriod)} to ${formatPeriod(endPeriod)} (${granularityLabel})`
-        : 'Custom time range';
+    const fmt = (n: number) => n.toLocaleString();
+    const dimClause = dimensionsFiltered === 0
+      ? 'No dimension filters'
+      : `Filtered by ${dimensionsFiltered} ${dimensionsFiltered === 1 ? 'dimension' : 'dimensions'}`;
+    const periodClause = `across ${periodCount} ${periodCount === 1 ? 'time period' : 'time periods'}`;
 
-    return `${measureSummary} • ${filterSummary} • ${timeSummary}`;
+    return `Showing ${fmt(visibleRecords)} of ${fmt(totalRecords)} records`
+      + ` • ${selectedCategoryCount} of ${allMeasureCategories.length} measure categories`
+      + ` • ${visibleMeasures} of ${totalMeasures} measures`
+      + ` • ${dimClause} ${periodClause}`;
   }, [
     selectedMeasureSubgroup,
-    activeFilterCount,
-    hierarchyRowHidingFromGrid.columnFilters,
-    selectedTimeGranularities,
+    originalData,
+    hierarchicalGridData,
     showAllPeriods,
     startPeriod,
     endPeriod,
@@ -5152,6 +5191,130 @@ const ForecastingGrid: React.FC = () => {
           </div>
           <div className="grid-status-text-header">
             {headerSummaryText}
+            {showHierarchicalParentTotalsHint && (
+            <>
+            {' • '}
+            <span className="grid-scope-inline">
+              <span className={`grid-scope-label${includeFilteredOutChildren ? ' grid-scope-label--everything' : ''}`}>
+                Calculation Scope: {includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}
+              </span>
+              <button
+                type="button"
+                ref={scopeTriggerRef}
+                className={`grid-scope-menu-trigger${includeFilteredOutChildren ? ' grid-scope-menu-trigger--everything' : ''}${isScopePopoverOpen ? ' grid-scope-menu-trigger--open' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={isScopePopoverOpen}
+                aria-label={`Calculation scope: ${includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}. Change`}
+                onClick={() => {
+                  if (!isScopePopoverOpen) setScopeDraftEverything(includeFilteredOutChildren);
+                  setIsScopePopoverOpen((v) => !v);
+                }}
+                title="Calculation scope — change how totals roll up and edits distribute"
+              >
+                <svg className="grid-scope-menu-trigger__icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
+                  <rect x="3" y="1.5" width="10" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
+                  <rect x="5" y="3.4" width="6" height="2.4" rx="0.4" fill="none" stroke="currentColor" strokeWidth="1" />
+                  <circle cx="5.5" cy="9" r="0.7" fill="currentColor" />
+                  <circle cx="8" cy="9" r="0.7" fill="currentColor" />
+                  <circle cx="10.5" cy="9" r="0.7" fill="currentColor" />
+                  <circle cx="5.5" cy="11.6" r="0.7" fill="currentColor" />
+                  <circle cx="8" cy="11.6" r="0.7" fill="currentColor" />
+                  <circle cx="10.5" cy="11.6" r="0.7" fill="currentColor" />
+                </svg>
+                <svg className="grid-scope-menu-trigger__caret" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true" focusable="false">
+                  <path
+                    d="M4 6l4 4 4-4"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
+              {isScopePopoverOpen && scopePopoverPos && createPortal(
+                <div
+                  ref={scopePopoverRef}
+                  className="grid-scope-popover slds-popover slds-popover_small"
+                  role="dialog"
+                  aria-label="Totals and edits scope"
+                  style={{ top: scopePopoverPos.top, left: scopePopoverPos.left }}
+                >
+                  <div className="grid-scope-popover__nubbin" aria-hidden="true" />
+                  <div className="grid-scope-popover__body">
+                    <h2 className="grid-scope-popover__title">Totals &amp; edits scope</h2>
+                    <div role="radiogroup" aria-label="Totals and edits scope">
+                      <button
+                        type="button"
+                        className={`grid-scope-option${!scopeDraftEverything ? ' grid-scope-option--selected' : ''}`}
+                        role="radio"
+                        aria-checked={!scopeDraftEverything}
+                        onClick={() => setScopeDraftEverything(false)}
+                      >
+                        <span className="grid-scope-option__radio" aria-hidden="true" />
+                        <span className="grid-scope-option__body">
+                          <span className="grid-scope-option__label">Only Visible Rows</span>
+                          <span className="grid-scope-option__desc">
+                            Totals &amp; edits apply to the visible rows only. Rows outside your filter are never changed.
+                          </span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`grid-scope-option${scopeDraftEverything ? ' grid-scope-option--selected' : ''}`}
+                        role="radio"
+                        aria-checked={scopeDraftEverything}
+                        onClick={() => setScopeDraftEverything(true)}
+                      >
+                        <span className="grid-scope-option__radio" aria-hidden="true" />
+                        <span className="grid-scope-option__body">
+                          <span className="grid-scope-option__label grid-scope-option__label--warning">
+                            All rows
+                          </span>
+                          <span className="grid-scope-option__desc">
+                            Totals roll up over all children and edits spread to every child row — including ones hidden by your filters.
+                          </span>
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid-scope-popover__footer">
+                    <button
+                      type="button"
+                      className="grid-scope-btn grid-scope-btn_text"
+                      onClick={() => {
+                        handleClearAllGridFilters();
+                        setIsScopePopoverOpen(false);
+                      }}
+                    >
+                      Clear filters
+                    </button>
+                    <div className="grid-scope-popover__footer-actions">
+                      <button
+                        type="button"
+                        className="grid-scope-btn grid-scope-btn_neutral"
+                        onClick={() => setIsScopePopoverOpen(false)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="grid-scope-btn grid-scope-btn_brand"
+                        onClick={() => {
+                          setScopeEverything(scopeDraftEverything);
+                          setIsScopePopoverOpen(false);
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                </div>,
+                document.body
+              )}
+            </span>
+            </>
+            )}
           </div>
         </div>
         <div className="page-header-right">
@@ -5340,31 +5503,6 @@ const ForecastingGrid: React.FC = () => {
           />
         ) : (
           <>
-            {showHierarchicalParentTotalsHint && !isScopedNotificationHidden && (
-            <div
-              className="hierarchical-grid-totals-hint-slot"
-              style={{
-                padding: 'var(--spacing-2, 8px) var(--spacing-2, 8px) 0',
-                flexShrink: 0,
-              }}
-            >
-              <ScopedNotification
-                variant="inline"
-                className="scoped-notification--grid-totals-hint"
-                message={hierarchicalTotalsModeSummaryLine}
-                ctaLabel="Edit Filter Settings"
-                onCtaClick={() => {
-                  setIsFiltersOpen(true);
-                  setIsSettingsOpen(false);
-                  setIsSortPanelOpen(false);
-                  setIsCellDetailsHistoryOpen(false);
-                  setIsAlertsOpen(false);
-                }}
-                closeLabel="Clear filter"
-                onClose={handleClearAllGridFilters}
-              />
-            </div>
-            )}
             <HierarchicalGrid
             key={currentIndustry}
             data={hierarchicalGridData}
@@ -5666,6 +5804,7 @@ const ForecastingGrid: React.FC = () => {
           onPropagateIntoNoMatchRowsChange={setPropagateIntoNoMatchRows}
           measureEditDisaggregateToVisibleChildrenOnly={measureEditDisaggregateToVisibleChildrenOnly}
           onMeasureEditDisaggregateToVisibleChildrenOnlyChange={setMeasureEditDisaggregateToVisibleChildrenOnly}
+          selectedTimeGranularities={selectedTimeGranularities}
           externalAccounts={externalAccounts}
           externalCategories={externalCategories}
           externalMeasures={externalMeasures}

@@ -3712,6 +3712,18 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     row.type === 'category' &&
     (hasDescendantColumnFilterBadge || categoryHasHiddenChildProductsVsStructure);
 
+  /**
+   * Orange dot: show whenever *any* filtering flow has hidden some of this row's descendants —
+   * column filters (header icons / agent Focus) OR the Basic/Advanced Filters panel pruning the
+   * tree. The panel-filter case is detected by the *UsesFilteredDescendantsAsset flags, which
+   * compare visible children against the full rollup structure (from rollupValueSourceData).
+   */
+  const showFilterDot =
+    hasDescendantColumnFilterBadge ||
+    accountUsesFilteredDescendantsAsset ||
+    categoryUsesFilteredDescendantsAsset ||
+    measureUsesFilteredDescendantsAsset;
+
   // Helper function to render type icon
   const renderTypeIcon = () => {
     const iconStyle: React.CSSProperties = {
@@ -3807,18 +3819,18 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     return null;
   };
 
-  /** Orange dot on account / category / measure icon when column filter hides descendants. */
+  /** Orange dot on account / category / measure icon when any filter hides some descendants. */
   const renderTypeIconWithFilterDot = () => {
     const icon = renderTypeIcon();
     if (!icon) return null;
-    if (!hasDescendantColumnFilterBadge)
+    if (!showFilterDot)
       return icon;
     return (
       <span className="grid-row-type-icon-with-filter-dot">
         {icon}
         <span
           className="grid-row-filter-applied-dot"
-          title="Filter applied — some child rows are hidden. Totals still include all rows."
+          title="Filter applied — some child rows are hidden."
           role="img"
           aria-label="Filter applied; some child rows hidden"
         />
@@ -3836,7 +3848,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     <>
       <tr
         {...rowA11y}
-        className={`grid-row ${row.type === 'measure' ? 'measure-row' : ''} ${isFilteredOutMutedRow || isFilterBucketNoMatchMutedRow || noMatchBranchScratchedOut ? 'grid-row-filtered-out-dimension' : ''} ${isActualMeasureRow ? 'readonly-measure-row-actual' : ''} ${isDimensionUnderReadonlyMeasure ? 'readonly-dimension-row' : ''} ${isNewlyAdded ? 'newly-added-measure' : ''} ${hasDescendantColumnFilterBadge ? 'row-has-descendants-column-filter' : ''}`}
+        className={`grid-row ${row.type === 'measure' ? 'measure-row' : ''} ${isFilteredOutMutedRow || isFilterBucketNoMatchMutedRow || noMatchBranchScratchedOut ? 'grid-row-filtered-out-dimension' : ''} ${isActualMeasureRow ? 'readonly-measure-row-actual' : ''} ${isDimensionUnderReadonlyMeasure ? 'readonly-dimension-row' : ''} ${isNewlyAdded ? 'newly-added-measure' : ''} ${showFilterDot ? 'row-has-descendants-column-filter' : ''}`}
       >
         <td
           {...rowheaderA11y}
@@ -3850,15 +3862,15 @@ const GridRowComponent: React.FC<GridRowProps> = ({
           <div
             className={
               frozenColumns.length > 0 && row.type !== 'measure'
-                ? `divided-frozen-row${hasDescendantColumnFilterBadge ? ' divided-frozen-row--filter-badge' : ''}`
+                ? `divided-frozen-row${showFilterDot ? ' divided-frozen-row--filter-badge' : ''}`
                 : undefined
             }
           >
           <div
             className={
               frozenColumns.length > 0 && row.type !== 'measure'
-                ? `divided-cell-content${hasDescendantColumnFilterBadge ? ' cell-content-has-filter-badge' : ''}`
-                : `cell-content${hasDescendantColumnFilterBadge ? ' cell-content-has-filter-badge' : ''}`
+                ? `divided-cell-content${showFilterDot ? ' cell-content-has-filter-badge' : ''}`
+                : `cell-content${showFilterDot ? ' cell-content-has-filter-badge' : ''}`
             }
           >
             <span className={`cell-indent level-${level}`}></span>
@@ -3921,7 +3933,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 }}
                 aria-expanded={showReadonlyWarning}
                 aria-haspopup="dialog"
-                aria-label="Measure subsets options"
+                aria-label="Measure categories options"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowReadonlyWarning(!showReadonlyWarning);

@@ -12,6 +12,8 @@ interface ScopedNotificationProps {
   onClose?: () => void;
   /** Label for close button. If not provided, shows × symbol. */
   closeLabel?: string;
+  /** Inline control rendered in the header row, after the message (e.g. a toggle). */
+  action?: React.ReactNode;
   /** `inline` = embedded in panels (no fixed positioning). Default matches legacy toast-style banner. */
   variant?: 'toast' | 'inline';
   /** Extra class on the root (e.g. tone modifiers). */
@@ -34,6 +36,7 @@ const ScopedNotification: React.FC<ScopedNotificationProps> = ({
   className = '',
   children,
   omitHeaderRow = false,
+  action,
 }) => {
   const root =
     `scoped-notification${variant === 'inline' ? ' scoped-notification--inline' : ''}` +
@@ -55,6 +58,7 @@ const ScopedNotification: React.FC<ScopedNotificationProps> = ({
           </svg>
         )}
         <span className="scoped-notification-text">{message ?? ''}</span>
+        {action}
         {ctaLabel && onCtaClick && (
           <button
             type="button"

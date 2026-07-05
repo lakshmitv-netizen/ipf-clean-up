@@ -307,6 +307,8 @@ interface FiltersPanelProps {
   externalFilterLogic?: string;
   /** Bumped by the parent to (re)apply externalFilterLogic. */
   externalFilterLogicSignal?: number;
+  /** Selected time granularities (year/quarter/month/week) — drives the Time filter period options. */
+  selectedTimeGranularities?: Set<string>;
 }
 
 const FiltersPanel: React.FC<FiltersPanelProps> = ({ 
@@ -343,6 +345,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   initialTabSignal,
   externalFilterLogic,
   externalFilterLogicSignal,
+  selectedTimeGranularities,
 }) => {
   const { industry } = useIndustry();
 
@@ -408,10 +411,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     useState(measureEditDisaggregateToVisibleChildrenOnlyProp);
   const [originalMeasureEditDisaggregateToVisibleChildrenOnly, setOriginalMeasureEditDisaggregateToVisibleChildrenOnly] =
     useState(measureEditDisaggregateToVisibleChildrenOnlyProp);
-  const [adjustTotalsCardOpen, setAdjustTotalsCardOpen] = useState(true);
-
   // Track if Apply was clicked (to distinguish from Cancel/Close)
   const applyClickedRef = useRef(false);
+  const [isScopeSectionOpen, setIsScopeSectionOpen] = useState(false);
 
   const [filters, setFilters] = useState<Filter[]>([
     { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
@@ -1070,8 +1072,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setLocalPropagateIntoNoMatchRows(originalPropagateIntoNoMatchRows);
     setLocalParentTotalsRollupMode(originalParentTotalsRollupMode);
     setLocalMeasureEditDisaggregateToVisibleChildrenOnly(originalMeasureEditDisaggregateToVisibleChildrenOnly);
-    onParentTotalsRollupModeChange?.(originalParentTotalsRollupMode);
-    onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(originalMeasureEditDisaggregateToVisibleChildrenOnly);
+    // Totals scope is owned by the grid banner toggle; Cancel must not revert it here.
     // Restore the filter-set dropdown and the grid view to the pre-preview state so that
     // any live-previewed filter set is undone.
     setSelectedFilterSet(originalSelectedFilterSet);
@@ -1561,6 +1562,22 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
 
   const basicTimeRange = getBasicTimeRange();
 
+  // Calculation scope (mirrors the grid header control). Two settings move together:
+  // "All rows" = full hierarchy rollups + edits; "Visible rows" = visible children only.
+  // Applies immediately and keeps the panel's staging in sync so it doesn't go dirty.
+  const scopeIsEverything =
+    parentTotalsRollupModeProp === 'fullHierarchy' && !measureEditDisaggregateToVisibleChildrenOnlyProp;
+  const applyScope = (everything: boolean) => {
+    const nextRollup: ParentTotalsRollupMode = everything ? 'fullHierarchy' : 'visibleOnly';
+    const nextDisagg = !everything;
+    onParentTotalsRollupModeChange?.(nextRollup);
+    onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(nextDisagg);
+    setLocalParentTotalsRollupMode(nextRollup);
+    setOriginalParentTotalsRollupMode(nextRollup);
+    setLocalMeasureEditDisaggregateToVisibleChildrenOnly(nextDisagg);
+    setOriginalMeasureEditDisaggregateToVisibleChildrenOnly(nextDisagg);
+  };
+
   return (
     <div className="filters-panel">
       {/* Panel Header */}
@@ -1589,12 +1606,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                     const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(filters, data);
                     onApplyFilters(applyFilters(data), { ensureMeasureIdsVisible });
                   }
-                  onParentTotalsRollupModeChange?.(localParentTotalsRollupMode);
+                  // Parent-totals scope is now driven solely by the grid banner toggle, so the
+                  // Filters "Apply" must not push (and thus revert) those values.
                   onPropagateIntoNoMatchRowsChange?.(localPropagateIntoNoMatchRows);
-                  onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(localMeasureEditDisaggregateToVisibleChildrenOnly);
-                  setOriginalParentTotalsRollupMode(localParentTotalsRollupMode);
                   setOriginalPropagateIntoNoMatchRows(localPropagateIntoNoMatchRows);
-                  setOriginalMeasureEditDisaggregateToVisibleChildrenOnly(localMeasureEditDisaggregateToVisibleChildrenOnly);
                   setOriginalFilters([...filters]);
                   setOriginalStartPeriod(nextStartPeriod);
                   setOriginalEndPeriod(nextEndPeriod);
@@ -1624,123 +1639,64 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         )}
       </div>
 
-      <section className="filters-adjust-totals-card" aria-label="Totals and splits with your filters">
+      {/* Calculation Scope (collapsible) */}
+      <div className={`filters-scope-section${isScopeSectionOpen ? ' filters-scope-section--open' : ''}`}>
         <button
           type="button"
-          className="filters-adjust-totals-card-header"
-          aria-expanded={adjustTotalsCardOpen}
-          aria-controls="filters-adjust-totals-card-body"
-          id="filters-adjust-totals-card-trigger"
-          onClick={() => setAdjustTotalsCardOpen((v) => !v)}
+          className="filters-scope-section__header"
+          aria-expanded={isScopeSectionOpen}
+          onClick={() => setIsScopeSectionOpen(v => !v)}
         >
           <svg
-            className={`filters-adjust-totals-card-chevron${adjustTotalsCardOpen ? ' filters-adjust-totals-card-chevron--open' : ''}`}
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-            aria-hidden
+            className="filters-scope-section__chevron"
+            viewBox="0 0 16 16"
+            width="14"
+            height="14"
+            aria-hidden="true"
+            focusable="false"
           >
-            <path
-              d="M4.5 2.25L8.25 6 4.5 9.75"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
+            <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          <span className="filters-adjust-totals-card-title body-fontScale-1-semibold">
-            Totals &amp; splits with your filters
+          <span className="filters-scope-section__title">Calculation Scope</span>
+          <span className={`filters-scope-section__badge${scopeIsEverything ? ' filters-scope-section__badge--warning' : ''}`}>
+            {scopeIsEverything ? 'All rows' : 'Only Visible Rows'}
           </span>
         </button>
-        {adjustTotalsCardOpen ? (
-          <div
-            id="filters-adjust-totals-card-body"
-            className="filters-adjust-totals-card-body"
-            role="region"
-            aria-labelledby="filters-adjust-totals-card-trigger"
-          >
-            <fieldset className="filters-adjust-totals-fieldset">
-              <legend className="filters-adjust-totals-legend">Parent totals</legend>
-              <div className="filters-parent-totals-radios" role="group" aria-label="Parent totals">
-                <label className="filters-parent-totals-radio-label">
-                  <input
-                    type="radio"
-                    className="filters-parent-totals-radio-input"
-                    name="filters-parent-totals-rollup-mode"
-                    value="fullHierarchy"
-                    checked={localParentTotalsRollupMode === 'fullHierarchy'}
-                    onChange={() => {
-                      setLocalParentTotalsRollupMode('fullHierarchy');
-                      onParentTotalsRollupModeChange?.('fullHierarchy');
-                    }}
-                  />
-                  <span className="filters-parent-totals-radio-text">
-                    <span className="filters-parent-totals-radio-title">All children</span>
-                  </span>
-                </label>
-                <label className="filters-parent-totals-radio-label">
-                  <input
-                    type="radio"
-                    className="filters-parent-totals-radio-input"
-                    name="filters-parent-totals-rollup-mode"
-                    value="visibleOnly"
-                    checked={localParentTotalsRollupMode === 'visibleOnly'}
-                    onChange={() => {
-                      setLocalParentTotalsRollupMode('visibleOnly');
-                      onParentTotalsRollupModeChange?.('visibleOnly');
-                    }}
-                  />
-                  <span className="filters-parent-totals-radio-text">
-                    <span className="filters-parent-totals-radio-title">Visible only</span>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="filters-adjust-totals-fieldset filters-adjust-totals-fieldset--tight-top">
-              <legend className="filters-adjust-totals-legend">Parent Disaggregation</legend>
-              <div
-                className="filters-parent-totals-radios"
-                role="group"
-                aria-label="Parent Disaggregation"
-              >
-                <label className="filters-parent-totals-radio-label">
-                  <input
-                    type="radio"
-                    className="filters-parent-totals-radio-input"
-                    name="filters-measure-disaggregate-mode"
-                    checked={!localMeasureEditDisaggregateToVisibleChildrenOnly}
-                    onChange={() => {
-                      setLocalMeasureEditDisaggregateToVisibleChildrenOnly(false);
-                      onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(false);
-                    }}
-                  />
-                  <span className="filters-parent-totals-radio-text">
-                    <span className="filters-parent-totals-radio-title">All child rows</span>
-                  </span>
-                </label>
-                <label className="filters-parent-totals-radio-label">
-                  <input
-                    type="radio"
-                    className="filters-parent-totals-radio-input"
-                    name="filters-measure-disaggregate-mode"
-                    checked={localMeasureEditDisaggregateToVisibleChildrenOnly}
-                    onChange={() => {
-                      setLocalMeasureEditDisaggregateToVisibleChildrenOnly(true);
-                      onMeasureEditDisaggregateToVisibleChildrenOnlyChange?.(true);
-                    }}
-                  />
-                  <span className="filters-parent-totals-radio-text">
-                    <span className="filters-parent-totals-radio-title">Visible rows only</span>
-                  </span>
-                </label>
-              </div>
-            </fieldset>
+        {isScopeSectionOpen && (
+          <div className="filters-scope-options" role="radiogroup" aria-label="Calculation scope">
+            <label className={`filters-scope-radio${!scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
+              <input
+                type="radio"
+                name="calc-scope"
+                className="filters-scope-radio__input"
+                checked={!scopeIsEverything}
+                onChange={() => applyScope(false)}
+              />
+              <span className="filters-scope-radio__body">
+                <span className="filters-scope-radio__title">Only Visible Rows</span>
+                <span className="filters-scope-radio__desc">
+                  Totals &amp; edits apply to the visible rows only. Rows outside your filter are never changed.
+                </span>
+              </span>
+            </label>
+            <label className={`filters-scope-radio${scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
+              <input
+                type="radio"
+                name="calc-scope"
+                className="filters-scope-radio__input"
+                checked={scopeIsEverything}
+                onChange={() => applyScope(true)}
+              />
+              <span className="filters-scope-radio__body">
+                <span className="filters-scope-radio__title filters-scope-radio__title--warning">All rows</span>
+                <span className="filters-scope-radio__desc">
+                  Totals roll up over all children and edits spread to every child row — including ones hidden by your filters.
+                </span>
+              </span>
+            </label>
           </div>
-        ) : null}
-      </section>
+        )}
+      </div>
 
       <div className="filters-set-selector" style={{ padding: '12px 16px 4px' }}>
         <label className="filters-basic-label" style={{ display: 'block', marginBottom: 6 }}>
@@ -1858,10 +1814,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         {activeTab === 'basic' && (
           <div className="filters-basic">
 
-            {/* Measure subsets */}
+            {/* Measure categories */}
             <div className="filters-basic-group">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <span className="filters-basic-label" style={{ marginBottom: 0 }}>Measure subsets</span>
+                <span className="filters-basic-label" style={{ marginBottom: 0 }}>Measure Categories</span>
                 <a
                   href="#"
                   className="settings-link"
@@ -1877,7 +1833,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                   onClick={() => setIsMeasureSubgroupDropdownOpen(!isMeasureSubgroupDropdownOpen)}
                 >
                   <span className={getMeasureSubgroupSelectedCount() > 0 ? 'settings-dropdown-value' : 'settings-dropdown-placeholder'}>
-                    {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Subset${getMeasureSubgroupSelectedCount() !== 1 ? 's' : ''} Selected` : 'Select Measure Subset'}
+                    {getMeasureSubgroupSelectedCount() > 0 ? `${getMeasureSubgroupSelectedCount()} Categor${getMeasureSubgroupSelectedCount() !== 1 ? 'ies' : 'y'} Selected` : 'Select Measure Category'}
                   </span>
                   <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -2094,6 +2050,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
             initialValue={getFilterInitialValue(filter)}
             data={data}
             anchorElement={filterCardRefs.current[editingFilterId]}
+            selectedTimeGranularities={selectedTimeGranularities}
           />
         );
       })()}

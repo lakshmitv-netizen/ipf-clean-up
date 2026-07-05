@@ -66,6 +66,214 @@
   margin-top: 6px;
 }
 
+/* ── Inline "Totals & edits scope" control in the grid subtitle (SLDS 2) ───────── */
+.grid-scope-inline {
+  position: relative !important;
+  display: inline-block !important;
+  white-space: nowrap;
+}
+
+.grid-scope-label {
+  color: var(--slds-g-color-neutral-base-40, #706e6b);
+}
+.grid-scope-label--everything {
+  color: var(--slds-g-color-neutral-base-30, #5c5c5c);
+  font-weight: 600;
+}
+
+/* SLDS 2 button-icon menu trigger (calculator + caret) */
+.grid-scope-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 1.75rem;
+  padding: 0 0.375rem;
+  margin: 0 0 0 0.25rem;
+  border: 1px solid var(--slds-g-color-border-base-4, #c9c9c9) !important;
+  border-radius: 0.25rem;
+  background: var(--slds-g-color-surface-container-1, #ffffff) !important;
+  color: var(--slds-g-color-neutral-base-30, #5c5c5c) !important;
+  cursor: pointer;
+  vertical-align: middle;
+  line-height: 1;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.grid-scope-menu-trigger:hover {
+  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
+  border-color: var(--slds-g-color-border-base-3, #939393) !important;
+}
+.grid-scope-menu-trigger:focus-visible {
+  outline: 2px solid var(--slds-g-color-accent-1, #0176d3);
+  outline-offset: 1px;
+}
+.grid-scope-menu-trigger--open {
+  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
+  border-color: var(--slds-g-color-accent-1, #0176d3) !important;
+  color: var(--slds-g-color-accent-1, #0176d3) !important;
+}
+.grid-scope-menu-trigger--everything {
+  color: var(--slds-g-color-neutral-base-30, #5c5c5c) !important;
+}
+.grid-scope-menu-trigger__icon,
+.grid-scope-menu-trigger__caret {
+  flex-shrink: 0;
+}
+
+/* SLDS 2 popover surface */
+.grid-scope-popover.slds-popover {
+  position: fixed !important;
+  z-index: 2147483647 !important;
+  width: 320px !important;
+  max-width: 320px !important;
+  background: var(--slds-g-color-surface-container-1, #ffffff) !important;
+  border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5) !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 2px 3px 0 rgba(0, 0, 0, 0.16) !important;
+  padding: 0 !important;
+  white-space: normal !important;
+  text-align: left !important;
+  cursor: default;
+}
+.grid-scope-popover__nubbin {
+  position: absolute;
+  top: -7px;
+  left: 18px;
+  width: 12px;
+  height: 12px;
+  background: var(--slds-g-color-surface-container-1, #ffffff);
+  border-left: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+  border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+  transform: rotate(45deg);
+}
+.grid-scope-popover__body {
+  padding: 0.75rem;
+}
+.grid-scope-popover__title {
+  margin: 0 0 0.25rem;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--slds-g-color-neutral-base-10, #181818);
+}
+
+.grid-scope-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font: inherit;
+}
+.grid-scope-option:hover {
+  background: var(--slds-g-color-surface-container-2, #f3f3f3);
+}
+.grid-scope-option--selected {
+  background: var(--slds-g-color-surface-container-2, #f3f3f3);
+}
+/* SLDS 2 radio dot */
+.grid-scope-option__radio {
+  position: relative;
+  flex-shrink: 0;
+  width: 1rem;
+  height: 1rem;
+  margin-top: 1px;
+  border: 1px solid var(--slds-g-color-border-base-4, #939393);
+  border-radius: 50%;
+  background: var(--slds-g-color-surface-container-1, #fff);
+  box-sizing: border-box;
+}
+.grid-scope-option--selected .grid-scope-option__radio {
+  border-color: var(--slds-g-color-accent-1, #0176d3);
+}
+.grid-scope-option--selected .grid-scope-option__radio::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--slds-g-color-accent-1, #0176d3);
+  transform: translate(-50%, -50%);
+}
+.grid-scope-option__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.grid-scope-option__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--slds-g-color-neutral-base-10, #181818);
+  line-height: 1.25rem;
+}
+.grid-scope-option__label--warning {
+  color: var(--slds-g-color-neutral-base-10, #181818);
+}
+.grid-scope-option__desc {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--slds-g-color-neutral-base-30, #5c5c5c);
+  line-height: 1rem;
+}
+
+.grid-scope-popover__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+}
+.grid-scope-popover__footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* SLDS 2 buttons (class + !important beats App.css button reset) */
+.grid-scope-btn {
+  height: 2rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem !important;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 9999px;
+  border: 1px solid transparent !important;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+.grid-scope-btn_text {
+  padding: 0;
+  height: auto;
+  background: transparent !important;
+  color: var(--slds-g-color-accent-1, #0176d3) !important;
+}
+.grid-scope-btn_text:hover {
+  text-decoration: underline;
+}
+.grid-scope-btn_neutral {
+  background: var(--slds-g-color-surface-container-1, #fff) !important;
+  color: var(--slds-g-color-neutral-base-30, #5c5c5c) !important;
+  border-color: var(--slds-g-color-border-base-4, #c9c9c9) !important;
+}
+.grid-scope-btn_neutral:hover {
+  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
+}
+.grid-scope-btn_brand {
+  background: var(--slds-g-color-accent-1, #0176d3) !important;
+  color: var(--slds-g-color-surface-container-1, #fff) !important;
+}
+.grid-scope-btn_brand:hover {
+  background: var(--slds-g-color-brand-base-30, #014486) !important;
+}
+
 .breadcrumbs-row {
   display: flex;
   align-items: center;

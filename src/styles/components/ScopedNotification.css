@@ -164,6 +164,38 @@
   font-weight: 400;
 }
 
+/* Inline totals-scope toggle: sits right after the banner text (left side); the
+   Clear filters link is pushed to the far-right corner so it isn't clicked by mistake. */
+.scoped-notification-totals-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.scoped-notification--grid-totals-hint .scoped-notification-text {
+  flex: 0 1 auto;
+}
+
+.scoped-notification--grid-totals-hint .scoped-notification-close-btn--labeled {
+  margin-left: auto;
+}
+
+.scoped-notification-totals-toggle-label {
+  font-family: var(--font-family-base);
+  font-size: 13px;
+  font-weight: 590;
+  color: var(--slds-g-color-brand-base-40);
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.scoped-notification--grid-totals-hint .scoped-notification-close-btn--labeled {
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* Body = children only (e.g. single toggle row in cell editor) */
 .scoped-notification--children-only {
   box-sizing: border-box;
