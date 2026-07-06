@@ -100,6 +100,18 @@ const StepCheck: React.FC = () => (
   </svg>
 );
 
+const StepCheckboxSquare: React.FC<{ checked: boolean }> = ({ checked }) =>
+  checked ? (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <rect x="1" y="1" width="20" height="20" rx="5" fill="#0176d3" />
+      <path d="M6 11.2l3.2 3.2L16 7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <rect x="1.75" y="1.75" width="18.5" height="18.5" rx="5" fill="#fff" stroke="#c9c9c9" strokeWidth="1.5" />
+    </svg>
+  );
+
 const StepCheckBlue: React.FC = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
     <circle cx="12" cy="12" r="11" fill="#0176d3" />
@@ -378,10 +390,15 @@ const CpmFeaturePage: React.FC = () => {
   const [turnOnOpen, setTurnOnOpen] = useState(false);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const [dataSpaceSaved, setDataSpaceSaved] = useState(false);
+  // Steps 1 & 2 are manual — the user checks them off themselves.
+  const [step1Done, setStep1Done] = useState(false);
+  const [step2Done, setStep2Done] = useState(false);
   const [turningOn, setTurningOn] = useState(false);
   const [turnedOn, setTurnedOn] = useState(false);
   const [reqOpen, setReqOpen] = useState(true);
   const [step11Done, setStep11Done] = useState(false);
+  const [step31Done, setStep31Done] = useState(false);
+  const [step32Done, setStep32Done] = useState(false);
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
   const [userAccessModalOpen, setUserAccessModalOpen] = useState(false);
@@ -809,7 +826,16 @@ const CpmFeaturePage: React.FC = () => {
                   {/* Step 1 */}
                   <div className="cpm-step">
                     <div className="cpm-step-rail">
-                      <StepCheck />
+                      <button
+                        type="button"
+                        className="cpm-step-checkbtn"
+                        aria-pressed={step1Done}
+                        aria-label={step1Done ? 'Mark step incomplete' : 'Mark step complete'}
+                        onClick={() => setStep1Done((v) => !v)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
+                      >
+                        <StepCheckboxSquare checked={step1Done} />
+                      </button>
                       <div className="cpm-step-line" />
                     </div>
                     <div className="cpm-step-content">
@@ -835,7 +861,16 @@ const CpmFeaturePage: React.FC = () => {
                   {/* Step 2 */}
                   <div className="cpm-step">
                     <div className="cpm-step-rail">
-                      <StepCheck />
+                      <button
+                        type="button"
+                        className="cpm-step-checkbtn"
+                        aria-pressed={step2Done}
+                        aria-label={step2Done ? 'Mark step incomplete' : 'Mark step complete'}
+                        onClick={() => setStep2Done((v) => !v)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
+                      >
+                        <StepCheckboxSquare checked={step2Done} />
+                      </button>
                       <div className="cpm-step-line" />
                     </div>
                     <div className="cpm-step-content">
@@ -860,7 +895,7 @@ const CpmFeaturePage: React.FC = () => {
                   {/* Step 3 — Select a Data Space */}
                   <div className="cpm-step">
                     <div className="cpm-step-rail">
-                      {dataSpaceSaved ? <StepCheck /> : <StepCircle />}
+                      {dataSpaceSaved ? <StepCheckBlue /> : <StepCircle />}
                     </div>
                     <div className="cpm-step-content">
                       <div className="cpm-step-main">
@@ -1107,7 +1142,7 @@ const CpmFeaturePage: React.FC = () => {
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={`${import.meta.env.BASE_URL}dpe_definition.html`}
+                              href={`${import.meta.env.BASE_URL}2nddpe.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
@@ -1173,7 +1208,15 @@ const CpmFeaturePage: React.FC = () => {
                         </div>
                         <div className="cpm-req-subs">
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><StepCheckBlueSm /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep31Done((d) => !d)}
+                              aria-pressed={step31Done}
+                              aria-label={step31Done ? 'Mark step 3.1 as not complete' : 'Mark step 3.1 as complete'}
+                            >
+                              {step31Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">3.1 Configure Org Calendar</p>
                               <p className="cpm-req-meta">Fiscal Calendar selected by default</p>
@@ -1184,7 +1227,15 @@ const CpmFeaturePage: React.FC = () => {
                             </button>
                           </div>
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><StepCheckBlueSm /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep32Done((d) => !d)}
+                              aria-pressed={step32Done}
+                              aria-label={step32Done ? 'Mark step 3.2 as not complete' : 'Mark step 3.2 as complete'}
+                            >
+                              {step32Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">3.2 Setup time granularity</p>
                               <p className="cpm-req-meta">

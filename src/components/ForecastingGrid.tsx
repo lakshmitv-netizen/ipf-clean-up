@@ -5051,15 +5051,16 @@ const ForecastingGrid: React.FC = () => {
     }
 
     const fmt = (n: number) => n.toLocaleString();
-    const dimClause = dimensionsFiltered === 0
-      ? 'No dimension filters'
-      : `Filtered by ${dimensionsFiltered} ${dimensionsFiltered === 1 ? 'dimension' : 'dimensions'}`;
-    const periodClause = `across ${periodCount} ${periodCount === 1 ? 'time period' : 'time periods'}`;
+    const periodText = `${periodCount} ${periodCount === 1 ? 'time period' : 'time periods'}`;
+    // Only mention dimension filters when at least one is applied.
+    const filterClause = dimensionsFiltered === 0
+      ? periodText
+      : `Filtered by ${dimensionsFiltered} ${dimensionsFiltered === 1 ? 'dimension' : 'dimensions'} across ${periodText}`;
 
     return `Showing ${fmt(visibleRecords)} of ${fmt(totalRecords)} records`
       + ` • ${selectedCategoryCount} of ${allMeasureCategories.length} measure categories`
       + ` • ${visibleMeasures} of ${totalMeasures} measures`
-      + ` • ${dimClause} ${periodClause}`;
+      + ` • ${filterClause}`;
   }, [
     selectedMeasureSubgroup,
     originalData,
@@ -5195,8 +5196,11 @@ const ForecastingGrid: React.FC = () => {
             <>
             {' • '}
             <span className="grid-scope-inline">
-              <span className={`grid-scope-label${includeFilteredOutChildren ? ' grid-scope-label--everything' : ''}`}>
-                Calculation Scope: {includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}
+              <span className="grid-scope-label">
+                Calculation Scope:{' '}
+                <span className={`slds-badge grid-scope-badge${includeFilteredOutChildren ? ' grid-scope-badge--everything' : ''}`}>
+                  {includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}
+                </span>
               </span>
               <button
                 type="button"

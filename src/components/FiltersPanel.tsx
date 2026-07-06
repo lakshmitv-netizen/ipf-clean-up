@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import { MeasureData, GridRow, ParentTotalsRollupMode } from '../types';
 
 import UnifiedFilterPopover from './UnifiedFilterPopover';
-import SearchableSelect from './SearchableSelect';
 import ReorderMeasuresModal from './ReorderMeasuresModal';
 import { measureSubgroupOptions } from './SettingsPanel';
 import { getMockData } from '../data/mockData';
@@ -580,6 +579,17 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   }, [filters, onActiveFilterCountChange]);
 
   const [activeTab, setActiveTab] = useState<'basic' | 'advanced'>('basic');
+  // Searchable, collapsible filter-set cards (mirrors the conditional-formatting rule cards).
+  const [filterSetSearch, setFilterSetSearch] = useState('');
+  const [expandedSetName, setExpandedSetName] = useState<string | null>(null);
+  const [isCreatingNewSet, setIsCreatingNewSet] = useState(false);
+  const [newSetName, setNewSetName] = useState('');
+  // Only one filter set can be applied (pushed to the grid) at a time.
+  const [appliedSetName, setAppliedSetName] = useState<string | null>(null);
+  // Collapse the list to the first few sets until "View more" is clicked.
+  const [showAllSets, setShowAllSets] = useState(false);
+  // Names of filter sets the user deleted (also hides deleted presets).
+  const [deletedSetNames, setDeletedSetNames] = useState<Set<string>>(new Set());
   // When opened via an Agentforce hand-off, force the requested tab (e.g. Advanced).
   useEffect(() => {
     if (isOpen && initialTab) {
@@ -593,22 +603,16 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   // can restore the dropdown (and grid) to the pre-preview state.
   const [originalSelectedFilterSet, setOriginalSelectedFilterSet] = useState<string>('');
 
-  // User-created filter sets (persisted in localStorage); system presets stay read-only.
-  const [userFilterSets, setUserFilterSets] = useState<FilterSetDef[]>(() => {
-    try {
-      const raw = localStorage.getItem('forecastingUserFilterSets');
-      return raw ? (JSON.parse(raw) as FilterSetDef[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  // User-created filter sets — session-only (NOT persisted). On refresh they're gone,
+  // leaving just the built-in presets. Also clear any previously-persisted sets.
+  const [userFilterSets, setUserFilterSets] = useState<FilterSetDef[]>([]);
   useEffect(() => {
     try {
-      localStorage.setItem('forecastingUserFilterSets', JSON.stringify(userFilterSets));
+      localStorage.removeItem('forecastingUserFilterSets');
     } catch {
-      /* ignore quota / serialization errors */
+      /* ignore */
     }
-  }, [userFilterSets]);
+  }, []);
 
   const [isSaveMenuOpen, setIsSaveMenuOpen] = useState(false);
   const [saveMode, setSaveMode] = useState<'update' | 'new'>('new');
@@ -621,9 +625,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const allFilterSets = useMemo(() => {
     const overrides = new Map(userFilterSets.map(s => [s.name, s]));
     const merged = FILTER_SETS.map(s => overrides.get(s.name) ?? s);
+    // Newly-created sets appear first (they're prepended to userFilterSets).
     const extra = userFilterSets.filter(s => !systemSetNames.has(s.name));
-    return [...merged, ...extra];
-  }, [userFilterSets, systemSetNames]);
+    return [...extra, ...merged].filter(s => !deletedSetNames.has(s.name));
+  }, [userFilterSets, systemSetNames, deletedSetNames]);
 
   // Build the time-filter card value in the same format manual selection produces.
   const buildTimeFilterValue = (from: string, to: string): string => {
@@ -803,15 +808,17 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     };
   };
 
-  // Update (overwrite) the currently selected set in place — no rename. Works for
-  // both user sets and presets (an override is stored under the preset's name).
-  const handleUpdateSet = () => {
-    if (!hasSelectedSet) return;
-    const updated = snapshotCurrentSet(selectedFilterSet);
+  // Update (overwrite) a set in place with the current editor filters — no rename. Works
+  // for both user sets and presets (an override is stored under the set's name).
+  const handleUpdateSet = (name?: string) => {
+    const targetName = name ?? selectedFilterSet;
+    if (!targetName || targetName === 'None') return;
+    const updated = snapshotCurrentSet(targetName);
     setUserFilterSets(prev => {
-      const exists = prev.some(s => s.name === selectedFilterSet);
-      return exists ? prev.map(s => (s.name === selectedFilterSet ? updated : s)) : [...prev, updated];
+      const exists = prev.some(s => s.name === targetName);
+      return exists ? prev.map(s => (s.name === targetName ? updated : s)) : [...prev, updated];
     });
+    setSelectedFilterSet(targetName);
     setIsSaveMenuOpen(false);
   };
 
@@ -820,10 +827,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     const name = saveAsName.trim();
     if (!name || name === 'None') return;
     const newSet = snapshotCurrentSet(name);
-    setUserFilterSets(prev => {
-      const withoutDup = prev.filter(s => s.name !== name);
-      return [...withoutDup, newSet];
-    });
+    setUserFilterSets(prev => [newSet, ...prev.filter(s => s.name !== name)]);
     setSelectedFilterSet(name);
     setSaveAsName('');
     setIsSaveMenuOpen(false);
@@ -850,6 +854,105 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     }
   };
 
+  // ── Filter-set cards (searchable / collapsible) ─────────────────────────────
+  // One-line summary shown under a set's name in its collapsed card header.
+  const summarizeSet = (set: FilterSetDef): string => {
+    const monthLabel = (k: string) => MONTHS.find(m => m.key === k)?.label ?? k;
+    const plur = (n: number, s: string) => `${n} ${s}${n === 1 ? '' : 's'}`;
+    const parts: string[] = [];
+    if (set.measures.length) parts.push(plur(set.measures.length, 'measure'));
+    if (set.accounts.length) parts.push(plur(set.accounts.length, 'account'));
+    if (set.categories.length) parts.push(set.categories.length === 1 ? '1 category' : `${set.categories.length} categories`);
+    if (set.products.length) parts.push(plur(set.products.length, 'product'));
+    const isAllTime = set.from === 'jan2026' && set.to === 'dec2026';
+    parts.push(isAllTime ? 'All periods' : `${monthLabel(set.from)} – ${monthLabel(set.to)}`);
+    return parts.join(' • ');
+  };
+
+  // Load a set's values into the shared editor without pushing anything to the grid.
+  const loadSetIntoEditor = (name: string) => {
+    setIsSaveMenuOpen(false);
+    setSaveAsName('');
+    const set = allFilterSets.find(s => s.name === name);
+    if (!set) return;
+    setFilters(buildFiltersFromSet(set));
+    setLocalStartPeriod(set.from);
+    setLocalEndPeriod(set.to);
+    setSelectedFilterSet(name);
+  };
+
+  // Expand/collapse a set card. Expanding just loads it into the editor (no grid change);
+  // applying is done via the card toggle.
+  const toggleSetCard = (name: string) => {
+    setIsCreatingNewSet(false);
+    setIsSaveMenuOpen(false);
+    if (expandedSetName === name) {
+      setExpandedSetName(null);
+      return;
+    }
+    setExpandedSetName(name);
+    loadSetIntoEditor(name);
+  };
+
+  // Apply toggle — only one set can be applied at a time. Turning one on replaces the
+  // previously applied set; turning the active one off clears the grid filters.
+  const handleToggleApplySet = (name: string) => {
+    setIsCreatingNewSet(false);
+    if (appliedSetName === name) {
+      setAppliedSetName(null);
+      clearAllImplRef.current();
+    } else {
+      setAppliedSetName(name);
+      handleSelectFilterSet(name);
+    }
+  };
+
+  // Start a brand-new, empty filter set — opens a blank editor card at the top.
+  const handleStartNewSet = () => {
+    setExpandedSetName(null);
+    setIsSaveMenuOpen(false);
+    setNewSetName('');
+    setIsCreatingNewSet(true);
+    const empty = buildAllFilters();
+    setFilters(empty);
+    setLocalStartPeriod('jan2026');
+    setLocalEndPeriod('dec2026');
+    setSelectedFilterSet('');
+    previewFilterViewOnGrid(empty, 'jan2026', 'dec2026');
+  };
+
+  // Save the blank editor card as a new named user filter set.
+  const handleSaveNewSet = () => {
+    const name = newSetName.trim();
+    if (!name || name === 'None') return;
+    const newSet = snapshotCurrentSet(name);
+    setUserFilterSets(prev => [newSet, ...prev.filter(s => s.name !== name)]);
+    setSelectedFilterSet(name);
+    setIsCreatingNewSet(false);
+    setNewSetName('');
+    setShowAllSets(false);
+    setExpandedSetName(name);
+  };
+
+  // Push the current editor selections onto the grid as a live preview.
+  const handlePreviewCurrent = () => {
+    const { from, to } = parseTimeCardToRange();
+    previewFilterViewOnGrid(filters, from, to);
+  };
+
+  // Delete a filter set (removes user sets; hides deleted presets).
+  const handleDeleteSet = (name: string) => {
+    setUserFilterSets(prev => prev.filter(s => s.name !== name));
+    setDeletedSetNames(prev => new Set(prev).add(name));
+    if (expandedSetName === name) setExpandedSetName(null);
+    if (appliedSetName === name) {
+      setAppliedSetName(null);
+      clearAllImplRef.current();
+    } else if (selectedFilterSet === name) {
+      setSelectedFilterSet('');
+    }
+  };
+
   // Reset every filter card to "All", clear the selected set, and re-apply to the grid.
   // Exposed to the parent so the grid's "Clear filter" hint can reset panel filters too.
   const clearAllImplRef = useRef<() => void>(() => {});
@@ -859,6 +962,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setOriginalFilters(resetFilters);
     setIsDirty(false);
     setSelectedFilterSet('');
+    setAppliedSetName(null);
     setLocalStartPeriod('jan2026');
     setLocalEndPeriod('dec2026');
     externalAppliedRef.current = false;
@@ -1578,215 +1682,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setOriginalMeasureEditDisaggregateToVisibleChildrenOnly(nextDisagg);
   };
 
-  return (
-    <div className="filters-panel">
-      {/* Panel Header */}
-      <div className="filters-panel-header">
-        {isDirty ? (
-          <>
-            <button type="button" className="filters-header-cancel-btn" onClick={handleClose}>Cancel</button>
-            <div className="filters-panel-header-actions">
-              <button
-                type="button"
-                className="filters-header-apply-only-btn"
-                onClick={() => {
-                  applyClickedRef.current = true;
-                  // Derive the active time range from the "Filter by Time" card so the grid's
-                  // visible time columns match it. A full-year range means "show all periods".
-                  const { from: appliedFrom, to: appliedTo } = parseTimeCardToRange();
-                  const isAllTime = appliedFrom === 'jan2026' && appliedTo === 'dec2026';
-                  const nextStartPeriod = isAllTime ? '' : appliedFrom;
-                  const nextEndPeriod = isAllTime ? '' : appliedTo;
-                  onShowAllPeriodsChange?.(isAllTime);
-                  onStartPeriodChange?.(nextStartPeriod);
-                  onEndPeriodChange?.(nextEndPeriod);
-                  setLocalStartPeriod(nextStartPeriod);
-                  setLocalEndPeriod(nextEndPeriod);
-                  if (onApplyFilters && data.length > 0) {
-                    const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(filters, data);
-                    onApplyFilters(applyFilters(data), { ensureMeasureIdsVisible });
-                  }
-                  // Parent-totals scope is now driven solely by the grid banner toggle, so the
-                  // Filters "Apply" must not push (and thus revert) those values.
-                  onPropagateIntoNoMatchRowsChange?.(localPropagateIntoNoMatchRows);
-                  setOriginalPropagateIntoNoMatchRows(localPropagateIntoNoMatchRows);
-                  setOriginalFilters([...filters]);
-                  setOriginalStartPeriod(nextStartPeriod);
-                  setOriginalEndPeriod(nextEndPeriod);
-                  setOriginalSelectedFilterSet(selectedFilterSet);
-                  setIsDirty(false);
-                  onClose();
-                }}
-              >
-                Apply
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="filters-panel-title-row">
-              <svg className="filters-panel-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
-                <path d="M3.2 4.2C4.6 5.95 7.2 9.15 7.2 9.15v4.2c0 .38.31.69.69.69h1.38c.38 0 .69-.31.69-.69v-4.2s2.58-3.2 3.98-4.95c.35-.44.03-1.08-.53-1.08H3.73c-.56 0-.88.64-.53 1.08z" fill="currentColor"/>
-              </svg>
-              <p className="filters-panel-title">Filters</p>
-            </div>
-            <button type="button" className="filters-panel-close" onClick={handleClose} aria-label="Close">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Calculation Scope (collapsible) */}
-      <div className={`filters-scope-section${isScopeSectionOpen ? ' filters-scope-section--open' : ''}`}>
-        <button
-          type="button"
-          className="filters-scope-section__header"
-          aria-expanded={isScopeSectionOpen}
-          onClick={() => setIsScopeSectionOpen(v => !v)}
-        >
-          <svg
-            className="filters-scope-section__chevron"
-            viewBox="0 0 16 16"
-            width="14"
-            height="14"
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          <span className="filters-scope-section__title">Calculation Scope</span>
-          <span className={`filters-scope-section__badge${scopeIsEverything ? ' filters-scope-section__badge--warning' : ''}`}>
-            {scopeIsEverything ? 'All rows' : 'Only Visible Rows'}
-          </span>
-        </button>
-        {isScopeSectionOpen && (
-          <div className="filters-scope-options" role="radiogroup" aria-label="Calculation scope">
-            <label className={`filters-scope-radio${!scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
-              <input
-                type="radio"
-                name="calc-scope"
-                className="filters-scope-radio__input"
-                checked={!scopeIsEverything}
-                onChange={() => applyScope(false)}
-              />
-              <span className="filters-scope-radio__body">
-                <span className="filters-scope-radio__title">Only Visible Rows</span>
-                <span className="filters-scope-radio__desc">
-                  Totals &amp; edits apply to the visible rows only. Rows outside your filter are never changed.
-                </span>
-              </span>
-            </label>
-            <label className={`filters-scope-radio${scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
-              <input
-                type="radio"
-                name="calc-scope"
-                className="filters-scope-radio__input"
-                checked={scopeIsEverything}
-                onChange={() => applyScope(true)}
-              />
-              <span className="filters-scope-radio__body">
-                <span className="filters-scope-radio__title filters-scope-radio__title--warning">All rows</span>
-                <span className="filters-scope-radio__desc">
-                  Totals roll up over all children and edits spread to every child row — including ones hidden by your filters.
-                </span>
-              </span>
-            </label>
-          </div>
-        )}
-      </div>
-
-      <div className="filters-set-selector" style={{ padding: '12px 16px 4px' }}>
-        <label className="filters-basic-label" style={{ display: 'block', marginBottom: 6 }}>
-          Filter set
-        </label>
-        <div className="filters-set-row">
-          <div className="filters-set-dropdown">
-            <SearchableSelect
-              value={selectedFilterSet}
-              onChange={handleSelectFilterSet}
-              options={['None']}
-              optionGroups={[
-                {
-                  label: 'Standard Filters',
-                  options: allFilterSets.filter(s => s.group === 'standard').map(s => s.name),
-                },
-                {
-                  label: 'My Watchlists',
-                  options: allFilterSets.filter(s => (s.group ?? 'watchlist') !== 'standard').map(s => s.name),
-                },
-              ]}
-              placeholder="Select a filter set…"
-              showSearch={false}
-            />
-          </div>
-          <div className="filters-set-save" ref={saveMenuWrapRef}>
-            <button
-              type="button"
-              className="filters-set-save-btn"
-              disabled={!isSetModified}
-              aria-haspopup="dialog"
-              aria-expanded={isSaveMenuOpen}
-              onClick={openSavePopover}
-              title={isSetModified ? 'Save filter set' : 'No changes to save'}
-            >
-              Save…
-            </button>
-            {isSaveMenuOpen && (
-              <div className="filters-set-popover" role="dialog" aria-label="Save filter set">
-                <div className="filters-set-popover-title">Save filter set</div>
-                <div className="filters-set-radio-group" role="radiogroup">
-                  {hasSelectedSet && (
-                    <label className="filters-set-radio">
-                      <input
-                        type="radio"
-                        name="filters-set-save-mode"
-                        checked={saveMode === 'update'}
-                        onChange={() => setSaveMode('update')}
-                      />
-                      <span>Update “{selectedFilterSet}”</span>
-                    </label>
-                  )}
-                  <label className="filters-set-radio">
-                    <input
-                      type="radio"
-                      name="filters-set-save-mode"
-                      checked={saveMode === 'new'}
-                      onChange={() => setSaveMode('new')}
-                    />
-                    <span>Save as a new set</span>
-                  </label>
-                  {saveMode === 'new' && (
-                    <input
-                      type="text"
-                      className="filters-set-saveas-input"
-                      autoFocus
-                      value={saveAsName}
-                      placeholder="e.g. Q2 Revenue Recovery"
-                      onChange={e => setSaveAsName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') handleConfirmSave(); if (e.key === 'Escape') setIsSaveMenuOpen(false); }}
-                    />
-                  )}
-                </div>
-                <div className="filters-set-saveas-actions">
-                  <button type="button" className="filters-set-menu-link" onClick={() => setIsSaveMenuOpen(false)}>Cancel</button>
-                  <button
-                    type="button"
-                    className="filters-set-menu-primary"
-                    disabled={saveMode === 'new' && !saveAsName.trim()}
-                    onClick={handleConfirmSave}
-                  >
-                    Save
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+  // Shared editor body (Basic + Advanced tabs) rendered inside whichever filter-set card is open.
+  const filterEditorBody = (
+    <>
       {/* Tabs */}
       <div className="filters-tabs" role="tablist">
         <button
@@ -2034,7 +1932,250 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         {/* end advanced tab */}
 
       </div>
+    </>
+  );
 
+  return (
+    <div className="filters-panel">
+      {/* Panel Header */}
+      <div className="filters-panel-header">
+        {isDirty ? (
+          <>
+            <button type="button" className="filters-header-cancel-btn" onClick={handleClose}>Cancel</button>
+            <div className="filters-panel-header-actions">
+              <button
+                type="button"
+                className="filters-header-apply-only-btn"
+                onClick={() => {
+                  applyClickedRef.current = true;
+                  // Derive the active time range from the "Filter by Time" card so the grid's
+                  // visible time columns match it. A full-year range means "show all periods".
+                  const { from: appliedFrom, to: appliedTo } = parseTimeCardToRange();
+                  const isAllTime = appliedFrom === 'jan2026' && appliedTo === 'dec2026';
+                  const nextStartPeriod = isAllTime ? '' : appliedFrom;
+                  const nextEndPeriod = isAllTime ? '' : appliedTo;
+                  onShowAllPeriodsChange?.(isAllTime);
+                  onStartPeriodChange?.(nextStartPeriod);
+                  onEndPeriodChange?.(nextEndPeriod);
+                  setLocalStartPeriod(nextStartPeriod);
+                  setLocalEndPeriod(nextEndPeriod);
+                  if (onApplyFilters && data.length > 0) {
+                    const ensureMeasureIdsVisible = collectMeasureIdsReferencedInFilters(filters, data);
+                    onApplyFilters(applyFilters(data), { ensureMeasureIdsVisible });
+                  }
+                  // Parent-totals scope is now driven solely by the grid banner toggle, so the
+                  // Filters "Apply" must not push (and thus revert) those values.
+                  onPropagateIntoNoMatchRowsChange?.(localPropagateIntoNoMatchRows);
+                  setOriginalPropagateIntoNoMatchRows(localPropagateIntoNoMatchRows);
+                  setOriginalFilters([...filters]);
+                  setOriginalStartPeriod(nextStartPeriod);
+                  setOriginalEndPeriod(nextEndPeriod);
+                  setOriginalSelectedFilterSet(selectedFilterSet);
+                  setIsDirty(false);
+                  onClose();
+                }}
+              >
+                Apply
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="filters-panel-title-row">
+              <svg className="filters-panel-icon" width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <path d="M3.2 4.2C4.6 5.95 7.2 9.15 7.2 9.15v4.2c0 .38.31.69.69.69h1.38c.38 0 .69-.31.69-.69v-4.2s2.58-3.2 3.98-4.95c.35-.44.03-1.08-.53-1.08H3.73c-.56 0-.88.64-.53 1.08z" fill="currentColor"/>
+              </svg>
+              <p className="filters-panel-title">Filters</p>
+            </div>
+            <button type="button" className="filters-panel-close" onClick={handleClose} aria-label="Close">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Calculation Scope (collapsible) */}
+      <div className={`filters-scope-section${isScopeSectionOpen ? ' filters-scope-section--open' : ''}`}>
+        <button
+          type="button"
+          className="filters-scope-section__header"
+          aria-expanded={isScopeSectionOpen}
+          onClick={() => setIsScopeSectionOpen(v => !v)}
+        >
+          <svg
+            className="filters-scope-section__chevron"
+            viewBox="0 0 16 16"
+            width="14"
+            height="14"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span className="filters-scope-section__title">Calculation Scope</span>
+          <span className={`filters-scope-section__badge${scopeIsEverything ? ' filters-scope-section__badge--warning' : ''}`}>
+            {scopeIsEverything ? 'All rows' : 'Only Visible Rows'}
+          </span>
+        </button>
+        {isScopeSectionOpen && (
+          <div className="filters-scope-options" role="radiogroup" aria-label="Calculation scope">
+            <label className={`filters-scope-radio${!scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
+              <input
+                type="radio"
+                name="calc-scope"
+                className="filters-scope-radio__input"
+                checked={!scopeIsEverything}
+                onChange={() => applyScope(false)}
+              />
+              <span className="filters-scope-radio__body">
+                <span className="filters-scope-radio__title">Only Visible Rows</span>
+                <span className="filters-scope-radio__desc">
+                  Totals &amp; edits apply to the visible rows only. Rows outside your filter are never changed.
+                </span>
+              </span>
+            </label>
+            <label className={`filters-scope-radio${scopeIsEverything ? ' filters-scope-radio--selected' : ''}`}>
+              <input
+                type="radio"
+                name="calc-scope"
+                className="filters-scope-radio__input"
+                checked={scopeIsEverything}
+                onChange={() => applyScope(true)}
+              />
+              <span className="filters-scope-radio__body">
+                <span className="filters-scope-radio__title filters-scope-radio__title--warning">All rows</span>
+                <span className="filters-scope-radio__desc">
+                  Totals roll up over all children and edits spread to every child row — including ones hidden by your filters.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Filter sets — searchable, collapsible cards (like conditional-formatting rules) */}
+      <div className="fs-cards-section">
+        {!isCreatingNewSet && (
+        <div className="fs-cards-toolbar">
+          <div className="fs-search">
+            <svg className="fs-search-icon" viewBox="0 0 16 16" fill="none" width="14" height="14" aria-hidden="true">
+              <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M10 10l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <input
+              type="text"
+              className="fs-search-input"
+              placeholder="Search filter sets…"
+              value={filterSetSearch}
+              onChange={e => setFilterSetSearch(e.target.value)}
+            />
+            {filterSetSearch && (
+              <button type="button" className="fs-search-clear" aria-label="Clear search" onClick={() => setFilterSetSearch('')}>
+                <svg viewBox="0 0 12 12" width="10" height="10" fill="none"><path d="M9 3L3 9M3 3l6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+              </button>
+            )}
+          </div>
+          <button type="button" className="fs-new-btn" onClick={handleStartNewSet}>+ New</button>
+        </div>
+        )}
+
+        {/* New (blank) filter-set card */}
+        {isCreatingNewSet && (
+          <div className="fs-card fs-card--expanded fs-card--new">
+            <div className="fs-card-newhead">
+              <label className="fs-card-newhead-label" htmlFor="fs-new-set-name">Filter set name</label>
+              <input
+                id="fs-new-set-name"
+                type="text"
+                className="fs-card-name-input"
+                autoFocus
+                placeholder="e.g. Q2 Revenue Recovery"
+                value={newSetName}
+                onChange={e => setNewSetName(e.target.value)}
+              />
+            </div>
+            {filterEditorBody}
+            <div className="fs-card-footer">
+              <button type="button" className="fs-card-footer-link" onClick={() => { setIsCreatingNewSet(false); setNewSetName(''); }}>Cancel</button>
+              <div className="fs-card-footer-right">
+                <button type="button" className="fs-card-save-btn" disabled={!newSetName.trim()} onClick={handleSaveNewSet}>Save</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Searchable set cards — first 3, then "View more" */}
+        {!isCreatingNewSet && (() => {
+          const norm = filterSetSearch.trim().toLowerCase();
+          const matches = allFilterSets.filter(s => !norm || s.name.toLowerCase().includes(norm));
+          const visible = showAllSets ? matches : matches.slice(0, 3);
+          return (
+            <>
+              {visible.map(set => {
+                const expanded = expandedSetName === set.name;
+                const applied = appliedSetName === set.name;
+                return (
+                  <div className={`fs-card${expanded ? ' fs-card--expanded' : ''}${applied ? ' fs-card--applied' : ''}`} key={set.name}>
+                    <div className="fs-card-header">
+                      <button type="button" className="fs-card-header-main" onClick={() => toggleSetCard(set.name)}>
+                        <span className={`fs-card-chevron${expanded ? ' fs-card-chevron--open' : ''}`} aria-hidden="true">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </span>
+                        <span className="fs-card-info">
+                          <span className="fs-card-name">{set.name}</span>
+                          <span className="fs-card-summary">{summarizeSet(set)}</span>
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`fs-card-toggle${applied ? ' fs-card-toggle--on' : ''}`}
+                        role="switch"
+                        aria-checked={applied}
+                        aria-label={applied ? `Remove ${set.name} from grid` : `Apply ${set.name} to grid`}
+                        title={applied ? 'Applied — click to clear' : 'Apply this filter set'}
+                        onClick={() => handleToggleApplySet(set.name)}
+                      >
+                        <span className="fs-card-toggle-track"><span className="fs-card-toggle-thumb" /></span>
+                      </button>
+                    </div>
+                    {expanded && (
+                      <>
+                        {filterEditorBody}
+                        <div className="fs-card-footer">
+                          <button type="button" className="fs-card-delete-btn" onClick={() => handleDeleteSet(set.name)}>
+                            <svg viewBox="0 0 24 24" fill="none" width="14" height="14"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                            Delete
+                          </button>
+                          <div className="fs-card-footer-right">
+                            <button
+                              type="button"
+                              className="fs-card-save-btn"
+                              onClick={() => handleUpdateSet(set.name)}
+                              title="Save the current filters to this set"
+                            >
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+              {matches.length > 3 && (
+                <button type="button" className="fs-view-more" onClick={() => setShowAllSets(v => !v)}>
+                  {showAllSets ? 'View less' : `View more (${matches.length - 3})`}
+                </button>
+              )}
+              {matches.length === 0 && (
+                <div className="fs-empty">No filter sets match “{filterSetSearch}”</div>
+              )}
+            </>
+          );
+        })()}
+      </div>
       {/* Unified Filter Popover */}
       {editingFilterId && (() => {
         const filter = filters.find(f => f.id === editingFilterId);
