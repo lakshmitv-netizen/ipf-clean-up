@@ -1,14 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReviewMeasuresModal, { Measure } from '../components/ReviewMeasuresModal';
 import ManageUserAccessModal from '../components/ManageUserAccessModal';
 import TimeGranularityModal from '../components/TimeGranularityModal';
-import {
-  PRODUCT_LEVEL_NAMES,
-  ACCOUNT_LEVEL_NAMES,
-  loadHierarchyRows,
-  type HierarchyRow,
-} from '../data/hierarchyStore';
+import ManageHierarchiesModal from '../components/ManageHierarchiesModal';
+import { saveCustomMeasures } from '../data/measureStore';
 import '../styles/pages/CpmFeaturePage.css';
 
 /* Assets captured from the Figma design (served from /public). */
@@ -81,6 +77,18 @@ const PlayIcon: React.FC = () => (
   </svg>
 );
 
+const StarFilledIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = '#0176d3' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill={color} aria-hidden>
+    <path d="M8 1.2l1.9 3.86 4.26.62-3.08 3 .73 4.24L8 11.92 4.19 13.92l.73-4.24-3.08-3 4.26-.62L8 1.2z" />
+  </svg>
+);
+
+const ArrowRightIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = '#0176d3' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+    <path d="M3 8h10M9 4l4 4-4 4" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 const StepCircle: React.FC = () => (
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
     <circle cx="12" cy="12" r="9.5" stroke="#c9c9c9" strokeWidth="1.5" />
@@ -90,19 +98,6 @@ const StepCircle: React.FC = () => (
 const CloseIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = '#747474' }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
     <path d="M4 4l8 8M12 4l-8 8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
-  </svg>
-);
-
-const StepCheck: React.FC = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
-    <circle cx="12" cy="12" r="11" fill="#2e844a" />
-    <path
-      d="M7.5 12.4l3 3 6-6.4"
-      stroke="#ffffff"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
   </svg>
 );
 
@@ -153,35 +148,6 @@ const InfoFilled: React.FC<{ size?: number; color?: string }> = ({ size = 16, co
   </svg>
 );
 
-const SyncSuccessIcon: React.FC = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-    <circle cx="8" cy="8" r="8" fill="#2e844a" />
-    <path d="M4.5 8.2l2.3 2.3L11.5 5.6" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-const DataRequestedIcon: React.FC = () => (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-    <circle cx="8" cy="8" r="8" fill="#fe9339" />
-    <path d="M8 4v4.4" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" />
-    <circle cx="8" cy="11.3" r="0.9" fill="#fff" />
-  </svg>
-);
-
-const PlusIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = '#747474' }) => (
-  <svg width={size} height={size} viewBox="0 0 14 14" fill="none" aria-hidden>
-    <path d="M7 2.5v9M2.5 7h9" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
-  </svg>
-);
-
-const KebabIcon: React.FC<{ color?: string }> = ({ color = '#5c5c5c' }) => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
-    <circle cx="7" cy="2.5" r="1.25" fill={color} />
-    <circle cx="7" cy="7" r="1.25" fill={color} />
-    <circle cx="7" cy="11.5" r="1.25" fill={color} />
-  </svg>
-);
-
 const StepCheckBlueSm: React.FC = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
     <circle cx="12" cy="12" r="11" fill="#0176d3" />
@@ -192,13 +158,6 @@ const StepCheckBlueSm: React.FC = () => (
       strokeLinecap="round"
       strokeLinejoin="round"
     />
-  </svg>
-);
-
-const RadioOn: React.FC = () => (
-  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
-    <circle cx="10" cy="10" r="9" fill="#0176d3" />
-    <circle cx="10" cy="10" r="6.5" fill="#fff" />
   </svg>
 );
 
@@ -218,12 +177,6 @@ const CheckboxOn: React.FC = () => (
 const CheckboxOff: React.FC = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden>
     <rect x="1" y="1" width="16" height="16" rx="2.5" stroke="#747474" strokeWidth="1.5" />
-  </svg>
-);
-
-const BlueCheckMark: React.FC<{ size?: number }> = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 18 18" fill="none" aria-hidden>
-    <path d="M3.5 9.4l3.5 3.5L14.5 5" stroke="#0176d3" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -329,10 +282,6 @@ const LOREM =
   'exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure ' +
   'dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.';
 
-// Left-panel dimension filter list in the Setup Hierarchies modal (step 1.1).
-// 'All' is a filter-all option; the real dimensions are the rest.
-const DIMENSION_FILTERS = ['All', 'Account', 'Product'];
-
 const INITIAL_MEASURES: Measure[] = [
   { id: 1,  name: 'Sales Agreement Quantity (No.s)', description: 'Sales Agreement Quantity',   type: 'Read',  sourceDmo: 'SalesAgreement',  code: 'SA_QTY',    aggregation: 'SUM',     disaggregation: 'Proportional', category: 'Volume',     subsets: ['SalesAgreement', 'Revenue', 'Q1 Sales', 'Annual'],    unit: 'volume',   dataType: 'Number',   sourceName: 'SalesAgreement',  selected: false },
   { id: 2,  name: 'Sales Agreement Revenue',         description: 'Sales Agreement Revenue',     type: 'Read',  sourceDmo: 'SalesAgreement',  code: 'SA_REV',    aggregation: 'SUM',     disaggregation: 'Proportional', category: 'Financials', subsets: ['SalesAgreement', 'Revenue', 'Finance'],               unit: 'currency', dataType: 'Currency', sourceName: 'SalesAgreement',  selected: false },
@@ -345,24 +294,6 @@ const INITIAL_MEASURES: Measure[] = [
   { id: 9,  name: 'Forecasted Quantity (No.s)',      description: 'Forecasted Quantity',         type: 'Write', sourceDmo: 'ForecastEntry',   code: 'FCST_QTY',  aggregation: 'SUM',     disaggregation: 'Proportional', category: 'Volume',     subsets: ['Forecast', 'Pipeline', 'Future'],                     unit: 'volume',   dataType: 'Number',   sourceName: 'ForecastEntry',   selected: false },
   { id: 10, name: 'Forecasted Revenue',              description: 'Forecasted Revenue',          type: 'Read',  sourceDmo: 'ForecastEntry',   code: 'FCST_REV',  aggregation: 'SUM',     disaggregation: 'Proportional', category: 'Financials', subsets: ['Forecast', 'Revenue', 'Pipeline', 'Future'],          unit: 'currency', dataType: 'Currency', sourceName: 'ForecastEntry',   selected: false },
 ];
-
-function levelRowsForCount(
-  dim: 'Account' | 'Product',
-  count: number,
-): { level: string; name: string }[] {
-  const pool = dim === 'Product' ? PRODUCT_LEVEL_NAMES : ACCOUNT_LEVEL_NAMES;
-  return Array.from({ length: count }, (_, i) => ({
-    level: `${dim} L${i}`,
-    name: pool[i] || `Level ${i + 1}`,
-  }));
-}
-
-function levelRowsFor(row: HierarchyRow): { level: string; name: string }[] {
-  if (row.levelNames && row.levelNames.length > 0) {
-    return row.levelNames.map((name, i) => ({ level: `${row.dim} L${i}`, name }));
-  }
-  return levelRowsForCount(row.dim, row.levels);
-}
 
 const CpmFeaturePage: React.FC = () => {
   const navigate = useNavigate();
@@ -390,189 +321,16 @@ const CpmFeaturePage: React.FC = () => {
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
   const [userAccessModalOpen, setUserAccessModalOpen] = useState(false);
   const [timeGranularityModalOpen, setTimeGranularityModalOpen] = useState(false);
-  const [measures, setMeasures] = useState<Measure[]>(INITIAL_MEASURES);
-  const [hierarchyTab, setHierarchyTab] = useState<'existing' | 'new'>('existing');
-  const [hierarchyDimension, setHierarchyDimension] = useState('All');
-  const [selectedHierarchy, setSelectedHierarchy] = useState<HierarchyRow | null>(null);
-  const [detailTab, setDetailTab] = useState<'edit' | 'clone'>('edit');
-  const [newDimension, setNewDimension] = useState('');
-  const [levelColWidth, setLevelColWidth] = useState(300);
-  const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(() => loadHierarchyRows());
-  const [editLevelNames, setEditLevelNames] = useState<string[]>([]);
-  const [cloneName, setCloneName] = useState('');
-  const [cloneLevelNames, setCloneLevelNames] = useState<string[]>([]);
-  const [cloneMenuIndex, setCloneMenuIndex] = useState<number | null>(null);
-  const [rowMenuId, setRowMenuId] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newNameError, setNewNameError] = useState(false);
-  const newNameInputRef = useRef<HTMLInputElement>(null);
-  const [newLevelNames, setNewLevelNames] = useState<string[]>(['', '', '', '', '']);
-  const [newMenuIndex, setNewMenuIndex] = useState<number | null>(null);
-
-  const visibleHierarchies =
-    hierarchyDimension === 'All'
-      ? hierarchies
-      : hierarchies.filter((r) => r.dim === hierarchyDimension);
-
-  const closeHierarchyModal = () => {
-    setHierarchyModalOpen(false);
-    setSelectedHierarchy(null);
-  };
-
-  const selectDimension = (d: string) => {
-    setHierarchyDimension(d);
-    setSelectedHierarchy(null);
-  };
-
-  const startLevelResize = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const startX = e.clientX;
-    const startW = levelColWidth;
-    const onMove = (ev: MouseEvent) => {
-      setLevelColWidth(Math.max(120, Math.min(600, startW + (ev.clientX - startX))));
-    };
-    const onUp = () => {
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
-  // Default name suggestion for a clone level at a given depth.
-  const cloneDefaultName = (i: number) => {
-    if (!selectedHierarchy) return '';
-    const pool =
-      selectedHierarchy.dim === 'Product' ? PRODUCT_LEVEL_NAMES : ACCOUNT_LEVEL_NAMES;
-    return pool[i] || '';
-  };
-
-  const addCloneLevel = (index: number) => {
-    setCloneLevelNames((prev) => {
-      const next = [...prev];
-      next.splice(index + 1, 0, cloneDefaultName(index + 1));
-      return next;
-    });
-    setCloneMenuIndex(null);
-  };
-
-  const removeCloneLevel = (index: number) => {
-    setCloneLevelNames((prev) =>
-      prev.length > 1 ? prev.filter((_, i) => i !== index) : prev,
-    );
-    setCloneMenuIndex(null);
-  };
-
-  const addNewLevel = (index: number) => {
-    setNewLevelNames((prev) => {
-      const next = [...prev];
-      next.splice(index + 1, 0, '');
-      return next;
-    });
-    setNewMenuIndex(null);
-  };
-
-  const removeNewLevel = (index: number) => {
-    setNewLevelNames((prev) =>
-      prev.length > 1 ? prev.filter((_, i) => i !== index) : prev,
-    );
-    setNewMenuIndex(null);
-  };
-
-  const resetNewForm = () => {
-    setNewName('');
-    setNewNameError(false);
-    setNewLevelNames(['', '', '', '', '']);
-    setNewMenuIndex(null);
-  };
-
-  const cancelNewHierarchy = () => {
-    resetNewForm();
-    setHierarchyTab('existing');
-  };
-
-  const deleteHierarchy = (id: string) => {
-    setHierarchies((prev) => prev.filter((h) => h.id !== id));
-    setSelectedHierarchy((prev) => (prev?.id === id ? null : prev));
-    setRowMenuId(null);
-  };
-
-  const namesEqual = (a: string[], b: string[]) =>
-    a.length === b.length && a.every((v, i) => v === b[i]);
-
-  // Save handler for the Edit / Clone detail panel (mirrors the reference app):
-  // - Edit: replace the selected hierarchy's level names in place.
-  // - Clone: create a new hierarchy from the selection and prepend it.
-  const handleHierarchyDetailSave = () => {
-    if (!selectedHierarchy) return;
-
-    if (detailTab === 'edit') {
-      const names = editLevelNames.map((n) => n.trim() || 'Enter Name');
-      setHierarchies((prev) =>
-        prev.map((h) =>
-          h.id === selectedHierarchy.id
-            ? { ...h, levelNames: names, levels: names.length }
-            : h,
-        ),
-      );
-    } else {
-      const name = cloneName.trim() || `Clone of ${selectedHierarchy.name}`;
-      const names = cloneLevelNames.map((n) => n.trim() || 'Enter Name');
-      const cloned: HierarchyRow = {
-        id: `clone-${Date.now()}`,
-        name,
-        active: false,
-        dim: selectedHierarchy.dim,
-        levels: names.length,
-        status: 'requested',
-        sync: '—',
-        levelNames: names,
-      };
-      setHierarchies((prev) => [cloned, ...prev]);
-      setHierarchyDimension(selectedHierarchy.dim);
-    }
-
-    setSelectedHierarchy(null);
-  };
-
-  // Save handler for the New Hierarchy tab.
-  const handleCreateHierarchy = () => {
-    const name = newName.trim();
-    if (!name) {
-      setNewNameError(true);
-      newNameInputRef.current?.focus();
-      return;
-    }
-    setNewNameError(false);
-    const dim = (newDimension === 'Product' ? 'Product' : 'Account') as 'Account' | 'Product';
-    const names = newLevelNames.map((n, i) => n.trim() || `${dim} L${i}`);
-    const created: HierarchyRow = {
-      id: `new-${Date.now()}`,
-      name,
-      active: false,
-      dim,
-      levels: names.length,
-      status: 'requested',
-      sync: '—',
-      levelNames: names,
-    };
-    setHierarchies((prev) => [created, ...prev]);
-    setHierarchyDimension(dim);
-    setHierarchyTab('existing');
-    resetNewForm();
-  };
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('cpm_hierarchies', JSON.stringify(hierarchies));
-      // Save the actual dimensions (left panel of the hierarchy modal, excluding the 'All' filter)
-      const dimensions = DIMENSION_FILTERS.filter((d) => d !== 'All');
-      localStorage.setItem('cpm_dimensions', JSON.stringify(dimensions));
-    } catch {}
-  }, [hierarchies]);
-
+  const [measures, setMeasures] = useState<Measure[]>(
+    // Pre-fill Data Source and Measure Code for all standard (non-custom)
+    // measures. Custom measures are added later via setMeasures and
+    // intentionally stay blank.
+    INITIAL_MEASURES.map((m, i) => ({
+      ...m,
+      dataSource: m.dataSource ?? 'Planning Weekly Read Measure',
+      measureCode: m.measureCode ?? `ASDL${i + 1}`,
+    }))
+  );
   useEffect(() => {
     if (!turningOn) return;
     const t = setTimeout(() => {
@@ -582,77 +340,12 @@ const CpmFeaturePage: React.FC = () => {
     return () => clearTimeout(t);
   }, [turningOn]);
 
+  // Persist user-created measures (those beyond the seed set) so they surface in
+  // the Plan Configuration builder's "Add Measures" modal.
   useEffect(() => {
-    if (selectedHierarchy) {
-      const names = levelRowsFor(selectedHierarchy).map((l) => l.name);
-      setCloneName(`Clone of ${selectedHierarchy.name}`);
-      setEditLevelNames(names);
-      setCloneLevelNames(names);
-      setCloneMenuIndex(null);
-    }
-  }, [selectedHierarchy]);
-
-  // Close the per-row level dropdown when clicking outside of it.
-  useEffect(() => {
-    if (cloneMenuIndex === null && newMenuIndex === null && rowMenuId === null) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.cpm-hier-lvl-menu-wrap')) {
-        setCloneMenuIndex(null);
-        setNewMenuIndex(null);
-        setRowMenuId(null);
-      }
-    };
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [cloneMenuIndex, newMenuIndex, rowMenuId]);
-
-  // When a specific dimension is selected on the left panel, lock the New
-  // Hierarchy dimension field to it; reset to a free choice when "All".
-  useEffect(() => {
-    if (hierarchyDimension === 'Account' || hierarchyDimension === 'Product') {
-      setNewDimension(hierarchyDimension);
-    } else {
-      setNewDimension('');
-    }
-  }, [hierarchyDimension]);
-
-  useEffect(() => {
-    setSaveError(false);
-  }, [
-    hierarchyTab,
-    detailTab,
-    selectedHierarchy,
-    newName,
-    newDimension,
-    newLevelNames,
-    cloneName,
-    cloneLevelNames,
-    editLevelNames,
-  ]);
-
-  const baseLevelNames = selectedHierarchy
-    ? levelRowsFor(selectedHierarchy).map((l) => l.name)
-    : [];
-  const editDirty =
-    selectedHierarchy != null &&
-    editLevelNames.length > 0 &&
-    !namesEqual(editLevelNames, baseLevelNames);
-  const cloneDirty =
-    selectedHierarchy != null &&
-    (cloneName !== `Clone of ${selectedHierarchy.name}` ||
-      !namesEqual(cloneLevelNames, baseLevelNames));
-  const dimensionLocked =
-    hierarchyDimension === 'Account' || hierarchyDimension === 'Product';
-  const newDirty =
-    newName.trim() !== '' ||
-    newLevelNames.some((n) => n.trim() !== '') ||
-    newLevelNames.length !== 5 ||
-    (!dimensionLocked && newDimension !== '');
-
-  const hasUnsavedChanges =
-    (hierarchyTab === 'new' && newDirty) ||
-    (selectedHierarchy != null && detailTab === 'edit' && editDirty) ||
-    (selectedHierarchy != null && detailTab === 'clone' && cloneDirty);
+    const seedMaxId = INITIAL_MEASURES.reduce((max, m) => Math.max(max, m.id || 0), 0);
+    saveCustomMeasures(measures.filter((m) => (m.id || 0) > seedMaxId));
+  }, [measures]);
 
   return (
     <div className="cpm-feature-page">
@@ -781,7 +474,8 @@ const CpmFeaturePage: React.FC = () => {
             </div>
           </section>
 
-          {/* Sections */}
+          {/* Sections + right rail */}
+          <div className="cpm-content-row">
           <div className="cpm-sections">
             {/* Complete the Prerequisites */}
             <section className="cpm-section">
@@ -1341,6 +1035,38 @@ const CpmFeaturePage: React.FC = () => {
               </section>
             )}
           </div>
+
+          {/* Right rail: help / updates / learning */}
+          <aside className="cpm-aside">
+            <div className="cpm-aside-card">
+              <div className="cpm-aside-video">Video Preview</div>
+              <a className="cpm-aside-link cpm-aside-link--lg">
+                See How It Works
+                <StarFilledIcon />
+              </a>
+              <p className="cpm-aside-text">
+                Take a look at how you can plan, track, predict, and grow your Manufacturing
+                business with Commercial Planning for Manufacturing
+              </p>
+            </div>
+
+            <div className="cpm-aside-card">
+              <h3 className="cpm-aside-title">See the Latest Updates</h3>
+              <a className="cpm-aside-link">What's New in Commercial Planning for Manufacturing</a>
+              <p className="cpm-aside-text">
+                Stay up-to-date with the latest improvements in Commercial Planning for Manufacturing
+              </p>
+            </div>
+
+            <div className="cpm-aside-card">
+              <h3 className="cpm-aside-title">Learning on Trailhead</h3>
+              <a className="cpm-aside-link cpm-aside-link--arrow">
+                Commercial Planning for Manufacturing Basics
+                <ArrowRightIcon />
+              </a>
+            </div>
+          </aside>
+          </div>
         </main>
       </div>
 
@@ -1403,692 +1129,11 @@ const CpmFeaturePage: React.FC = () => {
         </div>
       )}
 
-      {/* Setup Hierarchies modal (opens from step 1.1 Manage) */}
-      {hierarchyModalOpen && (
-        <div className="cpm-hier-backdrop" onClick={closeHierarchyModal}>
-          <div
-            className={`cpm-hier-modal ${selectedHierarchy && hierarchyTab === 'existing' ? 'cpm-hier-modal--wide' : ''}`}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cpm-hier-title"
-            style={{ ['--cpm-level-col-w' as string]: `${levelColWidth}px` } as React.CSSProperties}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="cpm-hier-header">
-              <h2 id="cpm-hier-title" className="cpm-hier-title">Setup Hierarchies</h2>
-              <button
-                type="button"
-                className="cpm-hier-close"
-                aria-label="Close"
-                onClick={closeHierarchyModal}
-              >
-                <CloseIcon size={18} />
-              </button>
-            </div>
-
-            <div className="cpm-hier-body">
-              {/* Notice — full width, below the header */}
-              <div className="cpm-hier-notice">
-                Need more context on these hierarchies?{' '}
-                <a className="cpm-link">Go to Setup for more details</a>
-              </div>
-
-              <div className="cpm-hier-content">
-                {/* Left dimensions panel — always visible */}
-                <aside className="cpm-hier-side">
-                  <div className="cpm-hier-side-head">
-                    <span className="cpm-hier-side-title">DIMENSIONS</span>
-                    <button type="button" className="cpm-hier-side-add" aria-label="Add dimension">
-                      <PlusIcon />
-                    </button>
-                  </div>
-                  <ul className="cpm-hier-dims">
-                    {DIMENSION_FILTERS.map((d) => (
-                      <li key={d}>
-                        <button
-                          type="button"
-                          className={`cpm-hier-dim ${hierarchyDimension === d ? 'is-active' : ''}`}
-                          onClick={() => selectDimension(d)}
-                        >
-                          {d}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                </aside>
-
-                {/* Right section: tabs sit here, next to the DIMENSIONS panel */}
-                <div className="cpm-hier-main">
-                  <div className="cpm-hier-tabs" role="tablist">
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={hierarchyTab === 'existing'}
-                      className={`cpm-hier-tab ${hierarchyTab === 'existing' ? 'is-active' : ''}`}
-                      onClick={() => setHierarchyTab('existing')}
-                    >
-                      Existing Hierarchies
-                    </button>
-                    <button
-                      type="button"
-                      role="tab"
-                      aria-selected={hierarchyTab === 'new'}
-                      className={`cpm-hier-tab ${hierarchyTab === 'new' ? 'is-active' : ''}`}
-                      onClick={() => {
-                        setHierarchyTab('new');
-                        setSelectedHierarchy(null);
-                      }}
-                    >
-                      New Hierarchy
-                    </button>
-                  </div>
-
-                  {hierarchyTab === 'existing' ? (
-                    <div className="cpm-hier-inner">
-                      {/* Table (scrolls internally) */}
-                      <div className="cpm-hier-table-wrap">
-                        <div className="cpm-hier-toolbar">
-                          <div className="cpm-hier-search">
-                            <SearchIcon size={16} />
-                            <input type="text" placeholder="Search..." aria-label="Search hierarchies" />
-                          </div>
-                        </div>
-
-                        <div className="cpm-hier-table-scroll">
-                          <table className="cpm-hier-table">
-                            <thead>
-                              <tr>
-                                <th>Hierarchy</th>
-                                <th>Dimension</th>
-                                <th>Levels</th>
-                                <th className="cpm-hier-caret-col" />
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {visibleHierarchies.length === 0 && (
-                                <tr>
-                                  <td colSpan={4} className="cpm-hier-empty">
-                                    No hierarchies for this dimension.
-                                  </td>
-                                </tr>
-                              )}
-                              {visibleHierarchies.map((r, idx, arr) => {
-                                const isSelected = selectedHierarchy?.id === r.id;
-                                return (
-                                  <tr key={r.id} className={isSelected ? 'is-selected' : ''}>
-                                    <td>
-                                      <span className="cpm-hier-name">
-                                        <a
-                                          className="cpm-link"
-                                          onClick={() => {
-                                            setSelectedHierarchy(r);
-                                            setDetailTab('edit');
-                                          }}
-                                        >
-                                          {r.name}
-                                        </a>
-                                        {r.active && <span className="cpm-hier-active">ACTIVE</span>}
-                                      </span>
-                                    </td>
-                                    <td>{r.dim}</td>
-                                    <td>{r.levels}</td>
-                                    <td className="cpm-hier-caret-col">
-                                      <div className="cpm-hier-lvl-menu-wrap">
-                                        <button
-                                          type="button"
-                                          className="cpm-hier-row-kebab"
-                                          aria-label="Row actions"
-                                          aria-haspopup="menu"
-                                          aria-expanded={rowMenuId === r.id}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setRowMenuId((cur) => (cur === r.id ? null : r.id));
-                                          }}
-                                        >
-                                          <KebabIcon />
-                                        </button>
-                                        {rowMenuId === r.id && (
-                                          <div
-                                            className={`cpm-hier-lvl-menu ${
-                                              idx === arr.length - 1 && arr.length > 1
-                                                ? 'cpm-hier-lvl-menu--up'
-                                                : ''
-                                            }`}
-                                            role="menu"
-                                          >
-                                            <button
-                                              type="button"
-                                              role="menuitem"
-                                              className="cpm-hier-lvl-menu-item"
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                deleteHierarchy(r.id);
-                                              }}
-                                            >
-                                              Delete Hierarchy
-                                            </button>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-
-                      {/* 3rd panel — edit / clone */}
-                      {selectedHierarchy && (
-                        <aside className="cpm-hier-edit">
-                          <div className="cpm-hier-edit-head">
-                            <h3 className="cpm-hier-edit-title">{selectedHierarchy.name}</h3>
-                            <div className="cpm-hier-mode-toggle">
-                              <button
-                                type="button"
-                                className={`cpm-hier-mode-btn${detailTab === 'edit' ? ' is-active' : ''}`}
-                                onClick={() => setDetailTab('edit')}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className={`cpm-hier-mode-btn${detailTab === 'clone' ? ' is-active' : ''}`}
-                                onClick={() => setDetailTab('clone')}
-                              >
-                                Clone
-                              </button>
-                            </div>
-                            <button
-                              type="button"
-                              className="cpm-hier-edit-close"
-                              aria-label="Close panel"
-                              onClick={() => setSelectedHierarchy(null)}
-                            >
-                              ✕
-                            </button>
-                          </div>
-
-                          <div className="cpm-hier-edit-body">
-                            {detailTab === 'edit' ? (
-                              <>
-                                <div className="cpm-hier-edit-note">
-                                  <span className="cpm-hier-edit-note-icon">i</span>
-                                  <p>You can only edit the level names but not no.of levels</p>
-                                </div>
-                                <div className="cpm-hier-tree">
-                                <div className="cpm-hier-tree-head">
-                                  <span className="cpm-hier-col-th">
-                                    Hierarchy Level
-                                    <span
-                                      className="cpm-hier-col-resizer"
-                                      role="separator"
-                                      aria-orientation="vertical"
-                                      aria-label="Resize Hierarchy Level column"
-                                      onMouseDown={startLevelResize}
-                                    />
-                                  </span>
-                                  <span>Name</span>
-                                </div>
-                                  {levelRowsFor(selectedHierarchy).map((lv, i, arr) => (
-                                    <div
-                                      key={lv.level}
-                                      className="cpm-hier-tree-row"
-                                      style={{ ['--cpm-lvl' as string]: i } as React.CSSProperties}
-                                    >
-                                      <div className="cpm-hier-tree-cell">
-                                        <button
-                                          type="button"
-                                          className={`cpm-hier-tree-chev ${i === arr.length - 1 ? 'is-empty' : ''}`}
-                                          aria-label="Toggle level"
-                                        >
-                                          <ChevronDown size={14} />
-                                        </button>
-                                        <span className="cpm-hier-tree-link">{lv.level}</span>
-                                      </div>
-                                      <div className="cpm-hier-tree-cell">
-                                        <input
-                                          className="cpm-hier-tree-input"
-                                          type="text"
-                                          value={editLevelNames[i] ?? lv.name}
-                                          onChange={(e) =>
-                                            setEditLevelNames((prev) => {
-                                              const next = [...prev];
-                                              next[i] = e.target.value;
-                                              return next;
-                                            })
-                                          }
-                                          placeholder={`Enter level ${i + 1} name`}
-                                        />
-                                      </div>
-                                    </div>
-                                  ))}
-                                  {editDirty && (
-                                    <div className="cpm-hier-ct-footer">
-                                      <button
-                                        type="button"
-                                        className="cpm-btn cpm-btn--neutral-slds"
-                                        onClick={() => setSelectedHierarchy(null)}
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="cpm-btn cpm-btn--neutral-slds"
-                                        onClick={handleHierarchyDetailSave}
-                                      >
-                                        Save
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <div className="cpm-hier-cf-row cpm-hier-cf-row--v">
-                                  <div className="cpm-hier-cf-sec">
-                                    <label className="cpm-hier-cf-label">* New Hierarchy Name</label>
-                                    <input
-                                      className="cpm-hier-cf-input"
-                                      type="text"
-                                      value={cloneName}
-                                      onChange={(e) => setCloneName(e.target.value)}
-                                    />
-                                  </div>
-                                  <div className="cpm-hier-cf-sec">
-                                    <div className="cpm-hier-cf-label-row">
-                                      <label className="cpm-hier-cf-label">Number of Levels</label>
-                                      <button type="button" className="cpm-hier-cf-info" aria-label="Info">i</button>
-                                    </div>
-                                    <div className="cpm-hier-cf-stepper">
-                                      <button
-                                        type="button"
-                                        className="cpm-hier-cf-step"
-                                        aria-label="Decrease"
-                                        onClick={() =>
-                                          setCloneLevelNames((prev) =>
-                                            prev.length > 1 ? prev.slice(0, -1) : prev,
-                                          )
-                                        }
-                                      >
-                                        &#8722;
-                                      </button>
-                                      <span className="cpm-hier-cf-step-val">{cloneLevelNames.length}</span>
-                                      <button
-                                        type="button"
-                                        className="cpm-hier-cf-step"
-                                        aria-label="Increase"
-                                        onClick={() =>
-                                          setCloneLevelNames((prev) => [
-                                            ...prev,
-                                            cloneDefaultName(prev.length),
-                                          ])
-                                        }
-                                      >
-                                        +
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="cpm-hier-ct">
-                                  <div className="cpm-hier-ct-head">
-                                    <span className="cpm-hier-col-th">
-                                      Hierarchy Level
-                                      <span
-                                        className="cpm-hier-col-resizer"
-                                        role="separator"
-                                        aria-orientation="vertical"
-                                        aria-label="Resize Hierarchy Level column"
-                                        onMouseDown={startLevelResize}
-                                      />
-                                    </span>
-                                    <span>Name</span>
-                                    <span />
-                                  </div>
-                                  <div className="cpm-hier-ct-body">
-                                    {cloneLevelNames.map((nm, i, arr) => (
-                                      <div
-                                        key={i}
-                                        className="cpm-hier-ct-row"
-                                        style={{ ['--cpm-lvl' as string]: i } as React.CSSProperties}
-                                      >
-                                        <div className="cpm-hier-ct-cell">
-                                          <button
-                                            type="button"
-                                            className={`cpm-hier-tree-chev ${i === arr.length - 1 ? 'is-empty' : ''}`}
-                                            aria-label="Toggle level"
-                                          >
-                                            <ChevronDown size={14} />
-                                          </button>
-                                          <span className="cpm-hier-tree-link">{`${selectedHierarchy.dim} L${i}`}</span>
-                                        </div>
-                                        <div className="cpm-hier-ct-cell">
-                                          <input
-                                            className="cpm-hier-cf-name"
-                                            type="text"
-                                            value={nm}
-                                            onChange={(e) =>
-                                              setCloneLevelNames((prev) => {
-                                                const next = [...prev];
-                                                next[i] = e.target.value;
-                                                return next;
-                                              })
-                                            }
-                                            placeholder={`Enter level ${i + 1} name`}
-                                          />
-                                        </div>
-                                        <div className="cpm-hier-ct-cell cpm-hier-ct-cell--act">
-                                          <div className="cpm-hier-lvl-menu-wrap">
-                                            <button
-                                              type="button"
-                                              className="cpm-hier-row-kebab"
-                                              aria-label="Level actions"
-                                              aria-haspopup="menu"
-                                              aria-expanded={cloneMenuIndex === i}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setCloneMenuIndex((cur) => (cur === i ? null : i));
-                                              }}
-                                            >
-                                              <KebabIcon />
-                                            </button>
-                                            {cloneMenuIndex === i && (
-                                              <div
-                                                className={`cpm-hier-lvl-menu ${
-                                                  i === arr.length - 1 && arr.length > 1
-                                                    ? 'cpm-hier-lvl-menu--up'
-                                                    : ''
-                                                }`}
-                                                role="menu"
-                                              >
-                                                <button
-                                                  type="button"
-                                                  role="menuitem"
-                                                  className="cpm-hier-lvl-menu-item"
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    addCloneLevel(i);
-                                                  }}
-                                                >
-                                                  Add Level
-                                                </button>
-                                                <button
-                                                  type="button"
-                                                  role="menuitem"
-                                                  className="cpm-hier-lvl-menu-item"
-                                                  disabled={arr.length <= 1}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    removeCloneLevel(i);
-                                                  }}
-                                                >
-                                                  Remove Level
-                                                </button>
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  {cloneDirty && (
-                                    <div className="cpm-hier-ct-footer">
-                                      <button
-                                        type="button"
-                                        className="cpm-btn cpm-btn--neutral-slds"
-                                        onClick={() => setSelectedHierarchy(null)}
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        type="button"
-                                        className="cpm-btn cpm-btn--neutral-slds"
-                                        onClick={handleHierarchyDetailSave}
-                                      >
-                                        Save
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        </aside>
-                      )}
-                    </div>
-                  ) : (
-                    /* New Hierarchy — create panel */
-                    <div className="cpm-hier-create">
-                      <div className="cpm-hier-cf-row">
-                        <div className="cpm-hier-cf-sec">
-                          <label className="cpm-hier-cf-label">* New Hierarchy Name</label>
-                          <input
-                            ref={newNameInputRef}
-                            className={`cpm-hier-cf-input ${newNameError ? 'cpm-hier-cf-input--error' : ''}`}
-                            type="text"
-                            placeholder="Enter Hierarchy Name"
-                            value={newName}
-                            aria-invalid={newNameError}
-                            onChange={(e) => {
-                              setNewName(e.target.value);
-                              if (newNameError && e.target.value.trim()) setNewNameError(false);
-                            }}
-                          />
-                          {newNameError && (
-                            <span className="cpm-hier-cf-error">Enter a hierarchy name to save.</span>
-                          )}
-                        </div>
-                        <div className="cpm-hier-cf-sec">
-                          <label className="cpm-hier-cf-label">* Dimension</label>
-                          <select
-                            className="cpm-hier-cf-input cpm-hier-cf-select"
-                            value={newDimension}
-                            onChange={(e) => setNewDimension(e.target.value)}
-                            disabled={hierarchyDimension === 'Account' || hierarchyDimension === 'Product'}
-                          >
-                            <option value="">Select Dimension</option>
-                            <option value="Account">Account</option>
-                            <option value="Product">Product</option>
-                          </select>
-                        </div>
-                        <div className="cpm-hier-cf-sec">
-                          <div className="cpm-hier-cf-label-row">
-                            <label className="cpm-hier-cf-label">Number of Levels</label>
-                            <button type="button" className="cpm-hier-cf-info" aria-label="Info">i</button>
-                          </div>
-                          <div className="cpm-hier-cf-stepper">
-                            <button
-                              type="button"
-                              className="cpm-hier-cf-step"
-                              aria-label="Decrease"
-                              onClick={() =>
-                                setNewLevelNames((prev) =>
-                                  prev.length > 1 ? prev.slice(0, -1) : prev,
-                                )
-                              }
-                            >
-                              &#8722;
-                            </button>
-                            <span className="cpm-hier-cf-step-val">{newLevelNames.length}</span>
-                            <button
-                              type="button"
-                              className="cpm-hier-cf-step"
-                              aria-label="Increase"
-                              onClick={() => setNewLevelNames((prev) => [...prev, ''])}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="cpm-hier-ct">
-                        <div className="cpm-hier-ct-head">
-                          <span className="cpm-hier-col-th">
-                            Hierarchy Level
-                            <span
-                              className="cpm-hier-col-resizer"
-                              role="separator"
-                              aria-orientation="vertical"
-                              aria-label="Resize Hierarchy Level column"
-                              onMouseDown={startLevelResize}
-                            />
-                          </span>
-                          <span>Name</span>
-                          <span />
-                        </div>
-                        <div className="cpm-hier-ct-body">
-                          {newLevelNames.map((nm, i, arr) => {
-                            const levelLabel = newDimension ? `${newDimension} L${i}` : `Level ${i + 1}`;
-                            return (
-                              <div
-                                key={i}
-                                className="cpm-hier-ct-row"
-                                style={{ ['--cpm-lvl' as string]: i } as React.CSSProperties}
-                              >
-                                <div className="cpm-hier-ct-cell">
-                                  <button
-                                    type="button"
-                                    className={`cpm-hier-tree-chev ${i === arr.length - 1 ? 'is-empty' : ''}`}
-                                    aria-label="Toggle level"
-                                  >
-                                    <ChevronDown size={14} />
-                                  </button>
-                                  <span className="cpm-hier-tree-link">{levelLabel}</span>
-                                </div>
-                                <div className="cpm-hier-ct-cell">
-                                  <input
-                                    className="cpm-hier-cf-name"
-                                    type="text"
-                                    placeholder={`Enter level ${i + 1} name`}
-                                    value={nm}
-                                    onChange={(e) =>
-                                      setNewLevelNames((prev) => {
-                                        const next = [...prev];
-                                        next[i] = e.target.value;
-                                        return next;
-                                      })
-                                    }
-                                  />
-                                </div>
-                                <div className="cpm-hier-ct-cell cpm-hier-ct-cell--act">
-                                  <div className="cpm-hier-lvl-menu-wrap">
-                                    <button
-                                      type="button"
-                                      className="cpm-hier-row-kebab"
-                                      aria-label="Level actions"
-                                      aria-haspopup="menu"
-                                      aria-expanded={newMenuIndex === i}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setNewMenuIndex((cur) => (cur === i ? null : i));
-                                      }}
-                                    >
-                                      <KebabIcon />
-                                    </button>
-                                    {newMenuIndex === i && (
-                                      <div
-                                        className={`cpm-hier-lvl-menu ${
-                                          i === arr.length - 1 && arr.length > 1
-                                            ? 'cpm-hier-lvl-menu--up'
-                                            : ''
-                                        }`}
-                                        role="menu"
-                                      >
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="cpm-hier-lvl-menu-item"
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            addNewLevel(i);
-                                          }}
-                                        >
-                                          Add Level
-                                        </button>
-                                        <button
-                                          type="button"
-                                          role="menuitem"
-                                          className="cpm-hier-lvl-menu-item"
-                                          disabled={arr.length <= 1}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            removeNewLevel(i);
-                                          }}
-                                        >
-                                          Remove Level
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {newDirty && (
-                          <div className="cpm-hier-ct-footer">
-                            <button
-                              type="button"
-                              className="cpm-btn cpm-btn--neutral-slds"
-                              onClick={cancelNewHierarchy}
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              className="cpm-btn cpm-btn--neutral-slds"
-                              onClick={handleCreateHierarchy}
-                            >
-                              Save
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="cpm-hier-footer">
-              <div className="cpm-hier-footer-save">
-                {saveError && hasUnsavedChanges && (
-                  <div className="cpm-hier-save-warn">
-                    <span className="cpm-hier-save-warn-icon" aria-hidden="true">
-                      <svg width="18" height="18" viewBox="0 0 16 16" fill="none">
-                        <circle cx="8" cy="8" r="8" fill="#ba0517" />
-                        <rect x="7.2" y="3.6" width="1.6" height="5.4" rx="0.8" fill="#fff" />
-                        <circle cx="8" cy="11.4" r="0.95" fill="#fff" />
-                      </svg>
-                    </span>
-                    <div className="cpm-hier-save-warn-pop" role="tooltip">
-                      Save your updates before saving the modal.
-                    </div>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  className="cpm-btn cpm-btn--brand"
-                  onClick={() => {
-                    if (hasUnsavedChanges) {
-                      setSaveError(true);
-                    } else {
-                      setSaveError(false);
-                      closeHierarchyModal();
-                    }
-                  }}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Manage Hierarchies modal (opens from step 1.1 Manage) */}
+      <ManageHierarchiesModal
+        isOpen={hierarchyModalOpen}
+        onClose={() => setHierarchyModalOpen(false)}
+      />
 
       <ReviewMeasuresModal
         isOpen={measuresModalOpen}

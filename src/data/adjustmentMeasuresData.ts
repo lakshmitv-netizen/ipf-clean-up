@@ -262,6 +262,8 @@ const acmeAdjustmentMeasuresData: MeasureData[] = ADJUSTMENT_MEASURE_DEFS.map((m
 
 /** Adjustment measures whose hierarchy matches the grid's dimension scheme. */
 export function getAdjustmentMeasuresData(industry: IndustryType | null): MeasureData[] {
+  // Config-driven plan grids don't have adjustment measures.
+  if (typeof industry === 'string' && industry.startsWith('cfg:')) return [];
   if (industry === 'manufacturing-deep') return deepAdjustmentMeasuresData;
   if (industry === 'manufacturing-acme') return acmeAdjustmentMeasuresData;
   return adjustmentMeasuresData;

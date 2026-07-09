@@ -13,6 +13,7 @@ import { AdjustmentNote } from '../types/adjustmentNote';
 import { getMockData } from '../data/mockData';
 import { useIndustry } from '../contexts/IndustryContext';
 import { getDimensionScheme } from '../data/dimensionSchemes';
+import { isConfigIndustry, isConfigLevel, getConfigMeasureCategories } from '../data/planConfigGridData';
 import {
   cloneMeasureData,
   reviveEditHistory,
@@ -645,14 +646,22 @@ const ForecastingGrid: React.FC = () => {
           ])
         )
       );
-      setVisibleMeasureIds(new Set(DEFAULT_VISIBLE_MEASURE_IDS));
+      setVisibleMeasureIds(
+        isConfigIndustry(ind)
+          ? new Set(session.data.map((m) => m.id))
+          : new Set(DEFAULT_VISIBLE_MEASURE_IDS)
+      );
       setPlanWideApprovalSubmitted(false);
       return;
     }
     const newData = getMockData(ind);
     setData(newData);
     setOriginalData(newData);
-    setVisibleMeasureIds(new Set(DEFAULT_VISIBLE_MEASURE_IDS));
+    setVisibleMeasureIds(
+      isConfigIndustry(ind)
+        ? new Set(newData.map((m) => m.id))
+        : new Set(DEFAULT_VISIBLE_MEASURE_IDS)
+    );
     const now = new Date();
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
@@ -666,6 +675,18 @@ const ForecastingGrid: React.FC = () => {
     setDraftEditHistory(new Map());
     setPlanWideApprovalSubmitted(false);
   }, [industry, session]);
+
+  // Default the selected measure categories to match the industry: config grids
+  // pre-select all of their subsets; standard grids use Revenue & Quantity Measures.
+  useEffect(() => {
+    const ind = industry || 'manufacturing';
+    if (isConfigIndustry(ind)) {
+      const names = getConfigMeasureCategories(ind).map((c) => c.name);
+      setSelectedMeasureSubgroup(new Set(names.length > 0 ? names : ['Revenue & Quantity Measures']));
+    } else {
+      setSelectedMeasureSubgroup(new Set(['Revenue & Quantity Measures']));
+    }
+  }, [industry]);
   
   // Helper function to calculate all cells in a range between two cell keys
   const calculateCellRange = useCallback((startCellKey: string, endCellKey: string): string[] => {
@@ -3317,60 +3338,92 @@ const ForecastingGrid: React.FC = () => {
     const allMeasureIds: string[] = [];
     const measureMap = new Map<string, MeasureData>(); // Map to deduplicate by ID
     
-    // Check if both groups are selected
-    const bothGroupsSelected = selectedMeasureSubgroup.has('Adjustment Measures') && 
-                               selectedMeasureSubgroup.has('Revenue & Quantity Measures');
-
     // Shared measures - add first to appear at top
     const sharedMeasures: MeasureData[] = [];
-    
-    // Process shared measures first when both groups are selected
-    if (bothGroupsSelected) {
-      sharedMeasureIds.forEach(measureId => {
-        // Get the selected context for this measure (default to Adjustment Measures - read-only)
-        const selectedContext = measureGroupContext.get(measureId) || 'Adjustment Measures';
-        
-        // Get measure data from the appropriate source
-        const currentIndustry = industry || 'manufacturing';
-        const currentData = getMockData(currentIndustry);
-        const dataWithHistory = applyInitialEditHistoryToData(currentData);
-        const rqMeasure = dataWithHistory.find((m: MeasureData) => m.id === measureId);
-        const adjMeasure = getAdjustmentMeasuresData(industry).find((m: MeasureData) => m.id === measureId);
-        
-        // Use the selected context version
-        const sourceMeasure = selectedContext === 'Adjustment Measures' ? adjMeasure : rqMeasure;
-        if (sourceMeasure) {
-          const measureWithGroup = {
-            ...sourceMeasure,
-            groupContext: selectedContext
-          };
-          sharedMeasures.push(measureWithGroup as MeasureData);
-        }
-      });
-    }
-    
-    // Add Revenue & Quantity Measures if selected
-    if (selectedMeasureSubgroup.has('Revenue & Quantity Measures')) {
-      const currentIndustry = industry || 'manufacturing';
-      const currentData = getMockData(currentIndustry);
+
+    const currentIndustryKey = industry || 'manufacturing';
+
+    if (isConfigIndustry(currentIndustryKey)) {
+      // Config-driven grid: the plan config's subsets act as measure categories.
+      // Include measures belonging to any selected subset (default: all subsets).
+      const cats = getConfigMeasureCategories(currentIndustryKey);
+      const currentData = getMockData(currentIndustryKey);
       const dataWithHistory = applyInitialEditHistoryToData(currentData);
-      
-      dataWithHistory.forEach((measure: MeasureData) => {
-        measureMap.set(measure.id, measure);
-        allMeasureIds.push(measure.id);
+      const byName = new Map<string, MeasureData>();
+      dataWithHistory.forEach((m: MeasureData) => {
+        if (!byName.has(m.name)) byName.set(m.name, m);
       });
-    }
-    
-    // Add Adjustment Measures if selected (use the variant whose hierarchy matches
-    // this grid's dimension scheme so the deep grid can expand these measures).
-    if (selectedMeasureSubgroup.has('Adjustment Measures')) {
-      getAdjustmentMeasuresData(industry).forEach((measure: MeasureData) => {
-        // Add if not already present
-        if (!measureMap.has(measure.id)) {
+
+      const selectedCats = cats.filter((c) => selectedMeasureSubgroup.has(c.name));
+      const catsToUse = selectedCats.length > 0 ? selectedCats : cats;
+      catsToUse.forEach((cat) => {
+        cat.measures.forEach((name) => {
+          const m = byName.get(name);
+          if (m && !measureMap.has(m.id)) {
+            measureMap.set(m.id, m);
+            allMeasureIds.push(m.id);
+          }
+        });
+      });
+
+      // Fallback: config has no subsets, or none matched — show every config measure.
+      if (measureMap.size === 0) {
+        dataWithHistory.forEach((m: MeasureData) => {
+          measureMap.set(m.id, m);
+          allMeasureIds.push(m.id);
+        });
+      }
+    } else {
+      // Check if both groups are selected
+      const bothGroupsSelected = selectedMeasureSubgroup.has('Adjustment Measures') &&
+                                 selectedMeasureSubgroup.has('Revenue & Quantity Measures');
+
+      // Process shared measures first when both groups are selected
+      if (bothGroupsSelected) {
+        sharedMeasureIds.forEach(measureId => {
+          // Get the selected context for this measure (default to Adjustment Measures - read-only)
+          const selectedContext = measureGroupContext.get(measureId) || 'Adjustment Measures';
+
+          // Get measure data from the appropriate source
+          const currentData = getMockData(currentIndustryKey);
+          const dataWithHistory = applyInitialEditHistoryToData(currentData);
+          const rqMeasure = dataWithHistory.find((m: MeasureData) => m.id === measureId);
+          const adjMeasure = getAdjustmentMeasuresData(industry).find((m: MeasureData) => m.id === measureId);
+
+          // Use the selected context version
+          const sourceMeasure = selectedContext === 'Adjustment Measures' ? adjMeasure : rqMeasure;
+          if (sourceMeasure) {
+            const measureWithGroup = {
+              ...sourceMeasure,
+              groupContext: selectedContext
+            };
+            sharedMeasures.push(measureWithGroup as MeasureData);
+          }
+        });
+      }
+
+      // Add Revenue & Quantity Measures if selected
+      if (selectedMeasureSubgroup.has('Revenue & Quantity Measures')) {
+        const currentData = getMockData(currentIndustryKey);
+        const dataWithHistory = applyInitialEditHistoryToData(currentData);
+
+        dataWithHistory.forEach((measure: MeasureData) => {
           measureMap.set(measure.id, measure);
           allMeasureIds.push(measure.id);
-        }
-      });
+        });
+      }
+
+      // Add Adjustment Measures if selected (use the variant whose hierarchy matches
+      // this grid's dimension scheme so the deep grid can expand these measures).
+      if (selectedMeasureSubgroup.has('Adjustment Measures')) {
+        getAdjustmentMeasuresData(industry).forEach((measure: MeasureData) => {
+          // Add if not already present
+          if (!measureMap.has(measure.id)) {
+            measureMap.set(measure.id, measure);
+            allMeasureIds.push(measure.id);
+          }
+        });
+      }
     }
 
     // Add shared measures first (at the top), then other measures
@@ -5018,7 +5071,9 @@ const ForecastingGrid: React.FC = () => {
 
   const headerSummaryText = useMemo(() => {
     // Measure categories (M of N)
-    const allMeasureCategories = ['Revenue & Quantity Measures', 'Adjustment Measures'];
+    const allMeasureCategories = isConfigIndustry(industry)
+      ? getConfigMeasureCategories(industry).map((c) => c.name)
+      : ['Revenue & Quantity Measures', 'Adjustment Measures'];
     const selectedCategoryCount = allMeasureCategories.filter(c => selectedMeasureSubgroup.has(c)).length;
 
     // Measures (A of B) — visible measures vs. the full measure set
@@ -5027,22 +5082,23 @@ const ForecastingGrid: React.FC = () => {
 
     // Count dimension rows per level in a measure's subtree.
     const countLevels = (measure?: any) => {
-      let accounts = 0, categories = 0, products = 0;
+      let accounts = 0, categories = 0, products = 0, configLeaves = 0;
       const walk = (rows?: any[]) => {
         rows?.forEach((r: any) => {
           if (r.type === 'account') accounts++;
           else if (r.type === 'category') categories++;
           else if (r.type === 'product') products++;
+          else if (isConfigLevel(r.type) && (!r.children || r.children.length === 0)) configLeaves++;
           walk(r.children);
         });
       };
       walk(measure?.children);
-      return { accounts, categories, products };
+      return { accounts, categories, products, configLeaves };
     };
     const totalLevels = countLevels(originalData[0]);
     const visibleLevels = countLevels(hierarchicalGridData[0]);
-    const visibleRecords = visibleLevels.products || visibleLevels.categories || visibleLevels.accounts;
-    const totalRecords = totalLevels.products || totalLevels.categories || totalLevels.accounts;
+    const visibleRecords = visibleLevels.products || visibleLevels.categories || visibleLevels.accounts || visibleLevels.configLeaves;
+    const totalRecords = totalLevels.products || totalLevels.categories || totalLevels.accounts || totalLevels.configLeaves;
 
     // Dimensions filtered (K) — levels where fewer rows are visible than exist in full.
     let dimensionsFiltered = 0;
@@ -5080,6 +5136,7 @@ const ForecastingGrid: React.FC = () => {
     showAllPeriods,
     startPeriod,
     endPeriod,
+    industry,
   ]);
 
 

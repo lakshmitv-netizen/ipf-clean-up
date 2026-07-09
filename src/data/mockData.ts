@@ -4,6 +4,7 @@ import { consumerGoodsData } from './consumerGoodsData';
 import { deepHierarchyData } from './deepHierarchyData';
 import { acmeHierarchyData } from './acmeHierarchyData';
 import { deriveWeekValues } from '../utils/weekColumns';
+import { isConfigIndustry, getConfigMockData } from './planConfigGridData';
 
 // Ensure every node in a measure tree carries weekly columns (derived from months).
 const ensureWeekValues = (rows: (MeasureData | GridRow)[]): void => {
@@ -379,6 +380,11 @@ const createManufacturingHierarchy = (
 };
 
 export const getMockData = (industry: IndustryType | null): MeasureData[] => {
+  if (isConfigIndustry(industry)) {
+    const configData = getConfigMockData(industry as string);
+    ensureWeekValues(configData);
+    return configData;
+  }
   if (industry === 'consumer-goods') {
     ensureWeekValues(consumerGoodsData);
     return consumerGoodsData;

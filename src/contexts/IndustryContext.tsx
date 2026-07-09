@@ -1,9 +1,19 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { getActiveConfigId } from '../data/planConfigStore';
 
-export type IndustryType = 'manufacturing' | 'consumer-goods' | 'grid-264' | 'manufacturing-deep' | 'manufacturing-acme';
+// A plan-configuration grid uses a synthetic "cfg:<configId>" industry key so all
+// the existing industry-driven plumbing (dimension scheme, filters, measures) works.
+export type IndustryType =
+  | 'manufacturing'
+  | 'consumer-goods'
+  | 'grid-264'
+  | 'manufacturing-deep'
+  | 'manufacturing-acme'
+  | `cfg:${string}`;
 
 /** Route for the main forecasting grid for the given industry (defaults to manufacturing). */
 export function getGridPathForIndustry(industry: IndustryType | null): string {
+  if (typeof industry === 'string' && industry.startsWith('cfg:')) return '/grid';
   if (industry === 'consumer-goods') return '/home/consumergoods';
   if (industry === 'grid-264') return '/home/grid-264';
   if (industry === 'manufacturing-deep') return '/home/manufacturing-deep';
@@ -34,6 +44,10 @@ const getIndustryFromPath = (path: string): IndustryType | null => {
   }
   if (path === '/home/manufacturing-acme') {
     return 'manufacturing-acme';
+  }
+  if (path === '/grid') {
+    const activeConfigId = getActiveConfigId();
+    if (activeConfigId) return `cfg:${activeConfigId}`;
   }
   return null;
 };

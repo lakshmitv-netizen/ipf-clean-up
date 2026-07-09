@@ -9,7 +9,15 @@ import {
   type MeasureSubset,
 } from '../data/planConfigData';
 import { loadPlanConfigHierarchies } from '../data/hierarchyStore';
+import { mergeCustomMeasures } from '../data/measureStore';
+import { savePlanConfigDetail, type PlanConfigDetail } from '../data/planConfigStore';
 import '../styles/pages/PlanConfigCreatorPage.css';
+
+type SavedConfigPayload = {
+  name?: string;
+  description?: string;
+  detail?: Pick<PlanConfigDetail, 'levels' | 'measures' | 'subsets'>;
+};
 
 const SearchIcon: React.FC = () => (
   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -52,8 +60,12 @@ const PlanConfigCreatorPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const planName = (location.state as { planName?: string })?.planName || '';
+  const planDescription = (location.state as { description?: string })?.description || '';
 
-  const [measures, setMeasures] = useState<Measure[]>(initialMeasures);
+  // Base measures plus any user-created ones persisted from the Review Measures
+  // modal, so custom measures show up in the "Add Measures" picker. Read once on
+  // mount (the page remounts on each navigation, picking up new measures).
+  const [measures, setMeasures] = useState<Measure[]>(() => mergeCustomMeasures(initialMeasures));
   const [measureSubsets, setMeasureSubsets] = useState<MeasureSubset[]>(initialMeasureSubsets);
 
   // Hierarchies come from the shared store fed by the Setup Hierarchies modal, so
@@ -71,8 +83,36 @@ const PlanConfigCreatorPage: React.FC = () => {
     };
   }, []);
 
-  const goBackToList = () => {
-    navigate('/setup/plan-configuration-list');
+  const goBackToList = (savedConfig?: SavedConfigPayload) => {
+    if (savedConfig) {
+      const id = String(Date.now());
+      const now = new Date();
+      const formatted = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
+      const name = planName || savedConfig.name || 'Untitled Configuration';
+      const description = planDescription || savedConfig.description || '';
+      // Persist the saved configuration so the (iframe) list view can render it.
+      try {
+        const raw = localStorage.getItem('cpm_saved_configs');
+        const list: Array<Record<string, string>> = raw ? JSON.parse(raw) : [];
+        list.push({ id, name, description, created: formatted, modified: formatted });
+        localStorage.setItem('cpm_saved_configs', JSON.stringify(list));
+      } catch {
+        /* localStorage unavailable */
+      }
+      // Persist the full config shape (levels/measures/subsets) so a plan can render its grid.
+      if (savedConfig.detail) {
+        savePlanConfigDetail({
+          id,
+          name,
+          description,
+          createdOn: formatted,
+          levels: savedConfig.detail.levels,
+          measures: savedConfig.detail.measures,
+          subsets: savedConfig.detail.subsets,
+        });
+      }
+    }
+    navigate('/setup/plan-configuration-list', savedConfig ? { state: { savedToast: true } } : undefined);
   };
 
   const handleNavClick = (node: NavNode) => {

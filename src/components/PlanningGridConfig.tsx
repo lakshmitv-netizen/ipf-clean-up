@@ -6,6 +6,7 @@ import type {
   TimeGranularities,
 } from '../data/planConfigData';
 import AccessControlModal from './AccessControlModal';
+import type { PlanConfigLevel, PlanConfigMeasureLite, PlanConfigSubset } from '../data/planConfigStore';
 import '../styles/components/PlanningGridConfig.css';
 
 const imgCloseIcon = "data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18 6L6 18M6 6l12 12' stroke='%23666' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E";
@@ -25,6 +26,11 @@ const imgDeleteIconSmall = "data:image/svg+xml,%3Csvg width='14' height='14' vie
 interface SavedConfigInfo {
   name: string;
   description: string;
+  detail?: {
+    levels: PlanConfigLevel[];
+    measures: PlanConfigMeasureLite[];
+    subsets: PlanConfigSubset[];
+  };
 }
 
 interface NewMeasureForm {
@@ -82,9 +88,6 @@ export default function PlanningGridConfig({
   const [selectedComponentTab, setSelectedComponentTab] = useState<'Dimensions' | 'Measures'>('Dimensions');
   const [hasSavedOnce, setHasSavedOnce] = useState(false);
   const [isAssignToModalOpen, setIsAssignToModalOpen] = useState(false);
-  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [configName, setConfigName] = useState('');
-  const [configDescription, setConfigDescription] = useState('');
   const [isAddMeasuresModalOpen, setIsAddMeasuresModalOpen] = useState(false);
 
   // Get available subsets from props, initialize with default if empty
@@ -92,6 +95,9 @@ export default function PlanningGridConfig({
 
   const [measureSubsets, setMeasureSubsets] = useState<LocalSubset[]>([{ id: 'default-subset', name: 'Default Subset' }]);
   const [selectedSubsetId, setSelectedSubsetId] = useState<string | number>('default-subset');
+  // When set, the Properties column shows measures for this category instead of
+  // the selected subset. Null means a subset is selected.
+  const [selectedConfigCategory, setSelectedConfigCategory] = useState<string | null>(null);
   const [measureTableKey, setMeasureTableKey] = useState(0);
   const [subsetNameInput, setSubsetNameInput] = useState('');
   const [showSubsetDropdown, setShowSubsetDropdown] = useState(false);
@@ -102,6 +108,7 @@ export default function PlanningGridConfig({
   const [measureTypeFilter, setMeasureTypeFilter] = useState('All Types');
   const [measureAggregationFilter, setMeasureAggregationFilter] = useState('All Aggregations');
   const [measureDisaggregationFilter, setMeasureDisaggregationFilter] = useState('All Disaggregations');
+  const [measureCategoryFilter, setMeasureCategoryFilter] = useState('All Categories');
   const [showSelectedOnly, setShowSelectedOnly] = useState(false);
   const [showCreateMeasureTypeView, setShowCreateMeasureTypeView] = useState(false);
   const [selectedCreateMeasureType, setSelectedCreateMeasureType] = useState<string | null>(null);
@@ -128,6 +135,10 @@ export default function PlanningGridConfig({
   const [gridPreviewOpen, setGridPreviewOpen] = useState(true);
   const [enableFiltering, setEnableFiltering] = useState(false);
   const [selectedHierarchyId, setSelectedHierarchyId] = useState<string | null>(null);
+  // Which hierarchy is chosen per dimension (so Account & Product selections both persist).
+  const [hierarchyByDim, setHierarchyByDim] = useState<Record<string, string>>({});
+  // Which levels are enabled per hierarchy id (checkbox state), keyed by hierarchy id.
+  const [enabledLevels, setEnabledLevels] = useState<Record<string, boolean[]>>({});
 
   // Use hierarchies from props
   const hierarchiesData = propHierarchies || [];
@@ -139,6 +150,9 @@ export default function PlanningGridConfig({
   });
 
   const availableDimensions = ['Account', 'Product'];
+  // The left "Manage Subsets" panel in the Add Measures modal is hidden per
+  // design; selections still target the default subset.
+  const SHOW_MANAGE_SUBSETS = false;
   const availableMeasureTypes: MeasureTypeOption[] = [
     { id: 'Read only', icon: '🧾', title: 'Read only' },
     { id: 'Editable', icon: '✎', title: 'Editable' },
@@ -193,15 +207,22 @@ export default function PlanningGridConfig({
     ? hierarchiesData.find((h) => h.id === selectedHierarchyId)
     : availableHierarchies[0];
 
-  // Auto-select first hierarchy when dimension changes
+  // Default enabled-levels for a hierarchy: first 4 levels on.
+  const defaultEnabled = (h: Hierarchy): boolean[] => h.levels.map((_, i) => i < 4);
+  const getEnabledFor = (h?: Hierarchy): boolean[] => (h ? enabledLevels[h.id] ?? defaultEnabled(h) : []);
+
+  // Select the hierarchy remembered for this dimension (or default to the first),
+  // so switching Account/Product tabs keeps each dimension's own selection.
   useEffect(() => {
-    if (availableHierarchies.length > 0) {
-      const currentSelectedIsValid = availableHierarchies.find((h) => h.id === selectedHierarchyId);
-      if (!currentSelectedIsValid) {
-        setSelectedHierarchyId(availableHierarchies[0].id);
-      }
+    if (activeDimension === 'Time' || availableHierarchies.length === 0) return;
+    const remembered = hierarchyByDim[activeDimension];
+    const validRemembered = remembered && availableHierarchies.find((h) => h.id === remembered);
+    const nextId = validRemembered ? remembered : availableHierarchies[0].id;
+    if (nextId !== selectedHierarchyId) setSelectedHierarchyId(nextId);
+    if (hierarchyByDim[activeDimension] !== nextId) {
+      setHierarchyByDim((prev) => ({ ...prev, [activeDimension]: nextId }));
     }
-  }, [activeDimension, availableHierarchies, selectedHierarchyId]);
+  }, [activeDimension, availableHierarchies, hierarchyByDim, selectedHierarchyId]);
 
   const handleRemoveDimension = (dimensionToRemove: string) => {
     setSelectedRowDimensions((prev) => {
@@ -250,25 +271,77 @@ export default function PlanningGridConfig({
     setDimensionToAdd('');
   };
 
-  const handleSave = () => {
-    setIsSaveModalOpen(true);
-  };
+  // Assemble the full config shape (ordered enabled levels + measures + subsets)
+  // so a plan can later render its grid from this config.
+  const buildConfigDetail = (): SavedConfigInfo['detail'] => {
+    // Hierarchy/level order: row-dimension order first, then any dimension that has
+    // a selected hierarchy (Account before Product) so account levels precede product.
+    const dims = [...selectedRowDimensions];
+    (['Account', 'Product'] as const).forEach((d) => {
+      if (!dims.includes(d) && (hierarchyByDim[d] || hierarchiesData.some((h) => h.dimension === d))) {
+        dims.push(d);
+      }
+    });
 
-  const handleConfirmSave = () => {
-    setHasSavedOnce(true);
-    setIsSaveModalOpen(false);
-    if (onBack) {
-      onBack({
-        name: configName,
-        description: configDescription,
+    const levels: PlanConfigLevel[] = [];
+    dims.forEach((dim) => {
+      const hid = hierarchyByDim[dim];
+      const h =
+        (hid && hierarchiesData.find((x) => x.id === hid)) ||
+        hierarchiesData.find((x) => x.dimension === dim);
+      if (!h) return;
+      const enabled = enabledLevels[h.id] ?? defaultEnabled(h);
+      h.levels.forEach((lvl, i) => {
+        if (enabled[i]) levels.push({ name: lvl.name, hierarchy: `${dim} Hierarchy` });
       });
-    }
+    });
+
+    const measureNameById = (id: number) => measuresData.find((m) => m.id === id)?.name;
+
+    // Grid "measure categories" = exactly what the config's left panel lists:
+    // the named subsets (e.g. Default Subset) plus the category groups derived
+    // from the selected measures (e.g. Volume, Operations).
+    const subsetsFromSubsets: PlanConfigSubset[] = measureSubsets.map((s) => ({
+      name: s.name,
+      measures: (selectedMeasuresBySubset[String(s.id)] ?? [])
+        .map((id) => measureNameById(id))
+        .filter((n): n is string => !!n),
+    }));
+
+    const allIds = Array.from(new Set(Object.values(selectedMeasuresBySubset).flat()));
+
+    const categoryGroups = new Map<string, string[]>();
+    allIds.forEach((id) => {
+      const m = measuresData.find((x) => x.id === id);
+      if (m?.category && m.name) {
+        const list = categoryGroups.get(m.category) ?? [];
+        list.push(m.name);
+        categoryGroups.set(m.category, list);
+      }
+    });
+    const seenSubsetNames = new Set(subsetsFromSubsets.map((s) => s.name));
+    const subsetsFromCategories: PlanConfigSubset[] = Array.from(categoryGroups.entries())
+      .filter(([name]) => !seenSubsetNames.has(name))
+      .map(([name, measures]) => ({ name, measures }));
+
+    const subsets: PlanConfigSubset[] = [...subsetsFromSubsets, ...subsetsFromCategories].filter(
+      (s) => s.measures.length > 0,
+    );
+    const measures: PlanConfigMeasureLite[] = allIds
+      .map((id) => measuresData.find((m) => m.id === id))
+      .filter((m): m is Measure => !!m)
+      .map((m) => ({ name: m.name, category: m.category, code: m.code, unit: m.unit }));
+
+    return { levels, measures, subsets };
   };
 
-  const handleCancelSave = () => {
-    setIsSaveModalOpen(false);
-    setConfigName('');
-    setConfigDescription('');
+  // Save directly (no intermediate "Save Configuration" modal). Matches the
+  // parag IPF_Shell setup flow: clicking Save persists and returns to the list.
+  const handleSave = () => {
+    setHasSavedOnce(true);
+    if (onBack) {
+      onBack({ name: title || '', description: '', detail: buildConfigDetail() });
+    }
   };
 
   const handleCancel = () => {
@@ -450,9 +523,11 @@ export default function PlanningGridConfig({
     const matchesAggregation = measureAggregationFilter === 'All Aggregations' || measure.aggregation === measureAggregationFilter;
     const matchesDisaggregation =
       measureDisaggregationFilter === 'All Disaggregations' || measure.disaggregation === measureDisaggregationFilter;
+    const matchesCategory =
+      measureCategoryFilter === 'All Categories' || measure.category === measureCategoryFilter;
     const matchesSelection = !showSelectedOnly || selectedMeasureIdsForSubset.includes(measure.id);
 
-    return matchesSearch && matchesType && matchesAggregation && matchesDisaggregation && matchesSelection;
+    return matchesSearch && matchesType && matchesAggregation && matchesDisaggregation && matchesCategory && matchesSelection;
   });
   const hasFilteredMeasures = filteredMeasures.length > 0;
   const areAllFilteredMeasuresSelected =
@@ -479,6 +554,30 @@ export default function PlanningGridConfig({
     }
     return (selectedMeasuresBySubset[subset.id] || []).length > 0;
   });
+
+  // Group the selected measures by their category so the config page can list
+  // each category (with a count) alongside the subsets, like the Default Subset.
+  const selectedCategoryGroupsOnConfigPage = (() => {
+    const selectedIds = new Set<number>();
+    Object.values(selectedMeasuresBySubset).forEach((ids) => ids.forEach((id) => selectedIds.add(id)));
+    const counts = new Map<string, number>();
+    selectedIds.forEach((id) => {
+      const category = measuresData.find((m) => m.id === id)?.category;
+      if (category) counts.set(category, (counts.get(category) || 0) + 1);
+    });
+    return Array.from(counts.entries()).map(([category, count]) => ({ category, count }));
+  })();
+
+  // Measures shown in the Properties column: either the selected category's
+  // measures (across all subsets) or the selected subset's measures.
+  const allSelectedMeasureIds = Array.from(new Set(Object.values(selectedMeasuresBySubset).flat()));
+  const propertiesMeasures: Measure[] = selectedConfigCategory
+    ? allSelectedMeasureIds
+        .map((id) => measuresData.find((m) => m.id === id))
+        .filter((m): m is Measure => !!m && m.category === selectedConfigCategory)
+    : selectedMeasuresForSubset;
+  const propertiesHeadingLabel = selectedConfigCategory ? 'Selected Category' : 'Selected Subset';
+  const propertiesHeadingValue = selectedConfigCategory || selectedSubset?.name || 'Default Subset';
 
   const handleSubsetDrop = (targetSubsetId: string | number) => {
     if (!draggedSubsetId || draggedSubsetId === targetSubsetId) return;
@@ -652,14 +751,21 @@ export default function PlanningGridConfig({
       <div className="planning-grid-header">
         <h1 className="planning-grid-title">{title || 'KAMPlanConfig'}</h1>
         <div className="planning-grid-header-actions">
-          <button
-            className={`planning-grid-button ${hasSavedOnce ? 'planning-grid-button-neutral' : 'planning-grid-button-disabled'}`}
-            disabled={!hasSavedOnce}
-            onClick={() => setIsAssignToModalOpen(true)}
-            type="button"
-          >
-            Assign To
-          </button>
+          <div className="planning-grid-assign-wrapper">
+            <button
+              className={`planning-grid-button ${hasSavedOnce ? 'planning-grid-button-neutral' : 'planning-grid-button-disabled'}`}
+              disabled={!hasSavedOnce}
+              onClick={() => setIsAssignToModalOpen(true)}
+              type="button"
+            >
+              Assign To
+            </button>
+            {!hasSavedOnce && (
+              <div className="planning-grid-assign-tooltip" role="tooltip">
+                Add Account and Product dimensions, and at least one measure, before assigning this configuration.
+              </div>
+            )}
+          </div>
           <button
             className="planning-grid-button planning-grid-button-neutral"
             onClick={handleCancel}
@@ -775,8 +881,11 @@ export default function PlanningGridConfig({
                 {visibleSubsetsOnConfigPage.map((subset) => (
                   <div
                     key={subset.id}
-                    className={`planning-grid-selected-dimension-item planning-grid-subset-row-item ${selectedSubsetId === subset.id ? 'active' : ''}`}
-                    onClick={() => setSelectedSubsetId(subset.id)}
+                    className={`planning-grid-selected-dimension-item planning-grid-subset-row-item ${selectedSubsetId === subset.id && !selectedConfigCategory ? 'active' : ''}`}
+                    onClick={() => {
+                      setSelectedSubsetId(subset.id);
+                      setSelectedConfigCategory(null);
+                    }}
                     draggable
                     onDragStart={() => setDraggedSubsetId(subset.id)}
                     onDragOver={(e) => e.preventDefault()}
@@ -809,6 +918,22 @@ export default function PlanningGridConfig({
                   </div>
                 ))}
 
+                {selectedCategoryGroupsOnConfigPage.length > 0 && (
+                  <>
+                    {selectedCategoryGroupsOnConfigPage.map(({ category, count }) => (
+                      <div
+                        key={category}
+                        className={`planning-grid-selected-dimension-item planning-grid-subset-row-item planning-grid-category-row-item ${selectedConfigCategory === category ? 'active' : ''}`}
+                        onClick={() => setSelectedConfigCategory(category)}
+                      >
+                        <div className="planning-grid-selected-dimension-left">
+                          <span>{category} ({count})</span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+
                 <button className="planning-grid-empty-state-button" onClick={() => setIsAddMeasuresModalOpen(true)}>
                   Manage Measures
                 </button>
@@ -824,15 +949,15 @@ export default function PlanningGridConfig({
               <h3 className="planning-grid-panel-title">Properties</h3>
             </div>
             {selectedComponentTab === 'Measures' ? (
-              selectedMeasuresForSubset.length ? (
+              propertiesMeasures.length ? (
                 <div className="planning-grid-components-content">
                   <div className="planning-grid-highlight-box planning-grid-highlight-box-compact">
-                    <div className="planning-grid-highlight-label">Selected Subset</div>
+                    <div className="planning-grid-highlight-label">{propertiesHeadingLabel}</div>
                     <div className="planning-grid-highlight-value">
-                      {selectedSubset?.name || 'Default Subset'}
+                      {propertiesHeadingValue}
                     </div>
                   </div>
-                  {selectedMeasuresForSubset.map((measure) => (
+                  {propertiesMeasures.map((measure) => (
                     <div
                       key={measure.id}
                       className="planning-grid-selected-dimension-item planning-grid-measure-row-item"
@@ -895,7 +1020,9 @@ export default function PlanningGridConfig({
                       className="planning-grid-hierarchy-select"
                       value={selectedHierarchy?.id || ''}
                       onChange={(e) => {
-                        setSelectedHierarchyId(e.target.value);
+                        const id = e.target.value;
+                        setSelectedHierarchyId(id);
+                        setHierarchyByDim((prev) => ({ ...prev, [activeDimension]: id }));
                       }}
                     >
                       {availableHierarchies.map((hierarchy) => (
@@ -932,9 +1059,22 @@ export default function PlanningGridConfig({
                     })
                   ) : (
                     selectedHierarchy?.levels.map((level, index) => {
+                      const enabled = getEnabledFor(selectedHierarchy);
                       return (
                         <label className="planning-grid-checkbox-item" key={level.id}>
-                          <input type="checkbox" defaultChecked={index < 4} />
+                          <input
+                            type="checkbox"
+                            checked={enabled[index] ?? false}
+                            onChange={() => {
+                              if (!selectedHierarchy) return;
+                              setEnabledLevels((prev) => {
+                                const cur = prev[selectedHierarchy.id] ?? defaultEnabled(selectedHierarchy);
+                                const next = [...cur];
+                                next[index] = !next[index];
+                                return { ...prev, [selectedHierarchy.id]: next };
+                              });
+                            }}
+                          />
                           <span>Level {level.id} - {level.name}</span>
                         </label>
                       );
@@ -1044,6 +1184,7 @@ export default function PlanningGridConfig({
 
             <div className="modal-body">
               <div className="planning-grid-add-measures-body">
+                {SHOW_MANAGE_SUBSETS && (
                 <div className="planning-grid-add-measures-left">
                   <div className="planning-grid-step-header">
                     <div className="planning-grid-step-header-text">
@@ -1075,10 +1216,8 @@ export default function PlanningGridConfig({
                         type="button"
                         onClick={handleCreateSubset}
                         disabled={!canCreateNew}
-                        style={{
-                          opacity: canCreateNew ? 1 : 0.5,
-                          cursor: canCreateNew ? 'pointer' : 'not-allowed',
-                        }}
+                        aria-label="Add measure subset"
+                        style={{ cursor: canCreateNew ? 'pointer' : 'not-allowed' }}
                       >
                         +
                       </button>
@@ -1178,15 +1317,23 @@ export default function PlanningGridConfig({
                     ))}
                   </div>
                 </div>
+                )}
 
                 <div className="planning-grid-add-measures-right">
                   {!showCreateMeasureTypeView ? (
                     <>
-                      <div className="planning-grid-step-header">
+                      <div className="planning-grid-step-header planning-grid-select-measures-header">
                         <div>
                           <h4>Select Measures</h4>
                           <p>Selections are saved to the selected subset only.</p>
                         </div>
+                        <button
+                          type="button"
+                          className="planning-grid-button planning-grid-button-neutral planning-grid-create-measure-btn"
+                          onClick={handleOpenCreateMeasureTypeView}
+                        >
+                          + Create Measure
+                        </button>
                       </div>
 
                       <div className="planning-grid-measure-toolbar">
@@ -1236,16 +1383,17 @@ export default function PlanningGridConfig({
                           <img src={imgDropdownSmall} alt="" />
                         </label>
                         <label className="planning-grid-measure-filter-wrap">
-                          <select className="planning-grid-measure-filter">
+                          <select
+                            className="planning-grid-measure-filter"
+                            value={measureCategoryFilter}
+                            onChange={(e) => setMeasureCategoryFilter(e.target.value)}
+                          >
                             {measureCategoryOptions.map((option) => (
                               <option key={option} value={option}>{option}</option>
                             ))}
                           </select>
                           <img src={imgDropdownSmall} alt="" />
                         </label>
-                        <button type="button" className="planning-grid-create-new-button" onClick={handleOpenCreateMeasureTypeView}>
-                          + Create Measure
-                        </button>
                       </div>
 
                       <div className="planning-grid-table-controls">
@@ -1655,62 +1803,6 @@ export default function PlanningGridConfig({
                   </button>
                 </>
               )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Save Configuration Modal */}
-      {isSaveModalOpen && (
-        <div className="modal-overlay" onClick={handleCancelSave}>
-          <div className="modal-container" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2 className="modal-title">Save Configuration</h2>
-              <button className="modal-close-button" onClick={handleCancelSave}>
-                <img src={imgCloseIcon} alt="Close" />
-              </button>
-            </div>
-
-            <div className="modal-body" style={{ padding: '24px', display: 'block' }}>
-              <div className="edit-form-field">
-                <label className="edit-form-label">
-                  Configuration Name *
-                </label>
-                <input
-                  type="text"
-                  className="edit-form-input"
-                  placeholder="Enter configuration name"
-                  value={configName}
-                  onChange={(e) => setConfigName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div className="edit-form-field" style={{ marginTop: '16px' }}>
-                <label className="edit-form-label">
-                  Description
-                </label>
-                <textarea
-                  className="edit-form-textarea"
-                  placeholder="Enter description (optional)"
-                  value={configDescription}
-                  onChange={(e) => setConfigDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="modal-cancel-button" onClick={handleCancelSave}>
-                Cancel
-              </button>
-              <button
-                className="modal-save-button"
-                onClick={handleConfirmSave}
-                disabled={!configName.trim()}
-              >
-                Save
-              </button>
             </div>
           </div>
         </div>

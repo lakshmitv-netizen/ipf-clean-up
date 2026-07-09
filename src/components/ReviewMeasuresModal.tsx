@@ -19,7 +19,10 @@ export interface Measure {
   dataSource?: string;
   measureCode?: string;
   precision?: string;
+  formula?: string;
   selected?: boolean;
+  /** User-created (or cloned) measure — its Data Source is fixed and not editable. */
+  isCustom?: boolean;
 }
 
 interface ReviewMeasuresModalProps {
@@ -62,22 +65,30 @@ interface EditableCellProps {
   options?: string[];
   placeholder?: string;
   onCommit: (value: string) => void;
+  disabled?: boolean;
 }
 
-function EditableCell({ value, type = 'text', options = [], placeholder = 'Select...', onCommit }: EditableCellProps) {
+function EditableCell({ value, type = 'text', options = [], placeholder = 'Select...', onCommit, disabled = false }: EditableCellProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? '');
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement | null>(null);
 
   useEffect(() => {
     if (editing && inputRef.current) {
-      inputRef.current.focus();
-      const el = inputRef.current as HTMLInputElement;
-      if (typeof el.select === 'function') {
-        el.select();
+      const el = inputRef.current;
+      el.focus();
+      if (type === 'select') {
+        // Pop the dropdown open immediately when the pencil is clicked.
+        try {
+          (el as HTMLSelectElement & { showPicker?: () => void }).showPicker?.();
+        } catch {
+          /* showPicker unsupported or outside user gesture — focus is enough */
+        }
+      } else if (typeof (el as HTMLInputElement).select === 'function') {
+        (el as HTMLInputElement).select();
       }
     }
-  }, [editing]);
+  }, [editing, type]);
 
   useEffect(() => {
     if (!editing) setDraft(value ?? '');
@@ -95,6 +106,17 @@ function EditableCell({ value, type = 'text', options = [], placeholder = 'Selec
     setEditing(false);
     setDraft(value ?? '');
   };
+
+  if (disabled) {
+    const isEmpty = value === '' || value == null;
+    return (
+      <div className="editable-cell editable-cell-disabled">
+        <span className={`editable-cell-value${isEmpty ? ' editable-cell-placeholder' : ''}`}>
+          {isEmpty ? placeholder : value}
+        </span>
+      </div>
+    );
+  }
 
   if (editing) {
     if (type === 'select') {
@@ -167,6 +189,8 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
   const [measureDetailTab, setMeasureDetailTab] = useState<'edit' | 'clone'>('edit');
   const [deletePanelOpen, setDeletePanelOpen] = useState(false);
   const [createPanelOpen, setCreatePanelOpen] = useState(false);
+  const [panelMode, setPanelMode] = useState<'create' | 'edit' | 'clone'>('create');
+  const [editingMeasureId, setEditingMeasureId] = useState<number | null>(null);
   const [selectedMeasure, setSelectedMeasure] = useState<Measure | null>(null);
   const [hoveredSubsetIndex, setHoveredSubsetIndex] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'subsets'>('details');
@@ -213,6 +237,10 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
     aggregation: '',
     type: 'Read',
     subsets: [] as string[],
+    description: '',
+    measureCode: '',
+    precision: '2',
+    formula: '',
   });
 
   const [editMeasureName, setEditMeasureName] = useState('');
@@ -291,27 +319,42 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
     setOpenMenuIndex(openMenuIndex === index ? null : index);
   };
 
+  const openMeasureForm = (measure: Measure, mode: 'edit' | 'clone') => {
+    const subsets = Array.isArray(measure.subsets) ? measure.subsets : [];
+    setSelectedMeasure(measure);
+    setPanelMode(mode);
+    setEditingMeasureId(mode === 'edit' ? (measure.id ?? null) : null);
+    setNewMeasureForm({
+      name: mode === 'clone' ? `${measure.name} (Copy)` : (measure.name || ''),
+      sourceName: measure.sourceName || measure.sourceDmo || '',
+      unit: measure.unit || '',
+      dataType: measure.dataType || '',
+      aggregation: normalizeAggregation(measure.aggregation),
+      type: measure.type || 'Read',
+      subsets,
+      description: measure.description || '',
+      measureCode: measure.code || measure.measureCode || '',
+      precision: measure.precision || '2',
+      formula: measure.formula || '',
+    });
+    setSelectedSubsets(subsets);
+    setGeneratedMeasure(null);
+    setShowFormFromChat(false);
+    setNewMeasureNameError(false);
+    setActiveTab('details');
+    setMainTab('new');
+    setCreatePanelOpen(true);
+    setEditPanelOpen(false);
+    setDeletePanelOpen(false);
+    setAiChatOpen(false);
+  };
+
   const handleMenuAction = (action: string, measure: Measure) => {
     setOpenMenuIndex(null);
     if (action === 'edit') {
-      setSelectedMeasure(measure);
-      setEditMeasureName(measure.name || '');
-      setEditMeasureType(measure.type || 'Calculated');
-      setEditDescription(measure.description || '');
-      setEditValueType(normalizeUnit(measure.unit));
-      setEditRoundingPrecision(measure.precision || '2');
-      setEditAggregationRule(normalizeAggregation(measure.aggregation));
-      setSelectedSubsets(Array.isArray(measure.subsets) ? measure.subsets : []);
-      setMeasureDetailTab('edit');
-      setEditPanelOpen(true);
-      setDeletePanelOpen(false);
+      openMeasureForm(measure, 'edit');
     } else if (action === 'clone') {
-      setSelectedMeasure(measure);
-      setCloneName(`${measure.name} (Copy)`);
-      setSelectedSubsets(Array.isArray(measure.subsets) ? measure.subsets : []);
-      setMeasureDetailTab('clone');
-      setEditPanelOpen(true);
-      setDeletePanelOpen(false);
+      openMeasureForm(measure, 'clone');
     } else if (action === 'delete') {
       setSelectedMeasure(measure);
       setDeletePanelOpen(true);
@@ -327,40 +370,75 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
 
   const closeCreatePanel = () => {
     setCreatePanelOpen(false);
+    setPanelMode('create');
+    setEditingMeasureId(null);
+    setSelectedMeasure(null);
     setMainTab('existing');
     setNewMeasureNameError(false);
     setShowFormFromChat(false);
-    setNewMeasureForm({ name: '', sourceName: '', unit: '', dataType: '', aggregation: '', type: 'Read', subsets: [] });
+    setNewMeasureForm({ name: '', sourceName: '', unit: '', dataType: '', aggregation: '', type: 'Read', subsets: [], description: '', measureCode: '', precision: '2', formula: '' });
   };
 
   const handleSaveNewMeasure = () => {
     if (!newMeasureForm.name.trim()) {
       return;
     }
+
+    if (panelMode === 'edit' && editingMeasureId != null) {
+      setMeasures((prev) =>
+        prev.map((m) =>
+          m.id === editingMeasureId
+            ? {
+                ...m,
+                name: newMeasureForm.name.trim(),
+                description: newMeasureForm.description || m.description,
+                type: newMeasureForm.type || m.type,
+                aggregation: newMeasureForm.aggregation || m.aggregation,
+                category: newMeasureForm.unit === 'currency' ? 'Financials' : newMeasureForm.unit === 'volume' ? 'Volume' : m.category,
+                unit: newMeasureForm.unit || m.unit,
+                dataType: newMeasureForm.dataType || m.dataType,
+                measureCode: newMeasureForm.measureCode || m.measureCode,
+                code: newMeasureForm.measureCode || m.code,
+                precision: newMeasureForm.precision || m.precision,
+                formula: newMeasureForm.formula || m.formula,
+                subsets: selectedSubsets.length > 0 ? selectedSubsets : m.subsets,
+              }
+            : m,
+        ),
+      );
+      closeCreatePanel();
+      showSuccessToast('Measure updated successfully');
+      return;
+    }
+
     const maxId = measures.reduce((max, m) => Math.max(max, m.id || 0), 0);
     const newId = maxId + 1;
     const codeNumber = measures.length + 1;
-    const code = `BASL${codeNumber}`;
+    const code = newMeasureForm.measureCode.trim() || `BASL${codeNumber}`;
 
     const newMeasure: Measure = {
       id: newId,
       name: newMeasureForm.name.trim(),
-      description: newMeasureForm.name.trim(),
+      description: newMeasureForm.description || newMeasureForm.name.trim(),
       type: newMeasureForm.type || 'Read',
-      sourceDmo: newMeasureForm.sourceName || 'Custom',
+      sourceDmo: newMeasureForm.sourceName || (panelMode === 'clone' ? selectedMeasure?.sourceDmo : undefined) || 'Custom',
       code,
+      measureCode: code,
       aggregation: newMeasureForm.aggregation || 'SUM',
       disaggregation: 'Proportional',
       category: newMeasureForm.unit === 'currency' ? 'Financials' : newMeasureForm.unit === 'volume' ? 'Volume' : 'Operations',
       sourceName: newMeasureForm.sourceName || 'Custom',
       unit: newMeasureForm.unit || 'volume',
       dataType: newMeasureForm.dataType || 'Number',
+      precision: newMeasureForm.precision || '2',
+      formula: newMeasureForm.formula || undefined,
       subsets: selectedSubsets.length > 0 ? selectedSubsets : ['Custom'],
       selected: false,
+      isCustom: true,
     };
     setMeasures((prev) => [newMeasure, ...prev]);
     closeCreatePanel();
-    showSuccessToast('Measure created successfully');
+    showSuccessToast(panelMode === 'clone' ? 'Measure cloned successfully' : 'Measure created successfully');
   };
 
   const handleCloneMeasure = () => {
@@ -373,6 +451,7 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
       id: maxId + 1,
       name,
       code: `BASL${codeNumber}`,
+      isCustom: true,
     };
     setMeasures((prev) => [cloned, ...prev]);
     closeEditPanel();
@@ -394,13 +473,17 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
 
   const openCreatePanel = () => {
     setCreatePanelOpen(true);
+    setPanelMode('create');
+    setEditingMeasureId(null);
+    setSelectedMeasure(null);
     setMainTab('new');
     setActiveTab('details');
     setNewMeasureNameError(false);
     setEditPanelOpen(false);
     setDeletePanelOpen(false);
     setSelectedSubsets([]);
-    setNewMeasureForm({ name: '', sourceName: '', unit: '', dataType: '', aggregation: '', type: 'Read', subsets: [] });
+    setGeneratedMeasure(null);
+    setNewMeasureForm({ name: '', sourceName: '', unit: '', dataType: '', aggregation: '', type: 'Read', subsets: [], description: '', measureCode: '', precision: '2', formula: '' });
   };
 
   const openAssignSubsetPanel = () => {
@@ -590,11 +673,26 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
     setGeneratedMeasure(measureData);
     setShowFormFromChat(true);
     setCreatePanelOpen(true);
+    setPanelMode('create');
+    setEditingMeasureId(null);
     setMainTab('new');
     setNewMeasureNameError(false);
     setAiChatOpen(false);
     setActiveTab('details');
     setSelectedSubsets(measureData.subsets || []);
+    setNewMeasureForm((prev) => ({
+      ...prev,
+      name: measureData.name || '',
+      type: measureData.type || 'Read',
+      description: measureData.description || '',
+      dataType: measureData.valueType || '',
+      unit: (measureData.valueType || '').toLowerCase(),
+      aggregation: measureData.aggregationRule || '',
+      precision: measureData.roundingPrecision || '2',
+      measureCode: measureData.measureCode || '',
+      formula: measureData.formula || '',
+      subsets: measureData.subsets || [],
+    }));
   };
 
   const handleBackToChat = () => {
@@ -632,21 +730,6 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
           <div className="planning-grid-measure-info-banner">
             <span>Need more context on these measures?</span>
             <button type="button" className="planning-grid-info-banner-link">Go to Setup for more details</button>
-          </div>
-
-          <div className="hierarchies-header-tabs">
-            <button
-              className={`hierarchies-tab ${mainTab === 'existing' ? 'hierarchies-tab-active' : ''}`}
-              onClick={() => { closeCreatePanel(); }}
-            >
-              Review Measures
-            </button>
-            <button
-              className={`hierarchies-tab ${mainTab === 'new' ? 'hierarchies-tab-active' : ''}`}
-              onClick={openCreatePanel}
-            >
-              New Measure
-            </button>
           </div>
 
           {mainTab === 'existing' && (
@@ -703,6 +786,21 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
           <div className="measures-content-wrapper">
           {mainTab === 'existing' && (
           <div className="measures-main-content">
+            {(() => {
+              const dmoCompleted = measures.filter((m) => !!(m.sourceDmo && m.sourceDmo.trim())).length;
+              const dmoMissing = measures.length - dmoCompleted;
+              return (
+                <div className="measures-dmo-status">
+                  <span className="measures-dmo-status-label">DMO Status:</span>
+                  <span className="measures-dmo-status-missing">{dmoMissing} missing</span>
+                  <span className="measures-dmo-status-sep">•</span>
+                  <span className="measures-dmo-status-completed">{dmoCompleted} completed</span>
+                  <button type="button" className="measures-new-measure-btn" onClick={openCreatePanel}>
+                    New Measure
+                  </button>
+                </div>
+              );
+            })()}
             <div className="measures-table-container">
               <table className="measures-table">
                 <thead>
@@ -760,7 +858,7 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                         <EditableCell type="select" options={['Read', 'Write', 'Calculated']} value={measure.type} onCommit={(v) => updateMeasureField(index, 'type', v)} />
                       </td>
                       <td>
-                        <EditableCell type="select" options={['', 'Planning Weekly Read Measure', 'Monthly Read Measure']} placeholder="Select..." value={measure.dataSource} onCommit={(v) => updateMeasureField(index, 'dataSource', v)} />
+                        <EditableCell type="select" options={['', 'Planning Weekly Read Measure', 'Monthly Read Measure']} placeholder="Select..." value={measure.dataSource} onCommit={(v) => updateMeasureField(index, 'dataSource', v)} disabled={!!measure.isCustom} />
                       </td>
                       <td>
                         <EditableCell value={measure.measureCode} placeholder="Enter code" onCommit={(v) => updateMeasureField(index, 'measureCode', v)} />
@@ -1076,6 +1174,25 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
 
           {mainTab === 'new' && (
             <div className="measures-main-content measures-new-measure-content">
+              <div className="measures-new-measure-heading">
+                <div className="measures-new-measure-heading-left">
+                  <button type="button" className="measures-back-to-list" onClick={closeCreatePanel}>
+                    ← Back to list
+                  </button>
+                  <h3 className="measures-new-measure-title">
+                    {panelMode === 'edit' ? 'Edit Measure' : panelMode === 'clone' ? 'Clone Measure' : 'Create New Measure'}
+                  </h3>
+                </div>
+                <div className="measures-new-measure-heading-actions">
+                  <button type="button" className="measures-header-cancel" onClick={closeCreatePanel}>
+                    Cancel
+                  </button>
+                  <button type="button" className="measures-header-save" onClick={handleFooterSave}>
+                    Save
+                  </button>
+                </div>
+              </div>
+
               {showFormFromChat && (
                 <div className="measures-new-measure-breadcrumb">
                   <button className="ai-breadcrumb" onClick={handleBackToChat}>← Back to AI Chat</button>
@@ -1111,7 +1228,13 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                   </div>
                   <div className="edit-form-field">
                     <label className="edit-form-label">* Description</label>
-                    <textarea className="edit-form-textarea" placeholder="Enter description..." rows={3} defaultValue={generatedMeasure?.description || ''} />
+                    <textarea
+                      className="edit-form-textarea"
+                      placeholder="Enter description..."
+                      rows={3}
+                      value={newMeasureForm.description}
+                      onChange={(e) => setNewMeasureForm((prev) => ({ ...prev, description: e.target.value }))}
+                    />
                   </div>
                   <div className="edit-form-field">
                     <label className="edit-form-label">* Value Type</label>
@@ -1124,7 +1247,11 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                   </div>
                   <div className="edit-form-field">
                     <label className="edit-form-label">* Rounding Precision</label>
-                    <select className="edit-form-select" defaultValue={generatedMeasure?.roundingPrecision || '2'}>
+                    <select
+                      className="edit-form-select"
+                      value={newMeasureForm.precision}
+                      onChange={(e) => setNewMeasureForm((prev) => ({ ...prev, precision: e.target.value }))}
+                    >
                       <option value="2">2 Decimal</option>
                       <option value="0">0 Decimal</option>
                       <option value="1">1 Decimal</option>
@@ -1159,13 +1286,25 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                         <div className="source-search-wrapper"><input type="text" className="edit-form-input formula-input" placeholder="Select function" /></div>
                         <div className="source-search-wrapper"><input type="text" className="edit-form-input formula-input" placeholder="Select operator" /></div>
                       </div>
-                      <textarea className="edit-form-textarea formula-textarea" placeholder="Enter formula..." rows={4} defaultValue={generatedMeasure?.formula || ''} />
+                      <textarea
+                        className="edit-form-textarea formula-textarea"
+                        placeholder="Enter formula..."
+                        rows={4}
+                        value={newMeasureForm.formula}
+                        onChange={(e) => setNewMeasureForm((prev) => ({ ...prev, formula: e.target.value }))}
+                      />
                       <button className="check-syntax-button">Check Syntax</button>
                     </div>
                   </div>
                   <div className="edit-form-field">
                     <label className="edit-form-label">* Measure Code</label>
-                    <input type="text" className="edit-form-input" placeholder="Enter measure code..." defaultValue={generatedMeasure?.measureCode || ''} />
+                    <input
+                      type="text"
+                      className="edit-form-input"
+                      placeholder="Enter measure code..."
+                      value={newMeasureForm.measureCode}
+                      onChange={(e) => setNewMeasureForm((prev) => ({ ...prev, measureCode: e.target.value }))}
+                    />
                   </div>
                   <div className="edit-form-field">
                     <label className="writeback-checkbox-label">
@@ -1209,10 +1348,6 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                     )}
                   </div>
                 </div>
-              </div>
-              <div className="measure-panel-footer">
-                <button type="button" className="measure-neutral-btn" onClick={closeCreatePanel}>Cancel</button>
-                <button type="button" className="measure-neutral-btn" onClick={handleFooterSave}>Save</button>
               </div>
               </div>
             </div>
@@ -1335,24 +1470,38 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button
-            className="modal-cancel-button"
-            type="button"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button
-            className="modal-done-button"
-            onClick={handleFooterSave}
-            disabled={tableDirty}
-            title={tableDirty ? 'Save your table changes first' : undefined}
-            style={tableDirty ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
-          >
-            Save
-          </button>
-        </div>
+        {(() => {
+          const formOpen = createPanelOpen || deletePanelOpen;
+          const footerDisabled = tableDirty || formOpen;
+          const footerTitle = formOpen
+            ? 'Finish editing this measure first'
+            : tableDirty
+              ? 'Save your table changes first'
+              : undefined;
+          return (
+            <div className="modal-footer">
+              <button
+                className="modal-cancel-button"
+                type="button"
+                onClick={onClose}
+                disabled={formOpen}
+                title={formOpen ? footerTitle : undefined}
+                style={formOpen ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-done-button"
+                onClick={handleFooterSave}
+                disabled={footerDisabled}
+                title={footerTitle}
+                style={footerDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : undefined}
+              >
+                Save
+              </button>
+            </div>
+          );
+        })()}
       </div>
 
       {showToast && (

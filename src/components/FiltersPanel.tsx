@@ -9,6 +9,7 @@ import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import { useIndustry } from '../contexts/IndustryContext';
 import type { IndustryType } from '../contexts/IndustryContext';
 import { getDimensionScheme } from '../data/dimensionSchemes';
+import { isConfigIndustry, getConfigMeasureCategories } from '../data/planConfigGridData';
 import '../styles/components/FiltersPanel.css';
 
 // A dimension "filter field" for the current grid scheme. `type` is the Filter.type stored
@@ -399,6 +400,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   );
 
   // ── Measure subsets control (relocated from Settings) ───────────────────────
+  // Config-driven grids expose the plan config's subsets as measure categories.
+  const effectiveSubgroupOptions = useMemo(() => {
+    if (isConfigIndustry(industry)) {
+      const cats = getConfigMeasureCategories(industry);
+      if (cats.length > 0) return cats.map((c) => ({ value: c.name }));
+    }
+    return measureSubgroupOptions;
+  }, [industry]);
   const measureSubgroups = selectedMeasureSubgroup ?? new Set<string>([measureSubgroupOptions[0].value]);
   const [isMeasureSubgroupDropdownOpen, setIsMeasureSubgroupDropdownOpen] = useState(false);
   const [isReorderModalOpen, setIsReorderModalOpen] = useState(false);
@@ -1739,7 +1748,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                 </div>
                 {isMeasureSubgroupDropdownOpen && (
                   <div className="settings-dropdown-list settings-dimension-dropdown">
-                    {measureSubgroupOptions.map((option, index) => {
+                    {effectiveSubgroupOptions.map((option, index) => {
                       const isSelected = measureSubgroups.has(option.value);
                       return (
                         <div key={index} className="settings-dropdown-checkbox-option" onClick={() => toggleMeasureSubgroup(option.value)}>

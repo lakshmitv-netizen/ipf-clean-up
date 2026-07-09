@@ -6,6 +6,12 @@
 // only needs to describe labels, grouping, and icons.
 
 import type { IndustryType } from '../contexts/IndustryContext';
+import {
+  isConfigIndustry,
+  isConfigLevel,
+  getConfigDimensionScheme,
+  getConfigGlyph,
+} from './planConfigGridData';
 
 export interface DimensionLevelDef {
   id: string;
@@ -48,6 +54,7 @@ export const ACME_DIMENSION_LEVELS: DimensionLevelDef[] = [
 
 /** Ordered dimension levels for a grid, chosen by its industry key. */
 export function getDimensionScheme(industry: IndustryType | null): DimensionLevelDef[] {
+  if (isConfigIndustry(industry)) return getConfigDimensionScheme(industry as string);
   if (industry === 'manufacturing-deep') return DEEP_DIMENSION_LEVELS;
   if (industry === 'manufacturing-acme') return ACME_DIMENSION_LEVELS;
   return DEFAULT_DIMENSION_LEVELS;
@@ -117,6 +124,7 @@ const GLYPH_BY_LEVEL_ID: Record<string, DimensionGlyph> = {
 
 /** Colored acronym glyph for a scheme dimension level, or null for the legacy account/category/product levels. */
 export function getDimensionGlyph(levelId: string): DimensionGlyph | null {
+  if (isConfigLevel(levelId)) return getConfigGlyph(levelId);
   return GLYPH_BY_LEVEL_ID[levelId] ?? null;
 }
 
@@ -127,5 +135,5 @@ export function getDimensionGlyph(levelId: string): DimensionGlyph | null {
  * automatically.
  */
 export function isDeepDimensionType(type: string): boolean {
-  return GLYPH_BY_LEVEL_ID[type] != null;
+  return GLYPH_BY_LEVEL_ID[type] != null || isConfigLevel(type);
 }

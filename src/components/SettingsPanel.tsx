@@ -8,6 +8,7 @@ import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import { useIndustry } from '../contexts/IndustryContext';
 import { getDimensionIcon, getDimensionGlyph } from '../data/dimensionSchemes';
+import { isConfigIndustry, getConfigMeasureCategories } from '../data/planConfigGridData';
 import '../styles/components/SettingsPanel.css';
 
 interface SettingsPanelProps {
@@ -177,6 +178,15 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onCalendarChange
 }) => {
   const { industry } = useIndustry();
+  // Config-driven grids expose the plan config's subsets as measure categories
+  // instead of the built-in Revenue/Adjustment groups.
+  const effectiveSubgroupOptions = useMemo(() => {
+    if (isConfigIndustry(industry)) {
+      const cats = getConfigMeasureCategories(industry);
+      if (cats.length > 0) return cats.map((c) => ({ value: c.name }));
+    }
+    return measureSubgroupOptions;
+  }, [industry]);
   const [selectedLayout, setSelectedLayout] = useState(propSelectedLayout || layoutOptions[0].value);
   const [isLayoutDropdownOpen, setIsLayoutDropdownOpen] = useState(false);
   const layoutDropdownRef = useRef<HTMLDivElement>(null);
@@ -582,7 +592,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                     </div>
                     {isMeasureSubgroupDropdownOpen && (
                       <div className="settings-dropdown-list settings-dimension-dropdown">
-                        {measureSubgroupOptions.map((option, index) => {
+                        {effectiveSubgroupOptions.map((option, index) => {
                           const isSelected = selectedMeasureSubgroup.has(option.value);
                           return (
                             <div key={index} className="settings-dropdown-checkbox-option" onClick={() => toggleMeasureSubgroup(option.value)}>

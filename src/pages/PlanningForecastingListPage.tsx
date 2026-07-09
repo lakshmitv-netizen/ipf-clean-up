@@ -17,6 +17,97 @@ import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import type { IndustryType } from '../contexts/IndustryContext';
 import type { MeasureData } from '../types';
+import {
+  loadPlanConfigDetails,
+  getPlanConfigDetail,
+  savePlanConfigDetail,
+  setActiveConfigId,
+  type PlanConfigDetail,
+} from '../data/planConfigStore';
+import { configIndustryKey } from '../data/planConfigGridData';
+
+/** Sample values for the top-level dimension dropdown, based on the level name. */
+function sampleValuesForLevel(levelName: string): string[] {
+  const n = levelName.toLowerCase();
+  if (/region/.test(n)) return ['North America', 'Europe', 'Asia Pacific', 'Latin America'];
+  if (/country/.test(n)) return ['United States', 'Germany', 'Japan', 'Brazil'];
+  if (/global|account group|^account$|^accounts$/.test(n)) return ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech'];
+  if (/division/.test(n)) return ['Light Trucks', 'Heavy Trucks', 'Passenger Cars'];
+  if (/plant/.test(n)) return ['Midwest Assembly', 'Southwest Stamping', 'Northeast Fabrication'];
+  if (/territory/.test(n)) return ['West', 'Central', 'East'];
+  if (/category|program/.test(n)) return ['Powertrain', 'Electronics', 'Chassis'];
+  if (/brand/.test(n)) return ['Brand A', 'Brand B', 'Brand C'];
+  if (/product|sku|part|variant/.test(n)) return ['SKU-100', 'SKU-200', 'SKU-300'];
+  return [`${levelName} 1`, `${levelName} 2`, `${levelName} 3`];
+}
+
+/** Human-readable hierarchy summary for a plan config: the topmost hierarchy's
+ *  dimension + its topmost enabled level, then the next hierarchy's dimension.
+ *  Kept in sync with the "first level" dropdown field so both show the same name. */
+function metaForConfigDetail(levels: { name: string; hierarchy: string }[]): string {
+  if (!levels.length) return 'Custom configuration';
+  const topHierarchy = levels[0].hierarchy;
+  const topLevelName = levels[0].name;
+  const next = levels.find((l) => l.hierarchy !== topHierarchy);
+  const base = `${topHierarchy} Starting at ${topLevelName}`;
+  return next ? `${base} • Followed by ${next.hierarchy}` : base;
+}
+
+/** Full details for the built-in (dummy) template configs, so both their grid
+ *  and their dropdown meta use real level names (not L1/L2/L3 codes). */
+function builtinConfigDetail(id: string, name: string): PlanConfigDetail {
+  const A = 'Account Hierarchy';
+  const P = 'Product Hierarchy';
+  const measures = [
+    { name: 'Sales Agreement Quantity (No.s)', category: 'Volume' },
+    { name: 'Opportunity Quantity (No.s)', category: 'Volume' },
+    { name: 'Order Quantity (No.s)', category: 'Volume' },
+    { name: 'Forecast Quantity (No.s)', category: 'Volume' },
+  ];
+  const levelsById: Record<string, { name: string; hierarchy: string }[]> = {
+    // ABCplanConfig — Account hierarchy starting at Global Accounts, then Product.
+    'template-1': [
+      { name: 'Global Accounts', hierarchy: A },
+      { name: 'Category', hierarchy: P },
+      { name: 'Product', hierarchy: P },
+    ],
+    // Manufacturing Accounts Forecast — Account starting at the top level, then Product.
+    'template-2': [
+      { name: 'Region', hierarchy: A },
+      { name: 'Country', hierarchy: A },
+      { name: 'Account', hierarchy: A },
+      { name: 'Category', hierarchy: P },
+      { name: 'Product', hierarchy: P },
+    ],
+    // RMPlanConfig — Product hierarchy starting at its deepest level, then Account.
+    'plan-view-3a': [
+      { name: 'Product', hierarchy: P },
+      { name: 'Region', hierarchy: A },
+      { name: 'Country', hierarchy: A },
+      { name: 'Account', hierarchy: A },
+    ],
+    // RMForecastConfig — Product first, then Account.
+    'plan-view-3b': [
+      { name: 'Product', hierarchy: P },
+      { name: 'Region', hierarchy: A },
+      { name: 'Account', hierarchy: A },
+    ],
+  };
+  const levels = levelsById[id] ?? [
+    { name: 'Region', hierarchy: A },
+    { name: 'Country', hierarchy: A },
+    { name: 'Account', hierarchy: A },
+    { name: 'Category', hierarchy: P },
+    { name: 'Product', hierarchy: P },
+  ];
+  return {
+    id,
+    name,
+    levels,
+    measures,
+    subsets: [{ name: 'Revenue & Quantity Measures', measures: measures.map((m) => m.name) }],
+  };
+}
 
 /** Root measures shown in Create Plan → Access: main grid tree plus adjustment pipeline measures. */
 function getAccessControlRootMeasures(industry: IndustryType | null): MeasureData[] {
@@ -426,7 +517,29 @@ const INITIAL_PLAN_FORM_RECORD = {
   startWeekId: '',
   endWeekId: '',
   planTemplate: '',
+  // SVP-style plan-creation fields
+  description: '',
+  duration: '',
+  planningPeriod: '',
 };
+
+// Planning Period options cascade from the selected Duration (SVP-style modal).
+function getPlanningPeriodOptionsForDuration(duration: string): string[] {
+  switch (duration) {
+    case 'yearly':
+      return ['FY 2024', 'FY 2025', 'FY 2026', 'FY 2027', 'FY 2028'];
+    case 'half-yearly':
+      return ['H1 FY 2025', 'H2 FY 2025', 'H1 FY 2026', 'H2 FY 2026', 'H1 FY 2027', 'H2 FY 2027'];
+    case 'quarterly':
+      return [
+        'Q1 FY 2025', 'Q2 FY 2025', 'Q3 FY 2025', 'Q4 FY 2025',
+        'Q1 FY 2026', 'Q2 FY 2026', 'Q3 FY 2026', 'Q4 FY 2026',
+        'Q1 FY 2027', 'Q2 FY 2027', 'Q3 FY 2027', 'Q4 FY 2027',
+      ];
+    default:
+      return [];
+  }
+}
 
 const ADMIN_TEMPLATE_TO_PLAN_TEMPLATE_ID: Record<string, string> = {
   KAMPlanConfig: 'template-1',
@@ -449,7 +562,7 @@ function getDefaultPeriodRangeForPlanForm(
 const PlanningForecastingListPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { industry } = useIndustry();
+  const { industry, setIndustry } = useIndustry();
   // The industry context is sticky, so after visiting the deep-hierarchy grid it stays
   // 'manufacturing-deep'. Records without an explicit gridIndustry must never inherit the
   // deep grid — they should fall back to the regular manufacturing grid.
@@ -822,9 +935,9 @@ const PlanningForecastingListPage: React.FC = () => {
   const [planConfigDropdownPosition, setPlanConfigDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
   const planConfigComboboxRef = useRef<HTMLDivElement>(null);
 
-  // L1 Accounts selection (appears once a Plan Configuration is chosen)
+  // Top-level dimension selection (appears once a Plan Configuration is chosen).
+  // Its label/options come from the config's first enabled level.
   const [l1Account, setL1Account] = useState<string>('');
-  const l1AccountOptions = ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech'];
 
   // Success toast shown after a plan config is created
   const [showCreateToast, setShowCreateToast] = useState<boolean>(false);
@@ -840,16 +953,52 @@ const PlanningForecastingListPage: React.FC = () => {
   const weekStartComboboxRef = useRef<HTMLDivElement>(null);
   const weekEndComboboxRef = useRef<HTMLDivElement>(null);
 
-  // Plan configuration options
-  const planConfigOptions = [
-    { id: 'template-1', name: 'KAMPlanConfig', meta: 'Account Hierarchy Starting at L3 • Followed by Products Hierarchy' },
-    { id: 'template-2', name: 'Manufacturing Accounts Forecast', meta: 'Account Hierarchy Starting at L1 • Followed by Products Hierarchy' },
-    { id: 'plan-view-3a', name: 'RMPlanConfig', meta: 'Product Hierarchy Starting at L3 • Followed by Accounts Hierarchy' },
-    { id: 'plan-view-3b', name: 'RMForecastConfig', meta: 'Product Hierarchy Starting at L3 • Followed by Products, Users, Territories Hierarchy' }
-  ];
-  
+  // Plan configuration options: user-created configs (from the Plan Configuration
+  // builder) first, then the built-in templates. Re-read when the modal opens so
+  // freshly-created configs appear.
+  const planConfigOptions = useMemo(() => {
+    const builtins = [
+      { id: 'template-1', name: 'ABCplanConfig' },
+      { id: 'template-2', name: 'Manufacturing Accounts Forecast' },
+      { id: 'plan-view-3a', name: 'RMPlanConfig' },
+      { id: 'plan-view-3b', name: 'RMForecastConfig' },
+    ].map((b) => ({
+      ...b,
+      meta: metaForConfigDetail(builtinConfigDetail(b.id, b.name).levels),
+    }));
+    const builtinIds = new Set(builtins.map((b) => b.id));
+    const saved = loadPlanConfigDetails()
+      .filter((d) => !builtinIds.has(d.id))
+      .map((d) => ({
+        id: d.id,
+        name: d.name,
+        meta: metaForConfigDetail(d.levels),
+      }));
+    return [...saved, ...builtins];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isModalOpen]);
+
   // Get selected plan config for display
   const selectedPlanConfig = planConfigOptions.find(opt => opt.id === newRecord.planTemplate);
+
+  // Resolve a full config detail for the selected option. Saved configs come from
+  // the store; built-in templates get a sensible default so they still render.
+  const resolveConfigDetail = useCallback((optionId: string, optionName: string): PlanConfigDetail => {
+    const stored = getPlanConfigDetail(optionId);
+    if (stored) return stored;
+    return builtinConfigDetail(optionId, optionName);
+  }, []);
+
+  // The full detail for the currently-selected config, and its first level name/values.
+  const selectedConfigDetail = useMemo(
+    () => (selectedPlanConfig ? resolveConfigDetail(selectedPlanConfig.id, selectedPlanConfig.name) : null),
+    [selectedPlanConfig, resolveConfigDetail]
+  );
+  const firstLevelName = selectedConfigDetail?.levels[0]?.name || 'L1 Accounts';
+  const firstLevelOptions = useMemo(
+    () => sampleValuesForLevel(firstLevelName),
+    [firstLevelName]
+  );
   
   // Update dropdown position when it opens. The modal can shift horizontally
   // for a frame as the dropdown opens, so re-measure after layout settles and
@@ -1558,50 +1707,51 @@ const PlanningForecastingListPage: React.FC = () => {
                 </div>
                 )}
                 <div className="list-page-modal-row">
+                  <div className="list-page-modal-field list-page-modal-field-full">
+                    <label className="list-page-modal-label">Description:</label>
+                    <textarea
+                      className="list-page-modal-textarea"
+                      value={newRecord.description}
+                      onChange={(e) => setNewRecord({ ...newRecord, description: e.target.value })}
+                      placeholder="Enter description"
+                      rows={3}
+                    />
+                  </div>
+                </div>
+                <div className="list-page-modal-row">
                   <div className="list-page-modal-field">
-                    <label className="list-page-modal-label">Fiscal Year:</label>
-                    <select 
-                      className="list-page-modal-select"
-                      value={newRecord.fiscalYear}
-                      onChange={(e) =>
-                        setNewRecord({
-                          ...newRecord,
-                          fiscalYear: e.target.value,
-                          startWeekId: '',
-                          endWeekId: '',
-                        })
-                      }
-                      style={!newRecord.fiscalYear ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
-                    >
-                      <option value="">Select Fiscal Year</option>
-                      <option value="2026">2026 (Jan - Dec)</option>
-                      <option value="2025">2025 (Jan - Dec)</option>
-                      <option value="2024">2024 (Jan - Dec)</option>
-                      <option value="2023">2023 (Jan - Dec)</option>
-                      <option value="2022">2022 (Jan - Dec)</option>
-                      <option value="2021">2021 (Jan - Dec)</option>
-                    </select>
-                      </div>
-                  <div className="list-page-modal-field">
-                    <label className="list-page-modal-label">Default Plan Granularity:</label>
+                    <label className="list-page-modal-label">Duration:</label>
                     <select
                       className="list-page-modal-select"
-                      value={newRecord.planGranularity}
+                      value={newRecord.duration}
                       onChange={(e) =>
-                        setNewRecord({
-                          ...newRecord,
-                          planGranularity: e.target.value as PlanGranularity,
-                          startWeekId: '',
-                          endWeekId: '',
-                        })
+                        setNewRecord({ ...newRecord, duration: e.target.value, planningPeriod: '' })
                       }
+                      style={!newRecord.duration ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
                     >
-                      <option value="weeks">Weeks</option>
-                      <option value="months">Months</option>
-                      <option value="quarters">Quarters</option>
+                      <option value="">Select Duration</option>
+                      <option value="yearly">Yearly</option>
+                      <option value="half-yearly">Half Yearly</option>
+                      <option value="quarterly">Quarterly</option>
+                    </select>
+                  </div>
+                  <div className="list-page-modal-field">
+                    <label className="list-page-modal-label">Planning Period:</label>
+                    <select
+                      className="list-page-modal-select"
+                      value={newRecord.planningPeriod}
+                      onChange={(e) => setNewRecord({ ...newRecord, planningPeriod: e.target.value })}
+                      disabled={!newRecord.duration}
+                      style={!newRecord.planningPeriod ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
+                    >
+                      <option value="">{newRecord.duration ? 'Select Planning Period' : 'Select duration first'}</option>
+                      {getPlanningPeriodOptionsForDuration(newRecord.duration).map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
+                {false && (
                 <div className="list-page-modal-row">
                   <div className="list-page-modal-field">
                     <label className="list-page-modal-label">Start period:</label>
@@ -1850,6 +2000,7 @@ const PlanningForecastingListPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                )}
                 <div className="list-page-modal-row">
                   <div className="list-page-modal-field list-page-modal-field-full">
                     <label className="list-page-modal-label">Plan Configuration:</label>
@@ -1985,16 +2136,16 @@ const PlanningForecastingListPage: React.FC = () => {
                 {newRecord.planTemplate && (
                   <div className="list-page-modal-row">
                     <div className="list-page-modal-field list-page-modal-field-full">
-                      <label className="list-page-modal-label">L1 Accounts:</label>
+                      <label className="list-page-modal-label">{firstLevelName}:</label>
                       <select
                         className="list-page-modal-select"
                         value={l1Account}
                         onChange={(e) => setL1Account(e.target.value)}
                         style={!l1Account ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
                       >
-                        <option value="">Select L1 Account</option>
-                        {l1AccountOptions.map((acct) => (
-                          <option key={acct} value={acct}>{acct}</option>
+                        <option value="">{`Select ${firstLevelName}`}</option>
+                        {firstLevelOptions.map((val) => (
+                          <option key={val} value={val}>{val}</option>
                         ))}
                       </select>
                     </div>
@@ -2011,9 +2162,19 @@ const PlanningForecastingListPage: React.FC = () => {
                 type="button"
                 className="list-page-modal-create"
                 onClick={() => {
-                setIsModalOpen(false);
-                setSelectedValues(new Set());
-                setShowCreateToast(true);
+                  setIsModalOpen(false);
+                  setSelectedValues(new Set());
+                  // Render the grid for the selected plan configuration.
+                  if (selectedConfigDetail) {
+                    // Ensure the full config is persisted (built-in templates included)
+                    // so /grid can resolve it, then switch the industry to the config key.
+                    savePlanConfigDetail(selectedConfigDetail);
+                    setActiveConfigId(selectedConfigDetail.id);
+                    setIndustry(configIndustryKey(selectedConfigDetail.id));
+                    navigate('/grid');
+                  } else {
+                    setShowCreateToast(true);
+                  }
                 }}
               >
                 Create
