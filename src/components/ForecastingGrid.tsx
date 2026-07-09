@@ -12,6 +12,7 @@ import {
 import { AdjustmentNote } from '../types/adjustmentNote';
 import { getMockData } from '../data/mockData';
 import { useIndustry } from '../contexts/IndustryContext';
+import { getDimensionScheme } from '../data/dimensionSchemes';
 import {
   cloneMeasureData,
   reviveEditHistory,
@@ -20,7 +21,7 @@ import {
 } from '../contexts/PlanningGridSessionContext';
 import { usePlanWorkflow } from '../contexts/PlanWorkflowContext';
 import { useCurrentUser, APPROVER_USER_IDS } from '../contexts/UserContext';
-import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
+import { adjustmentMeasuresData, getAdjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import { findRowById, getChildren, propagateUpward } from '../utils/valuePropagation';
 import { getPlanWideValueCellKeys } from '../utils/planWideCellKeys';
 import {
@@ -322,6 +323,10 @@ const ForecastingGrid: React.FC = () => {
   // Get data based on current industry, default to manufacturing if not set
   const currentIndustry = industry || 'manufacturing';
   const industryData = getMockData(currentIndustry);
+  // Per-grid dimension scheme (levels + labels + grouping). Existing grids use the
+  // default 3-level scheme; the deep grid exposes 5 account + 5 product levels.
+  const dimensionScheme = getDimensionScheme(currentIndustry);
+  const dimensionSchemeIds = dimensionScheme.map((l) => l.id);
   const sessionMatchesIndustry =
     session != null && session.industryKey === currentIndustry;
 
@@ -3330,7 +3335,7 @@ const ForecastingGrid: React.FC = () => {
         const currentData = getMockData(currentIndustry);
         const dataWithHistory = applyInitialEditHistoryToData(currentData);
         const rqMeasure = dataWithHistory.find((m: MeasureData) => m.id === measureId);
-        const adjMeasure = adjustmentMeasuresData.find((m: MeasureData) => m.id === measureId);
+        const adjMeasure = getAdjustmentMeasuresData(industry).find((m: MeasureData) => m.id === measureId);
         
         // Use the selected context version
         const sourceMeasure = selectedContext === 'Adjustment Measures' ? adjMeasure : rqMeasure;
@@ -3356,9 +3361,10 @@ const ForecastingGrid: React.FC = () => {
       });
     }
     
-    // Add Adjustment Measures if selected
+    // Add Adjustment Measures if selected (use the variant whose hierarchy matches
+    // this grid's dimension scheme so the deep grid can expand these measures).
     if (selectedMeasureSubgroup.has('Adjustment Measures')) {
-      adjustmentMeasuresData.forEach((measure: MeasureData) => {
+      getAdjustmentMeasuresData(industry).forEach((measure: MeasureData) => {
         // Add if not already present
         if (!measureMap.has(measure.id)) {
           measureMap.set(measure.id, measure);
@@ -4397,10 +4403,16 @@ const ForecastingGrid: React.FC = () => {
 
   
   const [selectedDimensionLevels, setSelectedDimensionLevels] = useState<Set<string>>(
-    new Set(['account', 'category', 'product'])
+    () => new Set(dimensionSchemeIds)
   );
+
+  // Reset the visible dimension levels to the full scheme whenever the grid (industry) changes.
+  useEffect(() => {
+    setSelectedDimensionLevels(new Set(getDimensionScheme(currentIndustry).map((l) => l.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndustry]);
   const [selectedTimeGranularities, setSelectedTimeGranularities] = useState<Set<string>>(
-    new Set(['month'])
+    new Set(['year', 'month'])
   );
   
   // Show all periods toggle and date range
@@ -4458,7 +4470,7 @@ const ForecastingGrid: React.FC = () => {
   const [gridSearch, setGridSearch] = useState<string>('');
 
   const showHierarchicalParentTotalsHint = useMemo(() => {
-    const fullDimensionLevels = new Set(['account', 'category', 'product']);
+    const fullDimensionLevels = new Set(dimensionSchemeIds);
     const searchActive = gridSearch.trim().length > 0;
     const filtersPanelActive = activeFilterCount > 0;
     const dimensionLevelsHide =
@@ -4608,7 +4620,7 @@ const ForecastingGrid: React.FC = () => {
       setExternalCategories([]);
       setExternalMeasures([]);
       setExternalColumnFilters(null);
-      setSelectedTimeGranularities(new Set(['month']));
+      setSelectedTimeGranularities(new Set(['year', 'month']));
     } else {
       if (params.searchTerm !== undefined) setGridSearch(params.searchTerm);
       if (params.timeGranularities && params.timeGranularities.length > 0) {
@@ -4985,7 +4997,7 @@ const ForecastingGrid: React.FC = () => {
     // 3. Grid search
     setGridSearch('');
     // 4. Dimension level selection back to the full hierarchy
-    setSelectedDimensionLevels(new Set(['account', 'category', 'product']));
+    setSelectedDimensionLevels(new Set(dimensionSchemeIds));
     // 5. Global sort (only flattens the hierarchy when criteria exist)
     setGlobalSortConfig({ criteria: [], preserveHierarchy: true, sortMeasures: false });
     // 6. Intent-based (Focus grid) external filters
@@ -5216,14 +5228,14 @@ const ForecastingGrid: React.FC = () => {
                 title="Calculation scope — change how totals roll up and edits distribute"
               >
                 <svg className="grid-scope-menu-trigger__icon" viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false">
-                  <rect x="3" y="1.5" width="10" height="13" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" />
-                  <rect x="5" y="3.4" width="6" height="2.4" rx="0.4" fill="none" stroke="currentColor" strokeWidth="1" />
-                  <circle cx="5.5" cy="9" r="0.7" fill="currentColor" />
-                  <circle cx="8" cy="9" r="0.7" fill="currentColor" />
-                  <circle cx="10.5" cy="9" r="0.7" fill="currentColor" />
-                  <circle cx="5.5" cy="11.6" r="0.7" fill="currentColor" />
-                  <circle cx="8" cy="11.6" r="0.7" fill="currentColor" />
-                  <circle cx="10.5" cy="11.6" r="0.7" fill="currentColor" />
+                  <rect x="3" y="1.5" width="10" height="13" rx="1.8" fill="currentColor" />
+                  <rect x="5" y="3.4" width="6" height="2.4" rx="0.5" fill="#fff" />
+                  <circle cx="5.5" cy="9" r="0.75" fill="#fff" />
+                  <circle cx="8" cy="9" r="0.75" fill="#fff" />
+                  <circle cx="10.5" cy="9" r="0.75" fill="#fff" />
+                  <circle cx="5.5" cy="11.6" r="0.75" fill="#fff" />
+                  <circle cx="8" cy="11.6" r="0.75" fill="#fff" />
+                  <circle cx="10.5" cy="11.6" r="0.75" fill="#fff" />
                 </svg>
                 <svg className="grid-scope-menu-trigger__caret" viewBox="0 0 16 16" width="10" height="10" aria-hidden="true" focusable="false">
                   <path
@@ -5413,6 +5425,7 @@ const ForecastingGrid: React.FC = () => {
           measures={data}
           visibleMeasureIds={visibleMeasureIds}
           onMeasuresReorder={handleMeasuresReorder}
+          dimensionLevels={dimensionScheme}
           selectedDimensionLevels={selectedDimensionLevels}
           onDimensionLevelsChange={handleDimensionLevelsChange}
           selectedTimeGranularities={selectedTimeGranularities}
@@ -5687,6 +5700,7 @@ const ForecastingGrid: React.FC = () => {
         <SettingsPanel 
           isOpen={isSettingsOpen} 
           onClose={() => setIsSettingsOpen(false)}
+          dimensionLevels={dimensionScheme}
           selectedDimensionLevels={selectedDimensionLevels}
           onDimensionLevelsChange={handleDimensionLevelsChange}
           selectedTimeGranularities={selectedTimeGranularities}
@@ -5824,6 +5838,7 @@ const ForecastingGrid: React.FC = () => {
           availableColumns={globalSortAvailableColumns}
           initialConfig={globalSortConfig}
           onApply={setGlobalSortConfig}
+          dimensionLevels={dimensionScheme}
           showSortCriteriaSection
           sortCriteriaSectionTitle={
             useCalculatedFieldSortUi ? 'Sort by subcolumns' : 'Sort by column'

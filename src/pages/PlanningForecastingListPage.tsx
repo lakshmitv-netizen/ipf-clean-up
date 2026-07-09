@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import ExportCsvModal from '../components/ExportCsvModal';
+import MeasureToast from '../components/MeasureToast';
 import { APP_USERS } from '../contexts/UserContext';
 import { useIndustry, getGridPathForIndustry } from '../contexts/IndustryContext';
 import '../styles/pages/PlanningForecastingListPage.css';
@@ -344,41 +345,9 @@ interface ForecastRecord {
   fiscalYear: string;
   rootRecord: string;
   status: string;
+  /** When set, this plan opens its own grid (industry key) instead of the shared one. */
+  gridIndustry?: IndustryType;
 }
-
-/** Same hierarchy grouping as grid Settings → Dimension levels (SettingsPanel). */
-interface PlanModalDimensionLevel {
-  id: string;
-  name: string;
-  hierarchy: string;
-}
-
-const PLAN_MODAL_DIMENSION_LEVELS: PlanModalDimensionLevel[] = [
-  { id: 'account', name: 'Accounts', hierarchy: 'Account Hierarchy' },
-  { id: 'category', name: 'Category', hierarchy: 'Product Hierarchy' },
-  { id: 'product', name: 'Product', hierarchy: 'Product Hierarchy' },
-];
-
-const PLAN_MODAL_ACCOUNT_ICON = '/new_account.svg';
-const PLAN_MODAL_CATEGORY_ICON = '/category.svg';
-const PLAN_MODAL_PRODUCT_ICON = '/product.svg';
-
-function buildPlanModalDimensionHierarchyGroups(): Record<string, PlanModalDimensionLevel[]> {
-  const groups: Record<string, PlanModalDimensionLevel[]> = {};
-  PLAN_MODAL_DIMENSION_LEVELS.forEach((level) => {
-    if (!groups[level.hierarchy]) groups[level.hierarchy] = [];
-    groups[level.hierarchy].push(level);
-  });
-  return groups;
-}
-
-const PLAN_MODAL_DIMENSION_HIERARCHY_GROUPS = buildPlanModalDimensionHierarchyGroups();
-
-/** Plan wizard “Measure category” — two options only (unchanged for grid/settings). */
-const PLAN_MODAL_MEASURE_SUBGROUP_OPTIONS = [
-  { value: 'Revenue & Quantity Measures' },
-  { value: 'Adjustment Measures' },
-] as const;
 
 /**
  * Demo-only labels for Create Plan → Access “Measure subset” column (does not affect hierarchical grid).
@@ -439,6 +408,8 @@ function buildInitialAccessMatrix(industry: IndustryType | null): Record<string,
 }
 
 const mockRecords: ForecastRecord[] = [
+  { id: 'fy26-acme', name: 'Planning & Forecasting FY26 – Acme Partners', adminTemplate: 'ManufacturingAccountForecast', fiscalYear: '2026', rootRecord: 'Acme Partners', status: 'Draft', gridIndustry: 'manufacturing-acme' },
+  { id: 'fy26-deep', name: 'Planning & Forecasting FY26 – Deep Hierarchy', adminTemplate: 'DeepHierarchyConfig', fiscalYear: '2026', rootRecord: 'Acme Global', status: 'Draft', gridIndustry: 'manufacturing-deep' },
   { id: 'fy26', name: 'Planning & Forecasting FY26', adminTemplate: 'KAMPlanConfig', fiscalYear: '2026', rootRecord: 'Acme', status: 'Draft' },
   { id: 'fy25', name: 'Planning & Forecasting FY25', adminTemplate: 'KAMForecastConfig', fiscalYear: '2025', rootRecord: 'MagnaDrive', status: 'Draft' },
   { id: 'fy24', name: 'Planning & Forecasting FY24', adminTemplate: 'RMPlanConfig', fiscalYear: '2024', rootRecord: 'Zenith Industries', status: 'Draft' },
@@ -479,6 +450,16 @@ const PlanningForecastingListPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { industry } = useIndustry();
+  // The industry context is sticky, so after visiting the deep-hierarchy grid it stays
+  // 'manufacturing-deep'. Records without an explicit gridIndustry must never inherit the
+  // deep grid — they should fall back to the regular manufacturing grid.
+  // Rows without an explicit gridIndustry always fall back to the default
+  // manufacturing grid. Special one-off grids (deep hierarchy, Acme) must never
+  // leak into the standard rows just because that grid was viewed last.
+  const baseIndustry: IndustryType =
+    industry === 'manufacturing-deep' || industry === 'manufacturing-acme'
+      ? 'manufacturing'
+      : (industry ?? 'manufacturing');
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -840,6 +821,15 @@ const PlanningForecastingListPage: React.FC = () => {
   const [planConfigDropdownOpen, setPlanConfigDropdownOpen] = useState<boolean>(false);
   const [planConfigDropdownPosition, setPlanConfigDropdownPosition] = useState<{top: number, left: number, width: number} | null>(null);
   const planConfigComboboxRef = useRef<HTMLDivElement>(null);
+
+  // L1 Accounts selection (appears once a Plan Configuration is chosen)
+  const [l1Account, setL1Account] = useState<string>('');
+  const l1AccountOptions = ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech'];
+
+  // Success toast shown after a plan config is created
+  const [showCreateToast, setShowCreateToast] = useState<boolean>(false);
+
+  const visibleRecords = mockRecords;
   
   const [weekStartSearchTerm, setWeekStartSearchTerm] = useState('');
   const [weekEndSearchTerm, setWeekEndSearchTerm] = useState('');
@@ -850,93 +840,10 @@ const PlanningForecastingListPage: React.FC = () => {
   const weekStartComboboxRef = useRef<HTMLDivElement>(null);
   const weekEndComboboxRef = useRef<HTMLDivElement>(null);
 
-  const [selectedPlanDimensionLevels, setSelectedPlanDimensionLevels] = useState<Set<string>>(
-    () => new Set(['account', 'category', 'product']),
-  );
-  const [dimensionLevelsDropdownOpen, setDimensionLevelsDropdownOpen] = useState(false);
-  const [dimensionLevelsDropdownPosition, setDimensionLevelsDropdownPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
-  const dimensionLevelsDropdownRef = useRef<HTMLDivElement>(null);
-
-  const [selectedPlanMeasureSubgroups, setSelectedPlanMeasureSubgroups] = useState<Set<string>>(
-    () => new Set(['Revenue & Quantity Measures']),
-  );
-  const [measureSubgroupModalDropdownOpen, setMeasureSubgroupModalDropdownOpen] = useState(false);
-  const [measureSubgroupModalDropdownPosition, setMeasureSubgroupModalDropdownPosition] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
-  const measureSubgroupModalDropdownRef = useRef<HTMLDivElement>(null);
-
-  const togglePlanModalDimensionLevel = (levelId: string) => {
-    setSelectedPlanDimensionLevels((prev) => {
-      const next = new Set(prev);
-      if (next.has(levelId)) {
-        if (next.size <= 1) return prev;
-        next.delete(levelId);
-      } else {
-        next.add(levelId);
-      }
-      return next;
-    });
-  };
-
-  const planModalDimensionLevelCount = selectedPlanDimensionLevels.size;
-
-  const planModalMeasureSubgroupCount = selectedPlanMeasureSubgroups.size;
-
-  const togglePlanModalMeasureSubgroup = (value: string) => {
-    setSelectedPlanMeasureSubgroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) {
-        if (next.size <= 1) return prev;
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return next;
-    });
-  };
-
-  const planModalDimensionLevelIcon = (levelId: string) => {
-    if (levelId === 'account') {
-      return (
-        <img
-          src={PLAN_MODAL_ACCOUNT_ICON}
-          alt=""
-          style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }}
-        />
-      );
-    }
-    if (levelId === 'category') {
-      return (
-        <img
-          src={PLAN_MODAL_CATEGORY_ICON}
-          alt=""
-          style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }}
-        />
-      );
-    }
-    if (levelId === 'product') {
-      return (
-        <img
-          src={PLAN_MODAL_PRODUCT_ICON}
-          alt=""
-          style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }}
-        />
-      );
-    }
-    return null;
-  };
-  
   // Plan configuration options
   const planConfigOptions = [
     { id: 'template-1', name: 'KAMPlanConfig', meta: 'Account Hierarchy Starting at L3 • Followed by Products Hierarchy' },
-    { id: 'template-2', name: 'KAMForecastConfig', meta: 'Account Hierarchy Starting at L1 • Followed by Products Hierarchy' },
+    { id: 'template-2', name: 'Manufacturing Accounts Forecast', meta: 'Account Hierarchy Starting at L1 • Followed by Products Hierarchy' },
     { id: 'plan-view-3a', name: 'RMPlanConfig', meta: 'Product Hierarchy Starting at L3 • Followed by Accounts Hierarchy' },
     { id: 'plan-view-3b', name: 'RMForecastConfig', meta: 'Product Hierarchy Starting at L3 • Followed by Products, Users, Territories Hierarchy' }
   ];
@@ -944,18 +851,32 @@ const PlanningForecastingListPage: React.FC = () => {
   // Get selected plan config for display
   const selectedPlanConfig = planConfigOptions.find(opt => opt.id === newRecord.planTemplate);
   
-  // Update dropdown position when it opens
+  // Update dropdown position when it opens. The modal can shift horizontally
+  // for a frame as the dropdown opens, so re-measure after layout settles and
+  // keep it anchored to the field on scroll/resize.
   useEffect(() => {
-    if (planConfigDropdownOpen && planConfigComboboxRef.current) {
+    if (!planConfigDropdownOpen) {
+      setPlanConfigDropdownPosition(null);
+      return;
+    }
+    const measure = () => {
+      if (!planConfigComboboxRef.current) return;
       const rect = planConfigComboboxRef.current.getBoundingClientRect();
       setPlanConfigDropdownPosition({
         top: rect.bottom + 4,
         left: rect.left,
         width: rect.width
       });
-    } else {
-      setPlanConfigDropdownPosition(null);
-    }
+    };
+    measure();
+    const raf = requestAnimationFrame(measure);
+    window.addEventListener('scroll', measure, true);
+    window.addEventListener('resize', measure);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('scroll', measure, true);
+      window.removeEventListener('resize', measure);
+    };
   }, [planConfigDropdownOpen]);
   
   useEffect(() => {
@@ -992,90 +913,6 @@ const PlanningForecastingListPage: React.FC = () => {
     setAccessControlMatrix(buildInitialAccessMatrix(industry));
     setBulkEditPermission('View');
   }, [isNextStepModalOpen, industry]);
-
-  useLayoutEffect(() => {
-    if (!dimensionLevelsDropdownOpen) {
-      setDimensionLevelsDropdownPosition(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      const el = dimensionLevelsDropdownRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const width = rect.width;
-      const top = rect.bottom + 4;
-      let left = rect.left;
-      const margin = 8;
-      if (left + width > window.innerWidth - margin) {
-        left = Math.max(margin, window.innerWidth - width - margin);
-      }
-      if (left < margin) left = margin;
-      setDimensionLevelsDropdownPosition({ top, left, width });
-    };
-
-    updatePosition();
-    const modalBody = dimensionLevelsDropdownRef.current?.closest('.list-page-modal-body') ?? null;
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(updatePosition);
-    });
-
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    modalBody?.addEventListener('scroll', updatePosition);
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-      modalBody?.removeEventListener('scroll', updatePosition);
-    };
-  }, [dimensionLevelsDropdownOpen]);
-
-  useLayoutEffect(() => {
-    if (!measureSubgroupModalDropdownOpen) {
-      setMeasureSubgroupModalDropdownPosition(null);
-      return;
-    }
-
-    const updatePosition = () => {
-      const el = measureSubgroupModalDropdownRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const width = rect.width;
-      const top = rect.bottom + 4;
-      let left = rect.left;
-      const margin = 8;
-      if (left + width > window.innerWidth - margin) {
-        left = Math.max(margin, window.innerWidth - width - margin);
-      }
-      if (left < margin) left = margin;
-      setMeasureSubgroupModalDropdownPosition({ top, left, width });
-    };
-
-    updatePosition();
-    const modalBody = measureSubgroupModalDropdownRef.current?.closest('.list-page-modal-body') ?? null;
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(updatePosition);
-    });
-
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    modalBody?.addEventListener('scroll', updatePosition);
-
-    return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      window.removeEventListener('resize', updatePosition);
-      window.removeEventListener('scroll', updatePosition, true);
-      modalBody?.removeEventListener('scroll', updatePosition);
-    };
-  }, [measureSubgroupModalDropdownOpen]);
 
   useEffect(() => {
     setWeekStartSearchTerm('');
@@ -1244,23 +1081,6 @@ const PlanningForecastingListPage: React.FC = () => {
         }
       }
 
-      if (dimensionLevelsDropdownOpen && dimensionLevelsDropdownRef.current) {
-        const isClickOnTrigger = dimensionLevelsDropdownRef.current.contains(target);
-        const isClickOnDropdown = (target as Element).closest('.list-page-modal-dimension-dropdown');
-        if (!isClickOnTrigger && !isClickOnDropdown) {
-          setDimensionLevelsDropdownOpen(false);
-          setDimensionLevelsDropdownPosition(null);
-        }
-      }
-
-      if (measureSubgroupModalDropdownOpen && measureSubgroupModalDropdownRef.current) {
-        const isClickOnTrigger = measureSubgroupModalDropdownRef.current.contains(target);
-        const isClickOnDropdown = (target as Element).closest('.list-page-modal-measure-subgroup-dropdown');
-        if (!isClickOnTrigger && !isClickOnDropdown) {
-          setMeasureSubgroupModalDropdownOpen(false);
-          setMeasureSubgroupModalDropdownPosition(null);
-        }
-      }
     };
     
     if (
@@ -1268,9 +1088,7 @@ const PlanningForecastingListPage: React.FC = () => {
       accountDropdownOpen ||
       planConfigDropdownOpen ||
       weekStartDropdownOpen ||
-      weekEndDropdownOpen ||
-      dimensionLevelsDropdownOpen ||
-      measureSubgroupModalDropdownOpen
+      weekEndDropdownOpen
     ) {
       document.addEventListener('mousedown', handleClickOutside);
     }
@@ -1284,8 +1102,6 @@ const PlanningForecastingListPage: React.FC = () => {
     planConfigDropdownOpen,
     weekStartDropdownOpen,
     weekEndDropdownOpen,
-    dimensionLevelsDropdownOpen,
-    measureSubgroupModalDropdownOpen,
   ]);
   
   // Clear account name when level changes (but not on initial mount)
@@ -1355,7 +1171,7 @@ const PlanningForecastingListPage: React.FC = () => {
     if (selectAll) {
       setSelectedRows(new Set());
     } else {
-      setSelectedRows(new Set(mockRecords.map(r => r.id)));
+      setSelectedRows(new Set(visibleRecords.map(r => r.id)));
     }
     setSelectAll(!selectAll);
   };
@@ -1368,7 +1184,7 @@ const PlanningForecastingListPage: React.FC = () => {
       newSelected.add(id);
     }
     setSelectedRows(newSelected);
-    setSelectAll(newSelected.size === mockRecords.length);
+    setSelectAll(newSelected.size === visibleRecords.length);
   };
 
   const resetPlanFormForCreate = useCallback(() => {
@@ -1378,16 +1194,11 @@ const PlanningForecastingListPage: React.FC = () => {
     setPlanConfigSearchTerm('');
     setPlanConfigDropdownOpen(false);
     setPlanConfigDropdownPosition(null);
+    setL1Account('');
     setWeekStartDropdownOpen(false);
     setWeekEndDropdownOpen(false);
     setWeekStartDropdownPosition(null);
     setWeekEndDropdownPosition(null);
-    setDimensionLevelsDropdownOpen(false);
-    setDimensionLevelsDropdownPosition(null);
-    setMeasureSubgroupModalDropdownOpen(false);
-    setMeasureSubgroupModalDropdownPosition(null);
-    setSelectedPlanDimensionLevels(new Set(['account', 'category', 'product']));
-    setSelectedPlanMeasureSubgroups(new Set(['Revenue & Quantity Measures']));
     setClonePlanDescription('');
     setPlanModalMode('create');
   }, []);
@@ -1413,8 +1224,6 @@ const PlanningForecastingListPage: React.FC = () => {
       planTemplate: templateId,
     });
     setClonePlanDescription('');
-    setSelectedPlanDimensionLevels(new Set(['account', 'category', 'product']));
-    setSelectedPlanMeasureSubgroups(new Set(['Revenue & Quantity Measures']));
     setPlanConfigSearchTerm('');
     setWeekStartSearchTerm(startLabel);
     setWeekEndSearchTerm(endLabel);
@@ -1424,10 +1233,6 @@ const PlanningForecastingListPage: React.FC = () => {
     setWeekEndDropdownOpen(false);
     setWeekStartDropdownPosition(null);
     setWeekEndDropdownPosition(null);
-    setDimensionLevelsDropdownOpen(false);
-    setDimensionLevelsDropdownPosition(null);
-    setMeasureSubgroupModalDropdownOpen(false);
-    setMeasureSubgroupModalDropdownPosition(null);
     setIsModalOpen(true);
   }, []);
 
@@ -1487,7 +1292,7 @@ const PlanningForecastingListPage: React.FC = () => {
                 </button>
               </div>
               <p className="list-page-subtitle">
-                {mockRecords.length} items • Sorted by Name • Updated a few seconds ago
+                {visibleRecords.length} items • Sorted by Name • Updated a few seconds ago
               </p>
             </div>
             <div className="list-page-header-right">
@@ -1549,7 +1354,7 @@ const PlanningForecastingListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {mockRecords.map((record) => (
+                {visibleRecords.map((record) => (
                   <tr key={record.id} className="list-page-row">
                     <td className="list-page-td-checkbox">
                       <input 
@@ -1569,7 +1374,7 @@ const PlanningForecastingListPage: React.FC = () => {
                     </td>
                     <td className="list-page-td">
                       <Link
-                        to={getGridPathForIndustry(industry)}
+                        to={getGridPathForIndustry(record.gridIndustry ?? baseIndustry)}
                         className="list-page-name-link"
                       >
                         {record.name} - Grid
@@ -1657,9 +1462,10 @@ const PlanningForecastingListPage: React.FC = () => {
               role="menuitem"
               onClick={(e) => {
                 e.stopPropagation();
+                const rec = mockRecords.find((r) => r.id === rowActionMenuRecordId);
                 setRowActionMenuRecordId(null);
                 setRowActionMenuPosition(null);
-                navigate(getGridPathForIndustry(industry));
+                navigate(getGridPathForIndustry(rec?.gridIndustry ?? baseIndustry));
               }}
             >
               View Grid
@@ -1676,7 +1482,7 @@ const PlanningForecastingListPage: React.FC = () => {
           <div className="list-page-modal" onClick={(e) => e.stopPropagation()}>
             <div className="list-page-modal-header">
               <h2 className="list-page-modal-title">
-                {planModalMode === 'clone' ? 'Clone plan' : 'Create New Plan Config'}
+                {planModalMode === 'clone' ? 'Clone plan' : 'Create New Plan'}
               </h2>
             </div>
             <div className="list-page-modal-body">
@@ -1850,6 +1656,7 @@ const PlanningForecastingListPage: React.FC = () => {
                                 top: `${weekStartDropdownPosition.top}px`,
                                 left: `${weekStartDropdownPosition.left}px`,
                                 width: `${weekStartDropdownPosition.width}px`,
+                                transform: 'none',
                                 zIndex: 99999,
                                 backgroundColor: 'var(--color-surface-white)',
                                 border: '1px solid var(--color-border-ui-strong)',
@@ -1978,6 +1785,7 @@ const PlanningForecastingListPage: React.FC = () => {
                                 top: `${weekEndDropdownPosition.top}px`,
                                 left: `${weekEndDropdownPosition.left}px`,
                                 width: `${weekEndDropdownPosition.width}px`,
+                                transform: 'none',
                                 zIndex: 99999,
                                 backgroundColor: 'var(--color-surface-white)',
                                 border: '1px solid var(--color-border-ui-strong)',
@@ -2105,6 +1913,7 @@ const PlanningForecastingListPage: React.FC = () => {
                                 top: `${planConfigDropdownPosition.top}px`,
                                 left: `${planConfigDropdownPosition.left}px`,
                                 width: `${planConfigDropdownPosition.width}px`,
+                                transform: 'none',
                                 zIndex: 99999,
                                 backgroundColor: 'var(--color-surface-white)',
                                 border: '1px solid var(--color-border-ui-strong)',
@@ -2173,201 +1982,25 @@ const PlanningForecastingListPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                
+                {newRecord.planTemplate && (
                   <div className="list-page-modal-row">
-                  <div className="list-page-modal-field">
-                    <label className="list-page-modal-label">Dimension levels</label>
-                    <div className="settings-dropdown-wrapper" ref={dimensionLevelsDropdownRef}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className={`settings-dropdown-trigger ${dimensionLevelsDropdownOpen ? 'open' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDimensionLevelsDropdownOpen((o) => !o);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setDimensionLevelsDropdownOpen((o) => !o);
-                          }
-                        }}
-                        aria-expanded={dimensionLevelsDropdownOpen}
-                        aria-haspopup="listbox"
+                    <div className="list-page-modal-field list-page-modal-field-full">
+                      <label className="list-page-modal-label">L1 Accounts:</label>
+                      <select
+                        className="list-page-modal-select"
+                        value={l1Account}
+                        onChange={(e) => setL1Account(e.target.value)}
+                        style={!l1Account ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
                       >
-                        <span
-                          className={
-                            planModalDimensionLevelCount > 0
-                              ? 'settings-dropdown-value'
-                              : 'settings-dropdown-placeholder'
-                          }
-                        >
-                          {planModalDimensionLevelCount > 0
-                            ? `${planModalDimensionLevelCount} Level${planModalDimensionLevelCount !== 1 ? 's' : ''} Selected`
-                            : 'Select Dimension Levels'}
-                        </span>
-                        <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </div>
-                      {dimensionLevelsDropdownOpen &&
-                        dimensionLevelsDropdownPosition &&
-                        createPortal(
-                              <div 
-                            className="settings-dropdown-list settings-dimension-dropdown list-page-modal-dimension-dropdown"
-                            role="listbox"
-                            aria-multiselectable="true"
-                                onClick={(e) => e.stopPropagation()}
-                                style={{
-                                  position: 'fixed',
-                              top: `${dimensionLevelsDropdownPosition.top}px`,
-                              left: `${dimensionLevelsDropdownPosition.left}px`,
-                              width: `${dimensionLevelsDropdownPosition.width}px`,
-                                  zIndex: 99999,
-                              maxHeight: '20rem',
-                              overflowY: 'auto',
-                                  boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.12)',
-                            }}
-                          >
-                            {Object.entries(PLAN_MODAL_DIMENSION_HIERARCHY_GROUPS).map(([hierarchy, levels]) => (
-                              <div key={hierarchy}>
-                                <div className="settings-dropdown-header">{hierarchy}</div>
-                                {levels.map((level) => {
-                                  const isSelected = selectedPlanDimensionLevels.has(level.id);
-                                  return (
-                                    <div
-                                      key={level.id}
-                                      className="settings-dropdown-checkbox-option"
-                                          role="option"
-                                      aria-selected={isSelected}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                        togglePlanModalDimensionLevel(level.id);
-                                      }}
-                                    >
-                                      <div className={`settings-checkbox-wrapper ${isSelected ? 'checked' : ''}`}>
-                                        {isSelected && (
-                                          <svg
-                                            className="settings-checkbox-icon"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24"
-                                          >
-                                            <path
-                                              strokeLinecap="round"
-                                              strokeLinejoin="round"
-                                              strokeWidth={2.5}
-                                              d="M5 13l4 4L19 7"
-                                            />
-                                          </svg>
-                                        )}
-                                        </div>
-                                      {planModalDimensionLevelIcon(level.id)}
-                                      <span className="settings-dropdown-checkbox-label">{level.name}</span>
-                                      </div>
-                                  );
-                                })}
-                              </div>
-                            ))}
-                              </div>,
-                          document.body,
-                            )}
-                          </div>
-                        </div>
-                  <div className="list-page-modal-field">
-                    <label className="list-page-modal-label">Measure category</label>
-                    <div className="settings-dropdown-wrapper" ref={measureSubgroupModalDropdownRef}>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        className={`settings-dropdown-trigger ${measureSubgroupModalDropdownOpen ? 'open' : ''}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setMeasureSubgroupModalDropdownOpen((o) => !o);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            setMeasureSubgroupModalDropdownOpen((o) => !o);
-                          }
-                        }}
-                        aria-expanded={measureSubgroupModalDropdownOpen}
-                        aria-haspopup="listbox"
-                      >
-                        <span
-                          className={
-                            planModalMeasureSubgroupCount > 0
-                              ? 'settings-dropdown-value'
-                              : 'settings-dropdown-placeholder'
-                          }
-                        >
-                          {planModalMeasureSubgroupCount > 0
-                            ? `${planModalMeasureSubgroupCount} Categor${planModalMeasureSubgroupCount !== 1 ? 'ies' : 'y'} Selected`
-                            : 'Select Measure Category'}
-                          </span>
-                        <svg className="settings-input-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                        </div>
-                      {measureSubgroupModalDropdownOpen &&
-                        measureSubgroupModalDropdownPosition &&
-                        createPortal(
-                          <div
-                            className="settings-dropdown-list settings-dimension-dropdown list-page-modal-measure-subgroup-dropdown"
-                            role="listbox"
-                            aria-multiselectable="true"
-                            onClick={(e) => e.stopPropagation()}
-                            style={{
-                              position: 'fixed',
-                              top: `${measureSubgroupModalDropdownPosition.top}px`,
-                              left: `${measureSubgroupModalDropdownPosition.left}px`,
-                              width: `${measureSubgroupModalDropdownPosition.width}px`,
-                              zIndex: 99999,
-                              maxHeight: '20rem',
-                              overflowY: 'auto',
-                              boxShadow: '0 2px 8px 0 rgba(0, 0, 0, 0.12)',
-                            }}
-                          >
-                            {PLAN_MODAL_MEASURE_SUBGROUP_OPTIONS.map((option, index) => {
-                              const isSelected = selectedPlanMeasureSubgroups.has(option.value);
-                              return (
-                                <div
-                                  key={index}
-                                  className="settings-dropdown-checkbox-option"
-                                  role="option"
-                                  aria-selected={isSelected}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    togglePlanModalMeasureSubgroup(option.value);
-                                  }}
-                                >
-                                  <div className={`settings-checkbox-wrapper ${isSelected ? 'checked' : ''}`}>
-                                    {isSelected && (
-                                      <svg
-                                        className="settings-checkbox-icon"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          strokeWidth={2.5}
-                                          d="M5 13l4 4L19 7"
-                                        />
-                                      </svg>
-                      )}
+                        <option value="">Select L1 Account</option>
+                        {l1AccountOptions.map((acct) => (
+                          <option key={acct} value={acct}>{acct}</option>
+                        ))}
+                      </select>
                     </div>
-                                  <span className="settings-dropdown-checkbox-label">{option.value}</span>
                   </div>
-                              );
-                            })}
-                          </div>,
-                          document.body,
                 )}
-                    </div>
-                  </div>
-                </div>
+                
               </div>
             </div>
             <div className="list-page-modal-footer">
@@ -2380,10 +2013,10 @@ const PlanningForecastingListPage: React.FC = () => {
                 onClick={() => {
                 setIsModalOpen(false);
                 setSelectedValues(new Set());
-                  setIsNextStepModalOpen(true);
+                setShowCreateToast(true);
                 }}
               >
-                Next
+                Create
               </button>
             </div>
           </div>
@@ -2402,7 +2035,7 @@ const PlanningForecastingListPage: React.FC = () => {
             >
             <div className="list-page-modal list-page-modal--access-wide" onClick={(e) => e.stopPropagation()}>
               <div className="list-page-modal-header">
-                <h2 className="list-page-modal-title">Create New Plan Config</h2>
+                <h2 className="list-page-modal-title">Create New Plan</h2>
               </div>
               <div className="list-page-modal-body list-page-modal-body--access-step" aria-label="Next step">
                 <div className="settings-section-header list-page-modal-access-control-section">
@@ -2798,6 +2431,13 @@ const PlanningForecastingListPage: React.FC = () => {
           </>,
           document.body,
         )}
+      {showCreateToast && (
+        <MeasureToast
+          message="Plan created"
+          description="Your plan was created successfully."
+          onClose={() => setShowCreateToast(false)}
+        />
+      )}
     </div>
   );
 };

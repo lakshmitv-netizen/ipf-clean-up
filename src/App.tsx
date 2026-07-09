@@ -54,6 +54,8 @@ function App() {
             <Route path="/home/manufacturing" element={<GridPage />} />
             <Route path="/home/consumergoods" element={<GridPage />} />
             <Route path="/home/grid-264" element={<GridPage />} />
+            <Route path="/home/manufacturing-deep" element={<GridPage />} />
+            <Route path="/home/manufacturing-acme" element={<GridPage />} />
             <Route path="/planning-forecasting-list" element={<PlanningForecastingListPage />} />
             <Route path="/planning-forecasting" element={<PlanningForecastingPage />} />
             <Route path="/setup/salesforce-go" element={<SetupSalesforceGoPage />} />

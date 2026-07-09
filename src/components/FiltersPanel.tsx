@@ -7,7 +7,28 @@ import { measureSubgroupOptions } from './SettingsPanel';
 import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import { useIndustry } from '../contexts/IndustryContext';
+import type { IndustryType } from '../contexts/IndustryContext';
+import { getDimensionScheme } from '../data/dimensionSchemes';
 import '../styles/components/FiltersPanel.css';
+
+// A dimension "filter field" for the current grid scheme. `type` is the Filter.type stored
+// on cards (kept as the legacy account/category/products values for the default scheme so
+// saved sets, Agentforce hand-off, and the engine keep working); `rowType` is the GridRow
+// type matched in the data; `name` is the display label. Non-default schemes (deep / Acme)
+// use the level id for both `type` and `rowType`.
+export interface DimensionFilterField {
+  type: string;
+  rowType: string;
+  name: string;
+}
+
+const getDimensionFilterFields = (industry: IndustryType | null): DimensionFilterField[] =>
+  getDimensionScheme(industry).map((lvl) => {
+    if (lvl.id === 'account') return { type: 'account', rowType: 'account', name: 'Accounts' };
+    if (lvl.id === 'category') return { type: 'category', rowType: 'category', name: 'Category' };
+    if (lvl.id === 'product') return { type: 'products', rowType: 'product', name: 'Products' };
+    return { type: lvl.id, rowType: lvl.id, name: lvl.name };
+  });
 
 // ── Predefined filter sets (intent-driven presets) ──────────────────────────────
 // Selecting a set auto-populates every basic & advanced filter field.
@@ -106,9 +127,13 @@ const MONTHS = [
   { key: 'dec2026', label: 'Dec 2026' },
 ];
 
+// `type` is 'measures' | 'time' | 'new', or a dimension field type (legacy
+// account/category/products for the default scheme, or a scheme level id for deep/Acme).
+type FilterType = 'measures' | 'time' | 'new' | string;
+
 interface Filter {
   id: string;
-  type: 'measures' | 'account' | 'category' | 'products' | 'time' | 'new';
+  type: FilterType;
   label: string;
   value: string;
   field?: string;
@@ -348,6 +373,31 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
 }) => {
   const { industry } = useIndustry();
 
+  // Dimension filter fields for this grid's scheme (default = account/category/products;
+  // deep / Acme = their own levels). Drives the default cards, basic-tab multiselects,
+  // the apply engine, and the editor's Field picker.
+  const dimFields = useMemo(() => getDimensionFilterFields(industry), [industry]);
+  const dimFieldTypes = useMemo(() => new Set(dimFields.map((d) => d.type)), [dimFields]);
+  const nameForDimType = useCallback(
+    (type: string) => dimFields.find((d) => d.type === type)?.name ?? type,
+    [dimFields],
+  );
+  // Build the full default set of filter cards (measures + one per dimension level + time).
+  const makeDefaultFilters = useCallback(
+    (): Filter[] => [
+      { id: 'flt-measures', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
+      ...dimFields.map((d) => ({
+        id: `flt-${d.type}`,
+        type: d.type,
+        label: `Filter by ${d.name}`,
+        value: 'Equals All',
+        operator: 'equals',
+      })),
+      { id: 'flt-time', type: 'time', label: 'Filter by Time', value: 'Equals Jan 26 to Dec 26' },
+    ],
+    [dimFields],
+  );
+
   // ── Measure subsets control (relocated from Settings) ───────────────────────
   const measureSubgroups = selectedMeasureSubgroup ?? new Set<string>([measureSubgroupOptions[0].value]);
   const [isMeasureSubgroupDropdownOpen, setIsMeasureSubgroupDropdownOpen] = useState(false);
@@ -382,13 +432,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   }, [isMeasureSubgroupDropdownOpen]);
 
   // Track original values for Cancel functionality (only for filter cards)
-  const [originalFilters, setOriginalFilters] = useState<Filter[]>([
-    { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
-    { id: '2', type: 'account', label: 'Filter by Account', value: 'Equals All' },
-    { id: '3', type: 'category', label: 'Filter by Category', value: 'Equals All' },
-    { id: '4', type: 'products', label: 'Filter by Products', value: 'Equals All' },
-    { id: '5', type: 'time', label: 'Filter by Time', value: 'Equals Jan 26 to Dec 26' },
-  ]);
+  const [originalFilters, setOriginalFilters] = useState<Filter[]>(() => makeDefaultFilters());
 
   // Track original period values for cancel functionality
   const [originalStartPeriod, setOriginalStartPeriod] = useState(startPeriod);
@@ -414,13 +458,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const applyClickedRef = useRef(false);
   const [isScopeSectionOpen, setIsScopeSectionOpen] = useState(false);
 
-  const [filters, setFilters] = useState<Filter[]>([
-    { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
-    { id: '2', type: 'account', label: 'Filter by Account', value: 'Equals All' },
-    { id: '3', type: 'category', label: 'Filter by Category', value: 'Equals All' },
-    { id: '4', type: 'products', label: 'Filter by Products', value: 'Equals All' },
-    { id: '5', type: 'time', label: 'Filter by Time', value: 'Equals Jan 26 to Dec 26' },
-  ]);
+  const [filters, setFilters] = useState<Filter[]>(() => makeDefaultFilters());
 
   // Sync internal state with props
   useEffect(() => {
@@ -487,13 +525,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       }
     } else if (externalAppliedRef.current) {
       // External filters were cleared (Focus grid toggled off) — reset cards & restore grid.
-      const resetFilters: Filter[] = [
-        { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
-        { id: '2', type: 'account', label: 'Filter by Account', value: 'Equals All' },
-        { id: '3', type: 'category', label: 'Filter by Category', value: 'Equals All' },
-        { id: '4', type: 'products', label: 'Filter by Products', value: 'Equals All' },
-        { id: '5', type: 'time', label: 'Filter by Time', value: 'Equals Jan 26 to Dec 26' },
-      ];
+      const resetFilters: Filter[] = makeDefaultFilters();
       setFilters(resetFilters);
       setOriginalFilters(resetFilters);
       setIsDirty(false);
@@ -686,21 +718,31 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return { from: present[0], to: present[present.length - 1] };
   };
 
-  const buildFiltersFromSet = (set: FilterSetDef): Filter[] => [
-    { id: '1', type: 'measures', label: 'Filter by Measure', value: set.measures.length ? set.measures.join(', ') : 'Equals All' },
-    { id: '2', type: 'account', label: 'Filter by Account', value: set.accounts.length ? set.accounts.join(', ') : 'Equals All', operator: 'equals' },
-    { id: '3', type: 'category', label: 'Filter by Category', value: set.categories.length ? set.categories.join(', ') : 'Equals All', operator: 'equals' },
-    { id: '4', type: 'products', label: 'Filter by Products', value: set.products.length ? set.products.join(', ') : 'Equals All', operator: 'equals' },
-    { id: '5', type: 'time', label: 'Filter by Time', value: buildTimeFilterValue(set.from, set.to) },
-  ];
+  const buildFiltersFromSet = (set: FilterSetDef): Filter[] => {
+    // Legacy presets store account/category/products members; map those onto the matching
+    // scheme fields when present, and leave the other scheme levels at "Equals All".
+    const legacyValues: Record<string, string[]> = {
+      account: set.accounts,
+      category: set.categories,
+      products: set.products,
+    };
+    return [
+      { id: 'flt-measures', type: 'measures', label: 'Filter by Measure', value: set.measures.length ? set.measures.join(', ') : 'Equals All' },
+      ...dimFields.map((d) => {
+        const vals = legacyValues[d.type] ?? [];
+        return {
+          id: `flt-${d.type}`,
+          type: d.type,
+          label: `Filter by ${d.name}`,
+          value: vals.length ? vals.join(', ') : 'Equals All',
+          operator: 'equals',
+        };
+      }),
+      { id: 'flt-time', type: 'time', label: 'Filter by Time', value: buildTimeFilterValue(set.from, set.to) },
+    ];
+  };
 
-  const buildAllFilters = (): Filter[] => [
-    { id: '1', type: 'measures', label: 'Filter by Measure', value: 'Equals All' },
-    { id: '2', type: 'account', label: 'Filter by Account', value: 'Equals All' },
-    { id: '3', type: 'category', label: 'Filter by Category', value: 'Equals All' },
-    { id: '4', type: 'products', label: 'Filter by Products', value: 'Equals All' },
-    { id: '5', type: 'time', label: 'Filter by Time', value: 'Equals Jan 26 to Dec 26' },
-  ];
+  const buildAllFilters = (): Filter[] => makeDefaultFilters();
 
   // Apply a predefined or user filter set — populates every basic & advanced filter field.
   // Push a set of filters + time range onto the grid without committing them as the new
@@ -931,11 +973,25 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setIsCreatingNewSet(false);
     setNewSetName('');
     setShowAllSets(false);
-    setExpandedSetName(name);
+    // Apply it (toggle on + show on grid) and keep the list collapsed.
+    setExpandedSetName(null);
+    setAppliedSetName(name);
+    const { from, to } = parseTimeCardToRange();
+    previewFilterViewOnGrid(filters, from, to);
   };
 
   // Push the current editor selections onto the grid as a live preview.
   const handlePreviewCurrent = () => {
+    const { from, to } = parseTimeCardToRange();
+    previewFilterViewOnGrid(filters, from, to);
+  };
+
+  // Save the card: persist current filters into the set, apply it (toggle on + push to
+  // grid), and collapse the card.
+  const handleSaveSet = (name: string) => {
+    handleUpdateSet(name);
+    setExpandedSetName(null);
+    setAppliedSetName(name);
     const { from, to } = parseTimeCardToRange();
     previewFilterViewOnGrid(filters, from, to);
   };
@@ -986,17 +1042,21 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [isSaveMenuOpen]);
 
-  // Derive unique measures (basic dropdown: only enabled measure categories), accounts, categories, and products from data
-  const { basicMeasureFilterOptions, allAccounts, allCategories, allProducts } = useMemo(() => {
+  // Derive unique measure names plus a per-row-type map of dimension member names from the
+  // data. `optionsByType` covers every scheme (default account/category/product and the deep /
+  // Acme levels) so the basic-tab multiselects and option lists are scheme-driven.
+  const { basicMeasureFilterOptions, optionsByType } = useMemo(() => {
     const measureNames = new Set<string>();
-    const cats = new Set<string>();
-    const prods = new Set<string>();
-    const accts = new Set<string>();
+    const byType = new Map<string, Set<string>>();
+    const add = (type: string, name: string) => {
+      if (!name) return;
+      let s = byType.get(type);
+      if (!s) { s = new Set<string>(); byType.set(type, s); }
+      s.add(name);
+    };
     const walk = (rows: GridRow[]) => {
       rows.forEach(row => {
-        if (row.type === 'category') cats.add(row.name);
-        if (row.type === 'product') prods.add(row.name);
-        if (row.type === 'account') accts.add(row.name);
+        add(row.type, row.name);
         if (row.children) walk(row.children);
       });
     };
@@ -1012,13 +1072,18 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       if (label && filterByCategory(m)) measureNames.add(label);
       walk(m.children || []);
     });
+    const optionsByType: Record<string, string[]> = {};
+    byType.forEach((set, type) => { optionsByType[type] = Array.from(set).sort(); });
     return {
       basicMeasureFilterOptions: Array.from(measureNames).sort(),
-      allAccounts: Array.from(accts).sort(),
-      allCategories: Array.from(cats).sort(),
-      allProducts: Array.from(prods).sort(),
+      optionsByType,
     };
   }, [data, selectedMeasureSubgroup]);
+
+  const optionsForDimField = useCallback(
+    (field: DimensionFilterField): string[] => optionsByType[field.rowType] ?? [],
+    [optionsByType],
+  );
 
   // Basic filter: get selected values for a given type from filters state
   const getBasicSelected = (type: Filter['type']): Set<string> => {
@@ -1037,17 +1102,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         if (existing) return prev.map(fi => (fi.type === type ? { ...fi, value: newValue } : fi));
         return [...prev, { id: rowId, type: 'measures', label: 'Filter by Measure', value: newValue }];
       }
-      if (type === 'account') {
+      // Any dimension level (account/category/products for the default scheme, or a deep/Acme level id)
+      if (dimFieldTypes.has(type)) {
         if (existing) return prev.map(fi => (fi.type === type ? { ...fi, value: newValue, operator: 'equals' } : fi));
-        return [...prev, { id: rowId, type: 'account', label: 'Filter by Account', value: newValue, operator: 'equals' }];
-      }
-      if (type === 'category') {
-        if (existing) return prev.map(fi => (fi.type === type ? { ...fi, value: newValue, operator: 'equals' } : fi));
-        return [...prev, { id: rowId, type: 'category', label: 'Filter by Category', value: newValue, operator: 'equals' }];
-      }
-      if (type === 'products') {
-        if (existing) return prev.map(fi => (fi.type === type ? { ...fi, value: newValue, operator: 'equals' } : fi));
-        return [...prev, { id: rowId, type: 'products', label: 'Filter by Products', value: newValue, operator: 'equals' }];
+        return [...prev, { id: rowId, type, label: `Filter by ${nameForDimType(type)}`, value: newValue, operator: 'equals' }];
       }
       return prev;
     });
@@ -1104,11 +1162,16 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   };
 
   const handleUnifiedFilterSave = (filterId: string, field: string, operator: string, selectedValues: string[]) => {
-    const typeMap: Record<string, Filter['type']> = { measure: 'measures', account: 'account', category: 'category', products: 'products', time: 'time' };
-    const newType: Filter['type'] = typeMap[field] ?? 'category';
+    // The editor's `field` is 'measure' | 'time' | a dimension field type (level id / legacy).
+    const newType: Filter['type'] =
+      field === 'measure' ? 'measures' : field === 'time' ? 'time' : field;
     const value = selectedValues.length > 0 ? selectedValues.join(', ') : 'All';
     // For measure numeric filters, use the measure name as the card label
-    let label = { measure: 'Filter by Measure', account: 'Filter by Account', category: 'Filter by Category', products: 'Filter by Products', time: 'Filter by Time' }[field] ?? field;
+    let label =
+      field === 'measure' ? 'Filter by Measure'
+      : field === 'time' ? 'Filter by Time'
+      : dimFieldTypes.has(field) ? `Filter by ${nameForDimType(field)}`
+      : field;
     if (field === 'measure' && value.includes('|')) {
       const [mName] = value.split('|');
       if (mName) label = mName;
@@ -1281,10 +1344,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       }
     }
     // Dimension filtered by a measure value: "measureName|operator|value" incl. topN/bottomN
-    if (
-      (filter.type === 'account' || filter.type === 'category' || filter.type === 'products') &&
-      filter.value.includes('|')
-    ) {
+    if (dimFieldTypes.has(filter.type) && filter.value.includes('|')) {
       const parsed = parseDimensionMeasureFilter(filter.value);
       if (parsed) {
         if (parsed.op === 'topN') return `${parsed.mName} · Top ${parsed.rawVal}`;
@@ -1304,7 +1364,15 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return filter.value;
   };
 
-  const getFilterInitialField = (filter: Filter): string => filter.field || (filter.type === 'new' ? 'category' : filter.type === 'measures' ? 'measure' : filter.type === 'account' ? 'account' : filter.type === 'products' ? 'products' : filter.type === 'time' ? 'time' : 'category');
+  const getFilterInitialField = (filter: Filter): string => {
+    if (filter.field) return filter.field;
+    if (filter.type === 'measures') return 'measure';
+    if (filter.type === 'time') return 'time';
+    if (filter.type === 'new') return dimFields[0]?.type ?? 'account';
+    // Dimension level types map to themselves as the editor field.
+    if (dimFieldTypes.has(filter.type)) return filter.type;
+    return dimFields[0]?.type ?? 'account';
+  };
   const getFilterInitialOperator = (filter: Filter): string => filter.operator || 'equals';
 
   // Helper: parse active filter values from filters state
@@ -1416,7 +1484,8 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   // Resolve a dimension filter to a concrete { names, operator } pair. Name-based filters
   // pass through; measure-based filters are converted to the set of qualifying member names.
   const resolveDimensionFilter = (
-    type: 'account' | 'category' | 'products',
+    type: string,
+    rowType: string,
     currentTree: MeasureData[],
     srcFilters: Filter[],
   ): { values: string[] | null; operator: string } => {
@@ -1427,8 +1496,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     if (f.value.includes('|')) {
       const parsed = parseDimensionMeasureFilter(f.value);
       if (parsed) {
-        const dimRowType = type === 'products' ? 'product' : type;
-        const names = qualifyingDimNames(currentTree, dimRowType, parsed.mName, parsed.op, parsed.rawVal);
+        const names = qualifyingDimNames(currentTree, rowType, parsed.mName, parsed.op, parsed.rawVal);
         // Use a sentinel when nothing qualifies so the equals-match yields an empty result.
         return { values: names.length > 0 ? names : ['\u0000__none__'], operator: 'equals' };
       }
@@ -1472,38 +1540,14 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
       filtered = filtered.filter(m => selectedMeasures.includes(m.name ?? m.id));
     }
 
-    // 2. Filter by accounts (by name, or by a measure value / Top-N / Bottom-N)
-    {
-      const { values: selectedAccounts, operator: accountOp } =
-        resolveDimensionFilter('account', filtered, srcFilters);
-      if (selectedAccounts) {
+    // 2. Filter by each dimension level in this grid's scheme (by name, or by a measure
+    //    value / Top-N / Bottom-N). AND logic across levels.
+    for (const df of dimFields) {
+      const { values, operator } = resolveDimensionFilter(df.type, df.rowType, filtered, srcFilters);
+      if (values) {
         filtered = filtered.map(measure => ({
           ...measure,
-          children: filterByAccounts(measure.children || [], selectedAccounts, accountOp),
-        }));
-      }
-    }
-
-    // 3. Filter by categories (by name, or by a measure value / Top-N / Bottom-N)
-    {
-      const { values: selectedCategories, operator: categoryOp } =
-        resolveDimensionFilter('category', filtered, srcFilters);
-      if (selectedCategories) {
-        filtered = filtered.map(measure => ({
-          ...measure,
-          children: filterByCategories(measure.children || [], selectedCategories, categoryOp),
-        }));
-      }
-    }
-
-    // 4. Filter by products (by name, or by a measure value / Top-N / Bottom-N)
-    {
-      const { values: selectedProducts, operator: productsOp } =
-        resolveDimensionFilter('products', filtered, srcFilters);
-      if (selectedProducts) {
-        filtered = filtered.map(measure => ({
-          ...measure,
-          children: filterByProducts(measure.children || [], selectedProducts, productsOp),
+          children: filterByDimensionType(measure.children || [], df.rowType, values, operator),
         }));
       }
     }
@@ -1542,69 +1586,25 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     return result;
   };
 
-  // Helper function to filter by products
-  const filterByProducts = (rows: GridRow[], selectedProducts: string[], op: string): GridRow[] => {
+  // Generic dimension filter: recurse to rows whose `type` equals `rowType`, keep those whose
+  // name matches (with all their children); otherwise keep ancestors that lead to a match.
+  // Works for every scheme level (account/category/product and the deep / Acme levels).
+  const filterByDimensionType = (
+    rows: GridRow[],
+    rowType: string,
+    selected: string[],
+    op: string,
+  ): GridRow[] => {
     const result: GridRow[] = [];
     rows.forEach(row => {
-      if (row.type === 'product') {
-        if (dimensionNameMatches(row.name, selectedProducts, op)) {
-          result.push(row);
+      if (row.type === rowType) {
+        if (dimensionNameMatches(row.name, selected, op)) {
+          result.push({ ...row, children: row.children }); // Keep all children
         }
       } else {
-        const filteredChildren = row.children ? filterByProducts(row.children, selectedProducts, op) : [];
+        const filteredChildren = row.children ? filterByDimensionType(row.children, rowType, selected, op) : [];
         if (filteredChildren.length > 0) {
-          result.push({
-            ...row,
-            children: filteredChildren
-          });
-        }
-      }
-    });
-    return result;
-  };
-
-  // Helper function to filter by categories
-  const filterByCategories = (rows: GridRow[], selectedCategories: string[], op: string): GridRow[] => {
-    const result: GridRow[] = [];
-    rows.forEach(row => {
-      if (row.type === 'category') {
-        if (dimensionNameMatches(row.name, selectedCategories, op)) {
-          result.push({
-            ...row,
-            children: row.children // Keep all children
-          });
-        }
-      } else {
-        const filteredChildren = row.children ? filterByCategories(row.children, selectedCategories, op) : [];
-        if (filteredChildren.length > 0) {
-          result.push({
-            ...row,
-            children: filteredChildren
-          });
-        }
-      }
-    });
-    return result;
-  };
-
-  // Helper function to filter by accounts
-  const filterByAccounts = (rows: GridRow[], selectedAccounts: string[], op: string): GridRow[] => {
-    const result: GridRow[] = [];
-    rows.forEach(row => {
-      if (row.type === 'account') {
-        if (dimensionNameMatches(row.name, selectedAccounts, op)) {
-          result.push({
-            ...row,
-            children: row.children // Keep all children
-          });
-        }
-      } else {
-        const filteredChildren = row.children ? filterByAccounts(row.children, selectedAccounts, op) : [];
-        if (filteredChildren.length > 0) {
-          result.push({
-            ...row,
-            children: filteredChildren
-          });
+          result.push({ ...row, children: filteredChildren });
         }
       }
     });
@@ -1772,41 +1772,19 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
               />
             </div>
 
-            {/* Accounts */}
-            <div className="filters-basic-group">
-              <span className="filters-basic-label" id="basic-accounts-label">Accounts</span>
-              <BasicFilterMultiSelect
-                id="basic-accounts"
-                labelId="basic-accounts-label"
-                options={allAccounts}
-                selected={getBasicSelected('account')}
-                onChange={vals => updateBasicMultiFilter('account', 'basic-account', vals)}
-              />
-            </div>
-
-            {/* Category */}
-            <div className="filters-basic-group">
-              <span className="filters-basic-label" id="basic-category-label">Category</span>
-              <BasicFilterMultiSelect
-                id="basic-category"
-                labelId="basic-category-label"
-                options={allCategories}
-                selected={getBasicSelected('category')}
-                onChange={vals => updateBasicMultiFilter('category', 'basic-category', vals)}
-              />
-            </div>
-
-            {/* Products */}
-            <div className="filters-basic-group">
-              <span className="filters-basic-label" id="basic-products-label">Products</span>
-              <BasicFilterMultiSelect
-                id="basic-products"
-                labelId="basic-products-label"
-                options={allProducts}
-                selected={getBasicSelected('products')}
-                onChange={vals => updateBasicMultiFilter('products', 'basic-products', vals)}
-              />
-            </div>
+            {/* One multiselect per dimension level in this grid's scheme */}
+            {dimFields.map((df) => (
+              <div className="filters-basic-group" key={df.type}>
+                <span className="filters-basic-label" id={`basic-${df.type}-label`}>{df.name}</span>
+                <BasicFilterMultiSelect
+                  id={`basic-${df.type}`}
+                  labelId={`basic-${df.type}-label`}
+                  options={optionsForDimField(df)}
+                  selected={getBasicSelected(df.type)}
+                  onChange={vals => updateBasicMultiFilter(df.type, `basic-${df.type}`, vals)}
+                />
+              </div>
+            ))}
 
             {/* Time Range */}
             <div className="filters-basic-group">
@@ -2152,8 +2130,8 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
                             <button
                               type="button"
                               className="fs-card-save-btn"
-                              onClick={() => handleUpdateSet(set.name)}
-                              title="Save the current filters to this set"
+                              onClick={() => handleSaveSet(set.name)}
+                              title="Save, apply to grid, and collapse"
                             >
                               Save
                             </button>
@@ -2192,6 +2170,7 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
             data={data}
             anchorElement={filterCardRefs.current[editingFilterId]}
             selectedTimeGranularities={selectedTimeGranularities}
+            dimensionFields={dimFields.map((d) => ({ value: d.type, rowType: d.rowType, label: d.name }))}
           />
         );
       })()}

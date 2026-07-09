@@ -179,6 +179,7 @@ const ProductIcon = `${import.meta.env.BASE_URL}product.svg`;
 const MeasureRowIcon = `${import.meta.env.BASE_URL}measure-row.svg`;
 /** Measure row when expanded but every descendant is hidden by filters (badge baked into asset). */
 const MeasureRowFilteredDescendantsIcon = `${import.meta.env.BASE_URL}measure-row-filtered-descendants.svg`;
+import { getDimensionGlyph, isDeepDimensionType } from '../data/dimensionSchemes';
 import '../styles/components/Grid.css';
 import '../styles/components/CellEditInfoPopover.css';
 
@@ -1325,16 +1326,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     hierarchyPathLine &&
     (row.type === 'account' || row.type === 'category' || row.type === 'product');
   
-  // Check if this node only has leaf children (no grandchildren)
-  const hasOnlyLeafChildren = hasChildren && row.children 
-    ? row.children.every(child => !child.children || child.children.length === 0)
-    : false;
-  
   // Check if this is a leaf node (no children)
   const isLeafNode = !hasChildren;
   
-  // Show expand/collapse options only if node has grandchildren (not just direct children)
-  const showExpandCollapseOptions = hasChildren && !hasOnlyLeafChildren && !isLeafNode;
+  // Show expand/collapse options on any parent row (a row with children), so the
+  // Expand All / Collapse All actions are available on every parent, not just the topmost.
+  const showExpandCollapseOptions = hasChildren && !isLeafNode;
   
   // Helper function to collect all descendant IDs recursively
   const collectAllDescendantIds = (rows: GridRowType[]): string[] => {
@@ -3799,6 +3796,32 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       return wrapMutedDimensionIcon(<img src={ProductIcon} alt="Product" style={iconStyle} />);
     }
 
+    // Deep-hierarchy grid levels (5 account + 5 product) render a colored acronym glyph.
+    if (isDeepDimensionType(row.type)) {
+      const glyph = getDimensionGlyph(row.type);
+      if (!glyph) return null;
+      return wrapMutedDimensionIcon(
+        <span
+          aria-hidden
+          style={{
+            ...iconStyle,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: glyph.bg,
+            color: '#fff',
+            borderRadius: '50%',
+            fontSize: '9px',
+            fontWeight: 700,
+            letterSpacing: '0.3px',
+            lineHeight: 1,
+          }}
+        >
+          {glyph.letters}
+        </span>,
+      );
+    }
+
     if (row.type === 'measure') {
       return (
         <span
@@ -4297,8 +4320,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 )}
               </button>
             )}
-            {/* 3-dot menu button for dimension rows */}
-            {(row.type === 'account' || row.type === 'category' || row.type === 'product') && (
+            {/* 3-dot menu button for dimension rows (includes deep-hierarchy levels) */}
+            {(row.type === 'account' || row.type === 'category' || row.type === 'product' || isDeepDimensionType(row.type)) && (
               <button
                 type="button"
                 ref={dimensionMenuRef}

@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
-export type IndustryType = 'manufacturing' | 'consumer-goods' | 'grid-264';
+export type IndustryType = 'manufacturing' | 'consumer-goods' | 'grid-264' | 'manufacturing-deep' | 'manufacturing-acme';
 
 /** Route for the main forecasting grid for the given industry (defaults to manufacturing). */
 export function getGridPathForIndustry(industry: IndustryType | null): string {
   if (industry === 'consumer-goods') return '/home/consumergoods';
   if (industry === 'grid-264') return '/home/grid-264';
+  if (industry === 'manufacturing-deep') return '/home/manufacturing-deep';
+  if (industry === 'manufacturing-acme') return '/home/manufacturing-acme';
   return '/home/manufacturing';
 }
 
@@ -26,6 +28,12 @@ const getIndustryFromPath = (path: string): IndustryType | null => {
   }
   if (path === '/home/grid-264') {
     return 'grid-264';
+  }
+  if (path === '/home/manufacturing-deep') {
+    return 'manufacturing-deep';
+  }
+  if (path === '/home/manufacturing-acme') {
+    return 'manufacturing-acme';
   }
   return null;
 };

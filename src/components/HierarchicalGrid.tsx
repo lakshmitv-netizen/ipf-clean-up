@@ -698,7 +698,16 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const mainHeaderCellRef = useRef<HTMLTableCellElement>(null);
   const [headerRowHeight, setHeaderRowHeight] = useState(37);
-  const dimensionsColWidth = 300; // Always fixed
+  // Width of the frozen first (dimensions) column - user-adjustable via drag handle.
+  const DIM_COL_MIN_WIDTH = 160;
+  const DIM_COL_MAX_WIDTH = 640;
+  const [dimensionsColWidth, setDimensionsColWidth] = useState(300);
+  const dimColResizingRef = useRef(false);
+  const firstColHeaderRef = useRef<HTMLTableCellElement>(null);
+  // Actual rendered right edge of the first column (relative to the wrapper). The column
+  // can't shrink below its content floor, so its real edge may differ from dimensionsColWidth;
+  // the resize handle follows this measured edge so it always sits exactly at the column border.
+  const [firstColEdge, setFirstColEdge] = useState<number | null>(null);
   const totalFrozenWidth = dimensionsColWidth + frozenColWidth;
 
   // Column-level sort
@@ -1562,7 +1571,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     preservedValuesRef.current.forEach((_, rowId) => {
       skipSet.add(rowId);
     });
-    
+
     const calculatedData = calculateMeasureValues(
       data,
       skipSet,
@@ -1570,19 +1579,16 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       parentTotalsRollupMode,
       propagateIntoNoMatchRows,
     );
-    
-    // After recalculation, restore preserved values ONLY for the currently edited cell
+
+    // After recalculation, restore preserved values ONLY for the currently edited cell.
     // This ensures that when data prop changes (e.g., from external source),
-    // the currently edited cell's value is preserved
+    // the currently edited cell's value is preserved.
     if (preservedValuesRef.current.size > 0) {
       preservedValuesRef.current.forEach((preserved, rowId) => {
-        // Check if it's a measure row
         const measure = calculatedData.find(m => m.id === rowId);
         if (measure) {
-          // Restore measure row value
           measure.values[preserved.monthKey] = preserved.value;
         } else {
-          // It's a child row, find and restore it
           const updateRowValue = (rows: GridRowType[]) => {
             for (const row of rows) {
               if (row.id === rowId) {
@@ -1595,7 +1601,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
             }
             return false;
           };
-          
+
           for (const measureData of calculatedData) {
             if (measureData.children && updateRowValue(measureData.children)) {
               break;
@@ -1604,7 +1610,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         }
       });
     }
-    
+
     setGridData(calculatedData);
   }, [data, calculateMeasureValues, lockedCells, parentTotalsRollupMode, propagateIntoNoMatchRows]);
 
@@ -2353,49 +2359,43 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   };
 
   // Update a single value in the data structure
+  // Copy-on-write single-cell update: clones ONLY the objects along the path to the changed
+  // row and shares every untouched subtree/measure by reference. The previous implementation
+  // deep-cloned the entire dataset on every call, and this runs inside per-update loops during a
+  // single edit — so editing one cell (esp. a year total that fans out to many months/children)
+  // triggered O(updates × wholeDataset) JSON clones, causing the grid to visibly jank/snap.
+  // This is behavior-identical (never mutates the input) but avoids the allocation storm and
+  // keeps unaffected measures' object identity stable so they don't re-render.
   const updateValue = useCallback((
     rowId: string,
     monthKey: keyof GridRowType['values'],
     newValue: number,
     dataToUpdate: MeasureData[]
   ): MeasureData[] => {
-    const newData = JSON.parse(JSON.stringify(dataToUpdate)); // Deep clone
-    
-    const updateRowValue = (rows: GridRowType[], id: string): boolean => {
-      for (const row of rows) {
-        if (row.id === id) {
-          row.values[monthKey] = newValue;
-          return true;
-        }
-        if (row.children && updateRowValue(row.children, id)) {
-          return true;
+    let found = false;
+
+    const copyRow = (row: any): any => {
+      if (found) return row; // a given id matches at most one row — stop copying once applied
+      if (row.id === rowId) {
+        found = true;
+        return { ...row, values: { ...row.values, [monthKey]: newValue } };
+      }
+      const kids = row.children as any[] | undefined;
+      if (kids && kids.length > 0) {
+        let childChanged = false;
+        const newKids = kids.map((c) => {
+          const nc = copyRow(c);
+          if (nc !== c) childChanged = true;
+          return nc;
+        });
+        if (childChanged) {
+          return { ...row, children: newKids };
         }
       }
-      return false;
+      return row;
     };
 
-    const updateMeasureValue = (measures: MeasureData[], id: string): boolean => {
-      for (const measure of measures) {
-        if (measure.id === id) {
-          measure.values[monthKey] = newValue;
-          return true;
-        }
-        if (updateRowValue(measure.children, id)) {
-          return true;
-        }
-      }
-      return false;
-    };
-
-    // Check if it's a measure row
-    const isMeasure = newData.some((m: MeasureData) => m.id === rowId);
-    if (isMeasure) {
-      updateMeasureValue(newData, rowId);
-    } else {
-      updateRowValue(newData.flatMap((m: MeasureData) => m.children), rowId);
-    }
-
-    return newData;
+    return dataToUpdate.map((m) => copyRow(m) as MeasureData);
   }, []);
 
   // Helper function to recalculate time aggregations for a row
@@ -3310,7 +3310,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       skipTimeAggregation.add(rowId);
       console.log('[GRID] Skipping recalculation for currently edited measure row:', rowId);
     }
-    
+
     updatedData = calculateMeasureValues(
       updatedData,
       skipTimeAggregation,
@@ -3373,10 +3373,28 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         if (lockedCells.has(key)) {
           return;
         }
-        // CRITICAL FIX: If cell was previously edited (had a note), remove it from editedCells
-        // and add it to impactedCells instead. This ensures that when saved, it goes to savedImpactedCells
-        // and the triangle indicator is suppressed (as per user requirement: "if a cell had a note and then it got impacted, then after save the triangle should not exist")
-        if (editedCells.has(key)) {
+        // A cell the user EXPLICITLY edited must keep its edited state (and its edit arrow) even
+        // when a later, related edit re-rolls its total. This covers BOTH unsaved edits
+        // (editedCells) and already-saved edits (savedEditedCells). Example: user edits FY26 on a
+        // parent, saves, then edits June on the same parent — June rolls June->Q2->Year, which
+        // changes the parent's Year total. That must NOT demote the earlier FY26 edit to
+        // "impacted" (which would drop its arrow and stop showing it as an edit).
+        // The note-suppression requirement (a noted cell that later gets impacted must not show
+        // its note triangle after save) is the ONLY reason to reclassify, so scope the demotion
+        // to cells that actually carried a note.
+        const wasUserEdited = editedCells.has(key) || savedEditedCells.has(key);
+        if (wasUserEdited) {
+          const editedCellHadNote =
+            unsavedNotes.has(key) ||
+            (cellEditHistory?.some(
+              (entry) => entry.cellKey === key && entry.note && entry.note.trim() !== ''
+            ) ?? false);
+          if (!editedCellHadNote) {
+            // Keep as a (saved) edited cell: do not add to impactedCells and do not touch
+            // editedCells / savedEditedCells for this key.
+            return;
+          }
+          // Noted cell: fall through to demotion so its note triangle is suppressed after save.
           // Remove from editedCells - this cell is now impacted, not directly edited
           setEditedCells(prevEdited => {
             const newEditedMap = new Map(prevEdited);
@@ -3473,6 +3491,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     distributeYearToQuarters,
     historyIndex,
     editedCells,
+    savedEditedCells,
+    unsavedNotes,
+    cellEditHistory,
     handleExpandMeasure,
     selectedCells,
     focusedCell,
@@ -4883,6 +4904,26 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     return () => obs.disconnect();
   }, []);
 
+  // Track the first column's real right edge so the resize handle sits exactly on the
+  // column border even when the column can't shrink to the requested width.
+  useEffect(() => {
+    const th = firstColHeaderRef.current;
+    const wrapper = wrapperRef.current;
+    if (!th || !wrapper) return;
+    const measure = () => {
+      const edge = Math.round(th.getBoundingClientRect().right - wrapper.getBoundingClientRect().left);
+      setFirstColEdge(edge);
+    };
+    measure();
+    const obs = new ResizeObserver(measure);
+    obs.observe(th);
+    window.addEventListener('resize', measure);
+    return () => {
+      obs.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [dimensionsColWidth, frozenColWidth]);
+
   // Check if search is active (filtering columns)
   const isFiltering = (searchTerm && searchTerm.trim().length > 0) || !showAllPeriods;
 
@@ -4921,13 +4962,14 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
             : {})}
           className={`grid-table ${isFiltering ? 'filtered' : ''} ${subColumns.length > 0 ? 'has-sub-columns' : ''} ${frozenColumns.length > 0 ? 'has-frozen-cols' : ''}`}
           style={{
-            ...(frozenColumns.length > 0 ? { '--first-col-width': `${totalFrozenWidth}px` } : {}),
+            '--first-col-width': `${totalFrozenWidth}px`,
             '--header-row-height': `${headerRowHeight}px`,
           } as React.CSSProperties}
         >
           <thead className="grid-header">
             <tr>
               <th
+                ref={firstColHeaderRef}
                 rowSpan={subColumns.length > 0 ? 2 : 1}
                 style={frozenColumns.length > 0 ? {
                   width: `${totalFrozenWidth}px`,
@@ -5365,6 +5407,55 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
             )}
           </tbody>
       </table>
+      {frozenColumns.length === 0 && (
+        <div
+          className="frozen-col-resize-handle-vertical"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize first column"
+          style={{
+            position: 'absolute',
+            left: `${firstColEdge ?? dimensionsColWidth}px`,
+            top: 0,
+            bottom: 0,
+            width: '16px',
+            transform: 'translateX(-50%)',
+            cursor: 'col-resize',
+            zIndex: 100,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'auto',
+          }}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const startX = e.clientX;
+            const startWidth = dimensionsColWidth;
+            dimColResizingRef.current = true;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            const onMove = (mv: MouseEvent) => {
+              if (!dimColResizingRef.current) return;
+              const delta = mv.clientX - startX;
+              const next = Math.min(DIM_COL_MAX_WIDTH, Math.max(DIM_COL_MIN_WIDTH, startWidth + delta));
+              setDimensionsColWidth(next);
+            };
+            const onUp = () => {
+              dimColResizingRef.current = false;
+              document.body.style.cursor = '';
+              document.body.style.userSelect = '';
+              window.removeEventListener('mousemove', onMove);
+              window.removeEventListener('mouseup', onUp);
+            };
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+          }}
+          onDoubleClick={() => setDimensionsColWidth(300)}
+        >
+          <div className="frozen-col-resize-handle-pill" aria-hidden />
+        </div>
+      )}
       {frozenColumns.length > 0 &&
         (isGrid264Ux ? (
           <button

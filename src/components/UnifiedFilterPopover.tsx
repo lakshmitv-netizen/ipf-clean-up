@@ -1,7 +1,21 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { MeasureData } from '../types';
+import { getDimensionGlyph } from '../data/dimensionSchemes';
 import '../styles/components/UnifiedFilterPopover.css';
+
+// A selectable dimension field in the Field picker, driven by the grid's scheme.
+export interface PopoverDimensionField {
+  value: string;   // editor field id (legacy account/category/products or a level id)
+  rowType: string; // GridRow.type matched in the data
+  label: string;   // display label
+}
+
+const DEFAULT_DIMENSION_FIELDS: PopoverDimensionField[] = [
+  { value: 'account', rowType: 'account', label: 'Account' },
+  { value: 'category', rowType: 'category', label: 'Category' },
+  { value: 'products', rowType: 'product', label: 'Product' },
+];
 
 const timePeriods = [
   { value: 'year', label: 'Year (FY26)' },
@@ -15,14 +29,6 @@ const timePeriods = [
   { value: 'nov2026', label: 'Nov 2026' }, { value: 'dec2026', label: 'Dec 2026' },
 ];
 
-const fieldOptions = [
-  { value: 'measure', label: 'Measure' },
-  { value: 'account', label: 'Account' },
-  { value: 'category', label: 'Category' },
-  { value: 'products', label: 'Product' },
-  { value: 'time', label: 'Time Period' },
-];
-
 const FieldIcon: React.FC<{ field: string; size?: number }> = ({ field, size = 16 }) => {
   if (field === 'measure') return (
     <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, display: 'block' }}>
@@ -31,13 +37,26 @@ const FieldIcon: React.FC<{ field: string; size?: number }> = ({ field, size = 1
       <rect x="11.5" y="1.5" width="3" height="13" rx="0.5" fill="#999"/>
     </svg>
   );
+  // Scheme dimension levels (deep / Acme) render a colored acronym glyph.
+  const glyph = getDimensionGlyph(field);
+  if (glyph) return (
+    <span
+      style={{
+        flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: size, height: size, borderRadius: '50%', background: glyph.bg,
+        color: '#fff', fontSize: size * 0.42, fontWeight: 700, lineHeight: 1,
+      }}
+    >
+      {glyph.letters}
+    </span>
+  );
   if (field === 'account') return (
     <img src={`${import.meta.env.BASE_URL}new_account.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
   if (field === 'category') return (
     <img src={`${import.meta.env.BASE_URL}category.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
-  if (field === 'products') return (
+  if (field === 'products' || field === 'product') return (
     <img src={`${import.meta.env.BASE_URL}product.svg`} width={size} height={size} alt="" style={{ flexShrink: 0, display: 'block' }} />
   );
   // Time Period — inline calendar icon (grey)
@@ -84,7 +103,6 @@ const dimensionMeasureOperatorOptions = [
   { value: 'bottomN', label: 'Bottom-N' },
 ];
 
-const DIMENSION_FIELDS = new Set(['account', 'category', 'products']);
 const DIM_MEASURE_OPS = new Set(['gt', 'gte', 'lt', 'lte', 'eq', 'neq', 'topN', 'bottomN']);
 
 const MATCH_MONTH_KEYS = [
@@ -280,9 +298,8 @@ const parseTimeValue = (raw: string): { op: string; start: string; end: string; 
 // apply logic in FiltersPanel: Top/Bottom-N ranks by the summed value; comparison
 // operators keep a member only when every period satisfies the operator.
 const computeDimMatchCount = (
-  data: MeasureData[], field: string, measureName: string, op: string, rawVal: string,
+  data: MeasureData[], dimType: string, measureName: string, op: string, rawVal: string,
 ): { matched: number; total: number } => {
-  const dimType = field === 'products' ? 'product' : field;
   const measure = data.find(m => (m.name ?? m.id) === measureName);
   const rows: any[] = [];
   const collect = (arr: any[] | undefined) => arr?.forEach((r: any) => {
@@ -321,30 +338,11 @@ const extractMeasures = (data: MeasureData[]): string[] => {
   return data.map(m => m.name ?? m.id).filter(Boolean).sort((a, b) => a.localeCompare(b));
 };
 
-const extractAccounts = (data: MeasureData[]): string[] => {
+// Collect the unique member names for a given GridRow type across the data tree.
+const extractByType = (data: MeasureData[], rowType: string): string[] => {
   const set = new Set<string>();
   const walk = (row: any) => {
-    if (row.type === 'account') set.add(row.name);
-    row.children?.forEach(walk);
-  };
-  data.forEach(m => m.children?.forEach(walk));
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-};
-
-const extractCategories = (data: MeasureData[]): string[] => {
-  const set = new Set<string>();
-  const walk = (row: any) => {
-    if (row.type === 'category') set.add(row.name);
-    row.children?.forEach(walk);
-  };
-  data.forEach(m => m.children?.forEach(walk));
-  return Array.from(set).sort((a, b) => a.localeCompare(b));
-};
-
-const extractProducts = (data: MeasureData[]): string[] => {
-  const set = new Set<string>();
-  const walk = (row: any) => {
-    if (row.type === 'product' && (!row.children || row.children.length === 0)) set.add(row.name);
+    if (row.type === rowType) set.add(row.name);
     row.children?.forEach(walk);
   };
   data.forEach(m => m.children?.forEach(walk));
@@ -362,15 +360,30 @@ interface UnifiedFilterPopoverProps {
   data: MeasureData[];
   anchorElement: HTMLElement | null;
   selectedTimeGranularities?: Set<string>;
+  /** Dimension levels for this grid's scheme (defaults to account/category/product). */
+  dimensionFields?: PopoverDimensionField[];
 }
 
 const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   isOpen, onClose, onSave, onCancel,
   initialField, initialOperator, initialValue,
   data, anchorElement, selectedTimeGranularities,
+  dimensionFields,
 }) => {
+  const dimFields = dimensionFields && dimensionFields.length > 0 ? dimensionFields : DEFAULT_DIMENSION_FIELDS;
+  const defaultDimField = dimFields[0]?.value ?? 'account';
+  const fieldOptions = useMemo(
+    () => [
+      { value: 'measure', label: 'Measure' },
+      ...dimFields.map((d) => ({ value: d.value, label: d.label })),
+      { value: 'time', label: 'Time Period' },
+    ],
+    [dimFields],
+  );
+  const DIMENSION_FIELDS = useMemo(() => new Set(dimFields.map((d) => d.value)), [dimFields]);
+  const rowTypeForField = (f: string): string => dimFields.find((d) => d.value === f)?.rowType ?? f;
   const timeGroups = useMemo(() => buildTimeGroups(selectedTimeGranularities), [selectedTimeGranularities]);
-  const [field, setField] = useState(initialField || 'category');
+  const [field, setField] = useState(initialField || defaultDimField);
   const [operator, setOperator] = useState(initialOperator || 'equals');
   const [selectedValues, setSelectedValues] = useState<string[]>([]);
   const [initialSelectedValues, setInitialSelectedValues] = useState<string[]>([]);
@@ -416,7 +429,7 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   // Reset / hydrate state when opened
   useEffect(() => {
     if (isOpen) {
-      setField(initialField || 'category');
+      setField(initialField || defaultDimField);
       setOperator(initialOperator || 'equals');
       const parsed = initialValue ? initialValue.split(',').map(v => v.trim()).filter(Boolean) : [];
       setSelectedValues(parsed);
@@ -538,13 +551,9 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   // Value options based on field
   const allOptions: { value: string; label: string }[] = field === 'measure'
     ? extractMeasures(data).map(m => ({ value: m, label: m }))
-    : field === 'account'
-    ? extractAccounts(data).map(a => ({ value: a, label: a }))
-    : field === 'category'
-    ? extractCategories(data).map(c => ({ value: c, label: c }))
-    : field === 'products'
-    ? extractProducts(data).map(p => ({ value: p, label: p }))
-    : timePeriods;
+    : field === 'time'
+    ? timePeriods
+    : extractByType(data, rowTypeForField(field)).map(v => ({ value: v, label: v }));
 
   const filtered = allOptions.filter(o =>
     !search.trim() || o.label.toLowerCase().includes(search.toLowerCase())
@@ -614,7 +623,7 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   };
   const handleCancel = () => {
     setSelectedValues(initialSelectedValues);
-    setField(initialField || 'category');
+    setField(initialField || defaultDimField);
     setOperator(initialOperator || 'equals');
     setSearch('');
     setValueExpanded(false);
@@ -662,9 +671,9 @@ const UnifiedFilterPopover: React.FC<UnifiedFilterPopoverProps> = ({
   const dimFilterByLabel = dimFilterBy === 'name' ? 'Name' : dimFilterBy;
   const dimMeasureOpLabel = dimensionMeasureOperatorOptions.find(o => o.value === dimMeasureOp)?.label ?? dimMeasureOp;
   const dimValueIsRank = dimMeasureOp === 'topN' || dimMeasureOp === 'bottomN';
-  const dimMemberNoun = field === 'products' ? 'products' : field === 'account' ? 'accounts' : 'categories';
+  const dimMemberNoun = (fieldOptions.find(f => f.value === field)?.label ?? 'members').toLowerCase();
   const dimMatch = isDimensionField && dimFilterBy !== 'name' && dimMeasureValue.trim() !== ''
-    ? computeDimMatchCount(data, field, dimFilterBy, dimMeasureOp, dimMeasureValue)
+    ? computeDimMatchCount(data, rowTypeForField(field), dimFilterBy, dimMeasureOp, dimMeasureValue)
     : null;
 
   const nubbinOuterStyle: React.CSSProperties = pos.side === 'left'

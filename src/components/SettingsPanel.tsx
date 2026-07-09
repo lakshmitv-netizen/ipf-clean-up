@@ -7,15 +7,14 @@ import ConditionalFormattingTab from './ConditionalFormattingTab';
 import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
 import { useIndustry } from '../contexts/IndustryContext';
-// Icon imports - using public folder paths (SVGs with built-in colored backgrounds)
-const AccountIcon = '/new_account.svg';
-const CategoryIcon = '/category.svg';
-const ProductIcon = '/product.svg';
+import { getDimensionIcon, getDimensionGlyph } from '../data/dimensionSchemes';
 import '../styles/components/SettingsPanel.css';
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Per-grid dimension levels (grouped by hierarchy). Defaults to the standard 3-level scheme. */
+  dimensionLevels?: DimensionLevel[];
   selectedDimensionLevels: Set<string>;
   onDimensionLevelsChange: (levels: Set<string>) => void;
   selectedTimeGranularities: Set<string>;
@@ -131,6 +130,7 @@ export const timeGranularities: TimeGranularity[] = [
 const SettingsPanel: React.FC<SettingsPanelProps> = ({ 
   isOpen, 
   onClose, 
+  dimensionLevels: dimensionLevelsProp = dimensionLevels,
   selectedDimensionLevels, 
   onDimensionLevelsChange,
   selectedTimeGranularities,
@@ -456,7 +456,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
 
   const getHierarchyGroups = () => {
     const groups: { [key: string]: DimensionLevel[] } = {};
-    dimensionLevels.forEach(level => {
+    dimensionLevelsProp.forEach(level => {
       if (!groups[level.hierarchy]) {
         groups[level.hierarchy] = [];
       }
@@ -625,10 +625,41 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
                             {levels.map((level) => {
                               const isSelected = selectedDimensionLevels.has(level.id);
                               const getLevelIcon = () => {
-                                if (level.id === 'account') return <img src={AccountIcon} alt="Account" style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }} />;
-                                if (level.id === 'category') return <img src={CategoryIcon} alt="Category" style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }} />;
-                                if (level.id === 'product') return <img src={ProductIcon} alt="Product" style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }} />;
-                                return null;
+                                // Deep-hierarchy dimension levels render a colored acronym glyph.
+                                const glyph = getDimensionGlyph(level.id);
+                                if (glyph) {
+                                  return (
+                                    <span
+                                      aria-hidden
+                                      style={{
+                                        width: '20px',
+                                        height: '20px',
+                                        marginLeft: '12px',
+                                        marginRight: '4px',
+                                        flexShrink: 0,
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: glyph.bg,
+                                        color: '#fff',
+                                        borderRadius: '50%',
+                                        fontSize: '9px',
+                                        fontWeight: 700,
+                                        letterSpacing: '0.3px',
+                                        lineHeight: 1,
+                                      }}
+                                    >
+                                      {glyph.letters}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <img
+                                    src={getDimensionIcon(level.id)}
+                                    alt={level.name}
+                                    style={{ width: '20px', height: '20px', marginLeft: '12px', marginRight: '4px', flexShrink: 0 }}
+                                  />
+                                );
                               };
                               return (
                                 <div key={level.id} className="settings-dropdown-checkbox-option" onClick={() => toggleDimensionLevel(level.id)}>

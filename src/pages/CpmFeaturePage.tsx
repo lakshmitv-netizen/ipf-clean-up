@@ -1,8 +1,14 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ReviewMeasuresModal, { Measure } from '../components/ReviewMeasuresModal';
 import ManageUserAccessModal from '../components/ManageUserAccessModal';
 import TimeGranularityModal from '../components/TimeGranularityModal';
+import {
+  PRODUCT_LEVEL_NAMES,
+  ACCOUNT_LEVEL_NAMES,
+  loadHierarchyRows,
+  type HierarchyRow,
+} from '../data/hierarchyStore';
 import '../styles/pages/CpmFeaturePage.css';
 
 /* Assets captured from the Figma design (served from /public). */
@@ -323,35 +329,9 @@ const LOREM =
   'exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure ' +
   'dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.';
 
-/* Level-name pools used to build each hierarchy's level rows in the detail panel. */
-const PRODUCT_LEVEL_NAMES = ['Category', 'Brand', 'Sub-Brand', 'SKU', 'Variant', 'Pack'];
-const ACCOUNT_LEVEL_NAMES = ['Region', 'Country', 'Account Group', 'Account', 'Sub-Account', 'Territory'];
-
-type HierarchyRow = {
-  id: string;
-  name: string;
-  active: boolean;
-  dim: 'Account' | 'Product';
-  levels: number;
-  status: 'ok' | 'requested';
-  sync: string;
-  /** Optional custom level names; when present they override the generated pool. */
-  levelNames?: string[];
-};
-
 // Left-panel dimension filter list in the Setup Hierarchies modal (step 1.1).
 // 'All' is a filter-all option; the real dimensions are the rest.
 const DIMENSION_FILTERS = ['All', 'Account', 'Product'];
-
-const HIERARCHY_ROWS: HierarchyRow[] = [
-  { id: 'fy26-acc', name: 'FY 26 Accounts', active: true, dim: 'Account', levels: 4, status: 'ok', sync: '12/05/2026, 10:30 AM' },
-  { id: 'fy25-acc', name: 'FY 25 Accounts', active: false, dim: 'Account', levels: 3, status: 'ok', sync: '12/05/2026, 10:30 AM' },
-  { id: 'fy24-acc', name: 'FY 24 Accounts', active: false, dim: 'Account', levels: 5, status: 'ok', sync: '12/05/2026, 9:15 AM' },
-  { id: 'fy25-prod', name: 'FY 25 Products', active: false, dim: 'Product', levels: 3, status: 'ok', sync: '12/05/2026, 8:45 AM' },
-  { id: 'fy24-prod', name: 'FY 24 Products', active: true, dim: 'Product', levels: 4, status: 'requested', sync: '12/05/2026, 8:00 AM' },
-  { id: 'sales-acc', name: 'Sales Accounts', active: false, dim: 'Account', levels: 6, status: 'ok', sync: '11/05/2026, 5:30 PM' },
-  { id: 'fin-acc', name: 'Financial Accounts', active: false, dim: 'Account', levels: 4, status: 'ok', sync: '11/05/2026, 5:30 PM' },
-];
 
 const INITIAL_MEASURES: Measure[] = [
   { id: 1,  name: 'Sales Agreement Quantity (No.s)', description: 'Sales Agreement Quantity',   type: 'Read',  sourceDmo: 'SalesAgreement',  code: 'SA_QTY',    aggregation: 'SUM',     disaggregation: 'Proportional', category: 'Volume',     subsets: ['SalesAgreement', 'Revenue', 'Q1 Sales', 'Annual'],    unit: 'volume',   dataType: 'Number',   sourceName: 'SalesAgreement',  selected: false },
@@ -397,8 +377,15 @@ const CpmFeaturePage: React.FC = () => {
   const [turnedOn, setTurnedOn] = useState(false);
   const [reqOpen, setReqOpen] = useState(true);
   const [step11Done, setStep11Done] = useState(false);
+  const [step12Done, setStep12Done] = useState(false);
+  const [step13Done, setStep13Done] = useState(false);
+  const [step21Done, setStep21Done] = useState(false);
+  const [step22Done, setStep22Done] = useState(false);
   const [step31Done, setStep31Done] = useState(false);
   const [step32Done, setStep32Done] = useState(false);
+  const [step4Done, setStep4Done] = useState(false);
+  const [step5Done, setStep5Done] = useState(false);
+  const [step6Done, setStep6Done] = useState(false);
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
   const [userAccessModalOpen, setUserAccessModalOpen] = useState(false);
@@ -410,14 +397,7 @@ const CpmFeaturePage: React.FC = () => {
   const [detailTab, setDetailTab] = useState<'edit' | 'clone'>('edit');
   const [newDimension, setNewDimension] = useState('');
   const [levelColWidth, setLevelColWidth] = useState(300);
-  const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(() => {
-    try {
-      const saved = localStorage.getItem('cpm_hierarchies');
-      return saved ? JSON.parse(saved) : HIERARCHY_ROWS;
-    } catch {
-      return HIERARCHY_ROWS;
-    }
-  });
+  const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(() => loadHierarchyRows());
   const [editLevelNames, setEditLevelNames] = useState<string[]>([]);
   const [cloneName, setCloneName] = useState('');
   const [cloneLevelNames, setCloneLevelNames] = useState<string[]>([]);
@@ -425,6 +405,8 @@ const CpmFeaturePage: React.FC = () => {
   const [rowMenuId, setRowMenuId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [newName, setNewName] = useState('');
+  const [newNameError, setNewNameError] = useState(false);
+  const newNameInputRef = useRef<HTMLInputElement>(null);
   const [newLevelNames, setNewLevelNames] = useState<string[]>(['', '', '', '', '']);
   const [newMenuIndex, setNewMenuIndex] = useState<number | null>(null);
 
@@ -501,6 +483,7 @@ const CpmFeaturePage: React.FC = () => {
 
   const resetNewForm = () => {
     setNewName('');
+    setNewNameError(false);
     setNewLevelNames(['', '', '', '', '']);
     setNewMenuIndex(null);
   };
@@ -557,7 +540,12 @@ const CpmFeaturePage: React.FC = () => {
   // Save handler for the New Hierarchy tab.
   const handleCreateHierarchy = () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name) {
+      setNewNameError(true);
+      newNameInputRef.current?.focus();
+      return;
+    }
+    setNewNameError(false);
     const dim = (newDimension === 'Product' ? 'Product' : 'Account') as 'Account' | 'Product';
     const names = newLevelNames.map((n, i) => n.trim() || `${dim} L${i}`);
     const created: HierarchyRow = {
@@ -1003,7 +991,7 @@ const CpmFeaturePage: React.FC = () => {
                   )}
                 </div>
 
-                {turningOn && turnOnOpen && (
+                {(turningOn || turnedOn) && turnOnOpen && (
                   <div className="cpm-automation-steps">
                     <div className="cpm-auto-step">
                       <div className="cpm-step-rail">
@@ -1019,7 +1007,7 @@ const CpmFeaturePage: React.FC = () => {
 
                     <div className="cpm-auto-step">
                       <div className="cpm-step-rail">
-                        <Spinner size={16} />
+                        {turnedOn ? <StepCheckBlue /> : <Spinner size={16} />}
                         <div className="cpm-step-line" />
                       </div>
                       <div className="cpm-auto-step-title">
@@ -1031,7 +1019,7 @@ const CpmFeaturePage: React.FC = () => {
 
                     <div className="cpm-auto-step">
                       <div className="cpm-step-rail">
-                        <Spinner size={16} />
+                        {turnedOn ? <StepCheckBlue /> : <Spinner size={16} />}
                       </div>
                       <div className="cpm-auto-step-title">
                         <a className="cpm-link cpm-auto-step-link">
@@ -1084,7 +1072,7 @@ const CpmFeaturePage: React.FC = () => {
                       {/* 1. Review Dimensions & Hierarchies */}
                       <div className="cpm-req-group">
                         <div className="cpm-req-lead">
-                          <span className="cpm-req-ind"><RadioOn /></span>
+                          <span className="cpm-req-ind">{step11Done && step12Done && step13Done ? <StepCheckBlueSm /> : <RadioOff />}</span>
                           <div className="cpm-req-lead-text">
                             <h3 className="cpm-req-title">1. Review Dimensions &amp; Hierarchies</h3>
                             <p className="cpm-req-desc">
@@ -1121,7 +1109,15 @@ const CpmFeaturePage: React.FC = () => {
                             </button>
                           </div>
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><CheckboxOff /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep12Done((d) => !d)}
+                              aria-pressed={step12Done}
+                              aria-label={step12Done ? 'Mark step 1.2 as not complete' : 'Mark step 1.2 as complete'}
+                            >
+                              {step12Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">1.2 Run the "Define Dimension Hierarchy for Account Forecasting" DPE</p>
                             </div>
@@ -1136,7 +1132,15 @@ const CpmFeaturePage: React.FC = () => {
                             </a>
                           </div>
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><CheckboxOff /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep13Done((d) => !d)}
+                              aria-pressed={step13Done}
+                              aria-label={step13Done ? 'Mark step 1.3 as not complete' : 'Mark step 1.3 as complete'}
+                            >
+                              {step13Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">1.3 Run the "Build Account–Product Relationships for Account Forecasting" DPE</p>
                             </div>
@@ -1156,7 +1160,7 @@ const CpmFeaturePage: React.FC = () => {
                       {/* 2. Setup the Measures */}
                       <div className="cpm-req-group">
                         <div className="cpm-req-lead">
-                          <span className="cpm-req-ind"><RadioOff /></span>
+                          <span className="cpm-req-ind">{step21Done && step22Done ? <StepCheckBlueSm /> : <RadioOff />}</span>
                           <div className="cpm-req-lead-text">
                             <h3 className="cpm-req-title">2. Setup the Measures</h3>
                             <p className="cpm-req-desc">View existing or create new measures</p>
@@ -1164,7 +1168,15 @@ const CpmFeaturePage: React.FC = () => {
                         </div>
                         <div className="cpm-req-subs">
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><CheckboxOff /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep21Done((d) => !d)}
+                              aria-pressed={step21Done}
+                              aria-label={step21Done ? 'Mark step 2.1 as not complete' : 'Mark step 2.1 as complete'}
+                            >
+                              {step21Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">2.1 Review measures and add source DMOs</p>
                             </div>
@@ -1177,7 +1189,15 @@ const CpmFeaturePage: React.FC = () => {
                             </button>
                           </div>
                           <div className="cpm-req-sub">
-                            <span className="cpm-req-ind"><CheckboxOff /></span>
+                            <button
+                              type="button"
+                              className="cpm-req-ind cpm-req-ind--btn"
+                              onClick={() => setStep22Done((d) => !d)}
+                              aria-pressed={step22Done}
+                              aria-label={step22Done ? 'Mark step 2.2 as not complete' : 'Mark step 2.2 as complete'}
+                            >
+                              {step22Done ? <CheckboxOn /> : <CheckboxOff />}
+                            </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">2.2 Run the "Define Baseline Measures for Account Forecasting" DPE</p>
                             </div>
@@ -1197,11 +1217,10 @@ const CpmFeaturePage: React.FC = () => {
                       {/* 3. Configure Time Granularity */}
                       <div className="cpm-req-group">
                         <div className="cpm-req-lead">
-                          <span className="cpm-req-ind"><StepCheckBlueSm /></span>
+                          <span className="cpm-req-ind">{step31Done && step32Done ? <StepCheckBlueSm /> : <RadioOff />}</span>
                           <div className="cpm-req-lead-text">
                             <div className="cpm-req-title-row">
                               <h3 className="cpm-req-title">3. Configure Time Granularity</h3>
-                              <span className="cpm-optional-badge">Optional</span>
                             </div>
                             <p className="cpm-req-desc">Provide time granularity your product will support</p>
                           </div>
@@ -1249,11 +1268,18 @@ const CpmFeaturePage: React.FC = () => {
 
                       {/* 4. Setup User & User Roles */}
                       <div className="cpm-req-single">
-                        <span className="cpm-req-ind"><CheckboxOff /></span>
+                        <button
+                          type="button"
+                          className="cpm-req-ind cpm-req-ind--btn"
+                          onClick={() => setStep4Done((d) => !d)}
+                          aria-pressed={step4Done}
+                          aria-label={step4Done ? 'Mark step 4 as not complete' : 'Mark step 4 as complete'}
+                        >
+                          {step4Done ? <CheckboxOn /> : <CheckboxOff />}
+                        </button>
                         <div className="cpm-req-lead-text">
                           <div className="cpm-req-title-row">
                             <h3 className="cpm-req-title">4. Setup User &amp; User Roles</h3>
-                            <span className="cpm-optional-badge">Optional</span>
                           </div>
                           <p className="cpm-req-desc">
                             Review and make any changes if required to out of the box settings
@@ -1264,7 +1290,15 @@ const CpmFeaturePage: React.FC = () => {
 
                       {/* 5. Setup Plan Configurations */}
                       <div className="cpm-req-single">
-                        <span className="cpm-req-ind"><CheckboxOff /></span>
+                        <button
+                          type="button"
+                          className="cpm-req-ind cpm-req-ind--btn"
+                          onClick={() => setStep5Done((d) => !d)}
+                          aria-pressed={step5Done}
+                          aria-label={step5Done ? 'Mark step 5 as not complete' : 'Mark step 5 as complete'}
+                        >
+                          {step5Done ? <CheckboxOn /> : <CheckboxOff />}
+                        </button>
                         <div className="cpm-req-lead-text">
                           <h3 className="cpm-req-title">5. Setup Plan Configurations</h3>
                           <p className="cpm-req-desc">
@@ -1279,7 +1313,15 @@ const CpmFeaturePage: React.FC = () => {
 
                       {/* 6. Sync Schedule for Data */}
                       <div className="cpm-req-single">
-                        <span className="cpm-req-ind"><CheckboxOff /></span>
+                        <button
+                          type="button"
+                          className="cpm-req-ind cpm-req-ind--btn"
+                          onClick={() => setStep6Done((d) => !d)}
+                          aria-pressed={step6Done}
+                          aria-label={step6Done ? 'Mark step 6 as not complete' : 'Mark step 6 as complete'}
+                        >
+                          {step6Done ? <CheckboxOn /> : <CheckboxOff />}
+                        </button>
                         <div className="cpm-req-lead-text">
                           <h3 className="cpm-req-title">
                             6. Sync Schedule for Data for Measures &amp; Dimensional Hierarchies
@@ -1832,12 +1874,20 @@ const CpmFeaturePage: React.FC = () => {
                         <div className="cpm-hier-cf-sec">
                           <label className="cpm-hier-cf-label">* New Hierarchy Name</label>
                           <input
-                            className="cpm-hier-cf-input"
+                            ref={newNameInputRef}
+                            className={`cpm-hier-cf-input ${newNameError ? 'cpm-hier-cf-input--error' : ''}`}
                             type="text"
                             placeholder="Enter Hierarchy Name"
                             value={newName}
-                            onChange={(e) => setNewName(e.target.value)}
+                            aria-invalid={newNameError}
+                            onChange={(e) => {
+                              setNewName(e.target.value);
+                              if (newNameError && e.target.value.trim()) setNewNameError(false);
+                            }}
                           />
+                          {newNameError && (
+                            <span className="cpm-hier-cf-error">Enter a hierarchy name to save.</span>
+                          )}
                         </div>
                         <div className="cpm-hier-cf-sec">
                           <label className="cpm-hier-cf-label">* Dimension</label>

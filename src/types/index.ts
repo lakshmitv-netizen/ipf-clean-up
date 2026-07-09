@@ -1,4 +1,35 @@
-export type RowType = 'measure' | 'account' | 'category' | 'product' | 'filterSummary';
+/** Dimension-level row types for the deep (5 account + 5 product levels) grid. */
+export type DeepAccountRowType =
+  | 'acct-global'
+  | 'acct-strategic'
+  | 'acct-segment'
+  | 'acct-soldto'
+  | 'acct-shipto';
+export type DeepProductRowType =
+  | 'prod-company'
+  | 'prod-bu'
+  | 'prod-family'
+  | 'prod-commodity'
+  | 'prod-part';
+
+/** Dimension-level row types for the Acme Partners story grid (4 account + 2 product levels). */
+export type AcmeRowType =
+  | 'acme-global'
+  | 'acme-region'
+  | 'acme-division'
+  | 'acme-plant'
+  | 'acme-program'
+  | 'acme-sku';
+
+export type RowType =
+  | 'measure'
+  | 'account'
+  | 'category'
+  | 'product'
+  | 'filterSummary'
+  | DeepAccountRowType
+  | DeepProductRowType
+  | AcmeRowType;
 
 /** How parent row totals aggregate when panel filters inject "filtered out" summary siblings. */
 export type ParentTotalsRollupMode =

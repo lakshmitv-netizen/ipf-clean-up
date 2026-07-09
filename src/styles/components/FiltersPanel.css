@@ -1393,7 +1393,7 @@
   display: flex;
   flex-direction: column;
   flex: 1 1 auto;
-  min-height: 340px;
+  min-height: 520px;
 }
 .fs-card--expanded .filters-panel-body,
 .fs-card--new .filters-panel-body {

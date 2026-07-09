@@ -1,4 +1,7 @@
 import { MeasureData, GridRow } from '../types';
+import type { IndustryType } from '../contexts/IndustryContext';
+import { buildDeepHierarchy, sumValues } from './deepHierarchyData';
+import { buildAcmeHierarchy } from './acmeHierarchyData';
 
 const monthlyValue = (base: number) => {
   const monthFactors = {
@@ -222,6 +225,47 @@ export const adjustmentMeasuresData: MeasureData[] = [
     children: createHierarchy('measure-final-forecast', 95000, 47500, 9500),
   },
 ];
+
+// Measure-level bases, reused to build a deep-hierarchy variant for the deep grid.
+const ADJUSTMENT_MEASURE_DEFS: { id: string; name: string; base: number }[] = [
+  { id: 'measure-baseline-forecast',          name: 'Baseline Forecast',                     base: 85000 },
+  { id: 'measure-account-manager-adjusted',   name: 'Account Manager Adjusted Forecast',     base: 87000 },
+  { id: 'measure-sales-manager-adjusted',     name: 'Sales Manager Adjusted Forecast',       base: 89000 },
+  { id: 'measure-regional-director-adjusted', name: 'Regional Director Adjusted Forecast',   base: 92000 },
+  { id: 'measure-final-forecast',             name: 'Final Forecast',                        base: 95000 },
+];
+
+// Deep-hierarchy variant: children use the deep grid's dimension level types
+// (acct-global … prod-part) so the row-visibility filter (which keys off `type`)
+// keeps them on the manufacturing-deep grid instead of hiding every descendant.
+const deepAdjustmentMeasuresData: MeasureData[] = ADJUSTMENT_MEASURE_DEFS.map((m) => {
+  const children = buildDeepHierarchy(m.id, m.base);
+  return {
+    id: m.id,
+    name: m.name,
+    values: sumValues(children.map((c) => c.values), m.base, m.id),
+    children,
+  };
+});
+
+// Acme-hierarchy variant: children use the Acme grid's dimension level types
+// (acme-global … acme-sku) so the row-visibility filter keeps them on that grid.
+const acmeAdjustmentMeasuresData: MeasureData[] = ADJUSTMENT_MEASURE_DEFS.map((m) => {
+  const children = buildAcmeHierarchy(m.id, m.base);
+  return {
+    id: m.id,
+    name: m.name,
+    values: sumValues(children.map((c) => c.values), m.base, m.id),
+    children,
+  };
+});
+
+/** Adjustment measures whose hierarchy matches the grid's dimension scheme. */
+export function getAdjustmentMeasuresData(industry: IndustryType | null): MeasureData[] {
+  if (industry === 'manufacturing-deep') return deepAdjustmentMeasuresData;
+  if (industry === 'manufacturing-acme') return acmeAdjustmentMeasuresData;
+  return adjustmentMeasuresData;
+}
 
 
 

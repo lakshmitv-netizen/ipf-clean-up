@@ -412,7 +412,7 @@
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  background-color: #000000 !important;
+  background-color: rgba(0, 0, 0, 0.5) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;

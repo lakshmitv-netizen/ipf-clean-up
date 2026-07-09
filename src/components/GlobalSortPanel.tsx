@@ -10,7 +10,8 @@ export interface SortCriterion {
 
 export interface DimensionSort {
   id: string;
-  level: 'account' | 'category' | 'product' | '';
+  /** Dimension level id (matches a row `type`); '' when unset. Deep grids use extra level ids. */
+  level: string;
   sortBy: 'alphabetical' | 'measure-sa-qty' | 'measure-sa-rev' | 'measure-opp-qty' | 'measure-opp-rev' | 'measure-order-qty' | 'measure-order-rev' | '';
   direction: 'asc' | 'desc';
 }
@@ -40,7 +41,15 @@ interface GlobalSortPanelProps {
   addSortButtonLabel?: string;
   /** Callback to open sub columns modal */
   onOpenSubColumnsModal?: () => void;
+  /** Per-grid dimension levels for the "Sort by dimension level" picker. Defaults to the standard 3. */
+  dimensionLevels?: { id: string; name: string }[];
 }
+
+const DEFAULT_SORT_DIMENSION_LEVELS = [
+  { id: 'account', name: 'Account' },
+  { id: 'category', name: 'Category' },
+  { id: 'product', name: 'Product' },
+];
 
 const GlobalSortPanel: React.FC<GlobalSortPanelProps> = ({
   isOpen,
@@ -48,6 +57,7 @@ const GlobalSortPanel: React.FC<GlobalSortPanelProps> = ({
   availableColumns,
   initialConfig,
   onApply,
+  dimensionLevels = DEFAULT_SORT_DIMENSION_LEVELS,
   sortMeasuresDisabled = false,
   showSortCriteriaSection = true,
   sortCriteriaSectionTitle = 'Sort by column',
@@ -286,9 +296,9 @@ const GlobalSortPanel: React.FC<GlobalSortPanelProps> = ({
                         onChange={e => updateDimensionLevel(dimSort.id, e.target.value as any)}
                       >
                         <option value="">Select level</option>
-                        <option value="account">Account</option>
-                        <option value="category">Category</option>
-                        <option value="product">Product</option>
+                        {dimensionLevels.map((lvl) => (
+                          <option key={lvl.id} value={lvl.id}>{lvl.name}</option>
+                        ))}
                       </select>
                       <svg className="sort-col-select-arrow" viewBox="0 0 24 24" fill="none" width="14" height="14">
                         <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>

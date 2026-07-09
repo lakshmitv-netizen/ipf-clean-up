@@ -14,7 +14,7 @@ export interface QuickAccessAction {
 }
 
 export const QUICK_ACCESS_ACTIONS: QuickAccessAction[] = [
-  { id: 'measure-categories', name: 'Measure subsets' },
+  { id: 'measure-categories', name: 'Measure categories' },
   { id: 'measures', name: 'Measures' },
   { id: 'dimension-levels', name: 'Dimension Levels' },
   { id: 'start-end-time', name: 'Start and End Time' },
@@ -110,12 +110,15 @@ export interface QuickAccessBarProps {
   endPeriod: string;
   onStartPeriodChange: (period: string) => void;
   onEndPeriodChange: (period: string) => void;
+  /** Per-grid dimension levels; defaults to the standard 3-level scheme. */
+  dimensionLevels?: { id: string; name: string }[];
 }
 
 export const QuickAccessBar: React.FC<QuickAccessBarProps> = ({
   actions,
   onConfigure,
   onClose,
+  dimensionLevels: dimensionLevelsProp = dimensionLevels,
   selectedMeasureSubgroup,
   onMeasureSubgroupChange,
   measures,
@@ -140,7 +143,7 @@ export const QuickAccessBar: React.FC<QuickAccessBarProps> = ({
         return (
           <MultiSelectControl
             key={id}
-            label="Measure subsets"
+            label="Measure categories"
             options={measureSubgroupOptions.map(o => ({ id: o.value, name: o.value }))}
             selectedIds={selectedMeasureSubgroup}
             onToggle={(optId) => onMeasureSubgroupChange(toggleId(selectedMeasureSubgroup, optId))}
@@ -167,7 +170,7 @@ export const QuickAccessBar: React.FC<QuickAccessBarProps> = ({
           <MultiSelectControl
             key={id}
             label="Dimension Levels"
-            options={dimensionLevels.map(l => ({ id: l.id, name: l.name }))}
+            options={dimensionLevelsProp.map(l => ({ id: l.id, name: l.name }))}
             selectedIds={selectedDimensionLevels}
             onToggle={(levelId) => onDimensionLevelsChange(toggleId(selectedDimensionLevels, levelId))}
             summary={count > 0 ? `${count} selected` : 'Select'}

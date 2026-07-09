@@ -30,7 +30,7 @@
   #npc-dialog {
     background: #fff;
     border-radius: 4px;
-    width: 520px;
+    width: 676px;
     max-width: 95vw;
     max-height: 90vh;
     box-shadow: 0 4px 32px rgba(0,0,0,0.28);
@@ -186,6 +186,13 @@
     justify-content: center;
   }
   .npc-method-selected .npc-method-check { display: flex; }
+  /* Method radios */
+  .npc-method-radios { display: flex; flex-direction: column; gap: 12px; }
+  .npc-radio-option { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+  .npc-radio-option input[type="radio"] { margin: 2px 0 0; width: 16px; height: 16px; accent-color: #0176d3; cursor: pointer; flex-shrink: 0; }
+  .npc-radio-text { display: flex; flex-direction: column; gap: 2px; }
+  .npc-radio-title { font-size: 14px; font-weight: 600; color: #181818; }
+  .npc-radio-desc { font-size: 13px; color: #5c5c5c; }
   /* Template selector */
   .npc-template-section { display: flex; flex-direction: column; gap: 6px; }
   .npc-template-label { font-size: 13px; color: #181818; }
@@ -285,41 +292,21 @@
 
         <div class="npc-field">
           <div class="npc-method-label"><span class="npc-required">*</span>How do you wish to create this configuration</div>
-          <div class="npc-method-cards">
-            <div class="npc-method-card npc-method-selected" id="npc-card-ootb" onclick="npcSelectMethod('ootb')">
-              <div class="npc-method-card-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <rect x="3" y="4" width="14" height="2" rx="1" fill="white"/>
-                  <rect x="3" y="8" width="10" height="2" rx="1" fill="white"/>
-                  <rect x="3" y="12" width="12" height="2" rx="1" fill="white"/>
-                </svg>
-              </div>
-              <div class="npc-method-card-text">
-                <div class="npc-method-card-title">From OOTB Template</div>
-                <div class="npc-method-card-desc">Account Planning and Forecasting template with pre-seeded configs</div>
-              </div>
-              <div class="npc-method-check">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
-            <div class="npc-method-card" id="npc-card-scratch" onclick="npcSelectMethod('scratch')">
-              <div class="npc-method-card-icon">
-                <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                  <path d="M13 4l3 3-7 7H6v-3l7-7z" stroke="white" stroke-width="1.3" stroke-linejoin="round" fill="none"/>
-                </svg>
-              </div>
-              <div class="npc-method-card-text">
-                <div class="npc-method-card-title">From Scratch</div>
-                <div class="npc-method-card-desc">Build your own template with choice of dimensions &amp; measures</div>
-              </div>
-              <div class="npc-method-check">
-                <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                  <path d="M2 5l2.5 2.5L8 3" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-              </div>
-            </div>
+          <div class="npc-method-radios">
+            <label class="npc-radio-option">
+              <input type="radio" name="npc-method" value="ootb" checked onclick="npcSelectMethod('ootb')">
+              <span class="npc-radio-text">
+                <span class="npc-radio-title">From OOTB Template</span>
+                <span class="npc-radio-desc">Account Planning and Forecasting template with pre-seeded configs</span>
+              </span>
+            </label>
+            <label class="npc-radio-option">
+              <input type="radio" name="npc-method" value="scratch" onclick="npcSelectMethod('scratch')">
+              <span class="npc-radio-text">
+                <span class="npc-radio-title">From Scratch</span>
+                <span class="npc-radio-desc">Build your own template with choice of dimensions &amp; measures</span>
+              </span>
+            </label>
           </div>
         </div>
 
@@ -360,8 +347,8 @@
 
   window.npcSelectMethod = function(method) {
     selectedMethod = method;
-    document.getElementById('npc-card-ootb').classList.toggle('npc-method-selected', method === 'ootb');
-    document.getElementById('npc-card-scratch').classList.toggle('npc-method-selected', method === 'scratch');
+    var radio = document.querySelector('input[name="npc-method"][value="' + method + '"]');
+    if (radio) radio.checked = true;
     document.getElementById('npc-template-section').style.display = method === 'ootb' ? 'flex' : 'none';
     document.getElementById('npc-info-card').style.display = method === 'ootb' ? 'block' : 'none';
   };
