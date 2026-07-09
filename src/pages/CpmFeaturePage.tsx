@@ -1501,15 +1501,13 @@ const CpmFeaturePage: React.FC = () => {
                                 <th>Hierarchy</th>
                                 <th>Dimension</th>
                                 <th>Levels</th>
-                                <th>Data Status</th>
-                                <th>Last Sync</th>
                                 <th className="cpm-hier-caret-col" />
                               </tr>
                             </thead>
                             <tbody>
                               {visibleHierarchies.length === 0 && (
                                 <tr>
-                                  <td colSpan={6} className="cpm-hier-empty">
+                                  <td colSpan={4} className="cpm-hier-empty">
                                     No hierarchies for this dimension.
                                   </td>
                                 </tr>
@@ -1534,13 +1532,6 @@ const CpmFeaturePage: React.FC = () => {
                                     </td>
                                     <td>{r.dim}</td>
                                     <td>{r.levels}</td>
-                                    <td>
-                                      <span className="cpm-hier-status">
-                                        {r.status === 'ok' ? <SyncSuccessIcon /> : <DataRequestedIcon />}
-                                        {r.status === 'ok' ? 'Sync Successful' : 'Data Requested'}
-                                      </span>
-                                    </td>
-                                    <td className="cpm-hier-sync-time">{r.sync}</td>
                                     <td className="cpm-hier-caret-col">
                                       <div className="cpm-hier-lvl-menu-wrap">
                                         <button
