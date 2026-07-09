@@ -458,8 +458,10 @@
 }
 
 .cpm-sections {
-  flex: 1 1 auto;
-  min-width: 0;
+  /* Middle column keeps its size on resize: it can grow to fill wide screens
+     but never shrinks — the right rail absorbs any shrinkage instead. */
+  flex: 1 0 600px;
+  min-width: 600px;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -478,8 +480,11 @@
 
 /* Right rail */
 .cpm-aside {
-  flex: 0 0 520px;
-  width: 520px;
+  /* Right rail shrinks first when the window narrows (down to a floor),
+     leaving the middle column untouched. */
+  flex: 0 1 520px;
+  width: auto;
+  min-width: 260px;
   display: flex;
   flex-direction: column;
   gap: 24px;
