@@ -91,17 +91,14 @@ function pickPrimaryMeasure(data: MeasureData[]): MeasureData | null {
   );
 }
 
-function childrenOfType(measure: MeasureData, type: GridRow['type']): GridRow[] {
-  const out: GridRow[] = [];
-  const walk = (rows: GridRow[] | undefined) => {
-    if (!rows) return;
-    for (const r of rows) {
-      if (r.type === type) out.push(r);
-      walk(r.children);
-    }
-  };
-  walk(measure.children);
-  return out;
+/**
+ * Top-level rows of a measure — the first hierarchy level, treated as the
+ * "accounts" to rank. Resolved structurally (depth 0) rather than by a hardcoded
+ * row type, so it works across every scheme: the legacy 3-level grid ('account'),
+ * the deep/Acme grids ('acct-global', …) and config-generated grids ('cfg-0-*').
+ */
+function topLevelRows(measure: MeasureData): GridRow[] {
+  return measure.children ?? [];
 }
 
 /**
@@ -136,21 +133,27 @@ interface ProductInstance {
   val: number;
 }
 
-/** Every product leaf with its account/category ancestors, so the agent can name
- *  the exact rows the grid will surface (SKUs repeat across accounts). */
+/** Every leaf row (deepest level = the "products"/SKUs) with its top-level
+ *  ancestor as the account and its immediate parent as the category. Resolved by
+ *  tree position (leaf = no children, account = depth 0) so it works across the
+ *  legacy, deep/Acme and config grids regardless of their row type ids. */
 function productInstances(measure: MeasureData): ProductInstance[] {
   const out: ProductInstance[] = [];
-  const walk = (rows: GridRow[] | undefined, account: string, category: string) => {
+  const walk = (rows: GridRow[] | undefined, depth: number, account: string, category: string) => {
     if (!rows) return;
     for (const r of rows) {
-      if (r.type === 'account') walk(r.children, r.name, category);
-      else if (r.type === 'category') walk(r.children, account, r.name);
-      else if (r.type === 'product') {
-        out.push({ name: r.name, account, category, val: yearValue(r) });
-      } else walk(r.children, account, category);
+      const acct = depth === 0 ? r.name : account;
+      const isLeaf = !r.children || r.children.length === 0;
+      if (isLeaf) {
+        out.push({ name: r.name, account: acct || r.name, category, val: yearValue(r) });
+      } else {
+        // The level whose children are all leaves acts as the "category" group.
+        const childrenAreLeaves = r.children!.every((c) => !c.children || c.children.length === 0);
+        walk(r.children, depth + 1, acct, childrenAreLeaves ? r.name : category);
+      }
     }
   };
-  walk(measure.children, '', '');
+  walk(measure.children, 0, '', '');
   return out;
 }
 
@@ -175,7 +178,7 @@ function classify(q: string): Intent {
 function buildFocusAccounts(data: MeasureData[]): AgentResponse | null {
   const measure = pickPrimaryMeasure(data);
   if (!measure) return null;
-  const accounts = childrenOfType(measure, 'account')
+  const accounts = topLevelRows(measure)
     .map((a) => ({ name: a.name, val: yearValue(a) }))
     .sort((a, b) => a.val - b.val);
   if (accounts.length === 0) return null;
@@ -225,7 +228,7 @@ function buildFocusAccounts(data: MeasureData[]): AgentResponse | null {
 function buildOpportunities(data: MeasureData[]): AgentResponse | null {
   const measure = pickPrimaryMeasure(data);
   if (!measure) return null;
-  const accounts = childrenOfType(measure, 'account')
+  const accounts = topLevelRows(measure)
     .map((a) => ({ name: a.name, val: yearValue(a) }))
     .sort((a, b) => b.val - a.val);
   if (accounts.length === 0) return null;
@@ -275,7 +278,7 @@ function buildOpportunities(data: MeasureData[]): AgentResponse | null {
 function buildWhyLow(data: MeasureData[], question = ''): AgentResponse | null {
   const measure = pickPrimaryMeasure(data);
   if (!measure) return null;
-  const accounts = childrenOfType(measure, 'account');
+  const accounts = topLevelRows(measure);
   if (accounts.length === 0) return null;
 
   const buildFor = (a: GridRow) => {
@@ -450,7 +453,7 @@ function buildSummary(data: MeasureData[]): AgentResponse | null {
   const focus = buildFocusAccounts(data);
   if (!focus) return null;
   const measure = pickPrimaryMeasure(data)!;
-  const total = childrenOfType(measure, 'account').reduce((s, a) => s + yearValue(a), 0);
+  const total = topLevelRows(measure).reduce((s, a) => s + yearValue(a), 0);
   return {
     ...focus,
     answer:

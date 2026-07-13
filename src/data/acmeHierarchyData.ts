@@ -9,11 +9,11 @@
 // Measures:
 //   Sales Agreement Quantity, Opportunity Quantity, Order Quantity  (base data)
 //   Last Year Order Quantity                                        (prior-year orders)
-//   Forecast Quantity = Sales Agreement + Opportunity + Order       (calculated)
+//   Forecast Quantity = Sales Agreement + Opportunity               (calculated)
 //   Sales Manager Target Quantity                                   (manual input)
 //
 // Values roll up bottom-up so parent totals equal the sum of their children, and
-// Forecast Quantity equals SA + Opportunity + Order at every level. Weekly columns
+// Forecast Quantity equals SA + Opportunity at every level. Weekly columns
 // are added later by getMockData via ensureWeekValues.
 
 import type { MeasureData, GridRow, RowType } from '../types';
@@ -181,7 +181,7 @@ const ACME_ROOT: AcmeNode = {
   children: buildLevel(0, 'acme'),
 };
 
-// Per-leaf-month base quantities. SA + Opp + Order compose Forecast Quantity.
+// Per-leaf-month base quantities. SA + Opp compose Forecast Quantity.
 const SA_BASE = 1500;
 const OPP_BASE = 950;
 const ORDER_BASE = 1300;
@@ -212,7 +212,7 @@ function computeLeafEconomics(key: string, weight: number): LeafEconomics {
     const saV = Math.round(SA_BASE * weight * seasonal * jSa);
     const oppV = Math.round(OPP_BASE * weight * seasonal * jOpp);
     const ordV = Math.round(ORDER_BASE * weight * seasonal * jOrd);
-    const fV = saV + oppV + ordV;
+    const fV = saV + oppV; // Forecast Quantity = Sales Agreement + Opportunity
     sa.push(saV);
     opp.push(oppV);
     order.push(ordV);

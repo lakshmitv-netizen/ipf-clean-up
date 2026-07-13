@@ -27,7 +27,7 @@ import {
 } from '../data/planConfigStore';
 import {
   configIndustryKey,
-  buildOotbAccountPlanningDetail,
+  resolveOotbAccountPlanningDetail,
   OOTB_ACCOUNT_PLANNING_CONFIG_ID,
 } from '../data/planConfigGridData';
 
@@ -454,6 +454,42 @@ interface ForecastRecord {
   status: string;
   /** When set, this plan opens its own grid (industry key) instead of the shared one. */
   gridIndustry?: IndustryType;
+  /** Set for plans created this session; drives the config the row's grid opens. */
+  configId?: string;
+}
+
+/**
+ * Session-scoped store for plans created via the Create Plan modal. The `cpm_`
+ * prefix means these are wiped on a full page load (see sessionReset), matching
+ * the rest of the working data; within a session they persist across navigation.
+ */
+const CREATED_PLANS_KEY = 'cpm_created_plans';
+
+function loadCreatedPlans(): ForecastRecord[] {
+  try {
+    const raw = localStorage.getItem(CREATED_PLANS_KEY);
+    return raw ? (JSON.parse(raw) as ForecastRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCreatedPlan(record: ForecastRecord): void {
+  try {
+    const list = loadCreatedPlans();
+    // Newest first; de-dupe by id so re-saving updates in place at the top.
+    const next = [record, ...list.filter((r) => r.id !== record.id)];
+    localStorage.setItem(CREATED_PLANS_KEY, JSON.stringify(next));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/** Best-effort fiscal year for the list row: pull a 20xx year from the planning
+ *  period (e.g. "H2 FY 2026") or fall back to the form's fiscal year field. */
+function fiscalYearFromPlanForm(form: { planningPeriod?: string; fiscalYear?: string }): string {
+  const match = /\b(20\d{2})\b/.exec(form.planningPeriod || form.fiscalYear || '');
+  return match ? match[1] : (form.fiscalYear || '');
 }
 
 /**
@@ -959,7 +995,17 @@ const PlanningForecastingListPage: React.FC = () => {
   // Success toast shown after a plan config is created
   const [showCreateToast, setShowCreateToast] = useState<boolean>(false);
 
-  const visibleRecords = mockRecords;
+  // Plans created this session appear first, above the seeded demo rows.
+  const [createdPlans, setCreatedPlans] = useState<ForecastRecord[]>(() => loadCreatedPlans());
+  const visibleRecords = useMemo(() => [...createdPlans, ...mockRecords], [createdPlans]);
+
+  // Point the grid at a created plan's own configuration before its row link
+  // navigates, so opening it shows that plan's config (not the last-active one).
+  const activatePlanConfig = useCallback((record: ForecastRecord) => {
+    if (!record.configId) return;
+    setActiveConfigId(record.configId);
+    setIndustry(configIndustryKey(record.configId));
+  }, [setIndustry]);
   
   const [weekStartSearchTerm, setWeekStartSearchTerm] = useState('');
   const [weekEndSearchTerm, setWeekEndSearchTerm] = useState('');
@@ -979,7 +1025,7 @@ const PlanningForecastingListPage: React.FC = () => {
     const ootb = {
       id: OOTB_ACCOUNT_PLANNING_CONFIG_ID,
       name: 'Account Planning',
-      meta: metaForConfigDetail(buildOotbAccountPlanningDetail().levels),
+      meta: metaForConfigDetail(resolveOotbAccountPlanningDetail().levels),
     };
     // Only the OOTB "Account Planning" template is offered here so the Create Plan
     // template list matches the consolidated Plan Configuration list. User-saved
@@ -1003,9 +1049,11 @@ const PlanningForecastingListPage: React.FC = () => {
   // Resolve a full config detail for the selected option. Saved configs come from
   // the store; built-in templates get a sensible default so they still render.
   const resolveConfigDetail = useCallback((optionId: string, optionName: string): PlanConfigDetail => {
-    // Always re-derive the OOTB template from live hierarchies + measures so a new
-    // plan reflects the latest customizations (never a stale saved snapshot).
-    if (optionId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return buildOotbAccountPlanningDetail();
+    // The OOTB "Account Planning" template prefers an explicitly saved snapshot
+    // (so hierarchy/level/measure edits made in the builder flow through to the
+    // plan and grid); it falls back to the live-derived default only when nothing
+    // has been saved yet.
+    if (optionId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return resolveOotbAccountPlanningDetail();
     const stored = getPlanConfigDetail(optionId);
     if (stored) return stored;
     return builtinConfigDetail(optionId, optionName);
@@ -1550,8 +1598,15 @@ const PlanningForecastingListPage: React.FC = () => {
                     </td>
                     <td className="list-page-td-name">
                       <Link 
-                        to={record.id === 'fy26' ? '/planning-forecasting' : '#'}
+                        to={
+                          record.configId
+                            ? getGridPathForIndustry(record.gridIndustry ?? baseIndustry)
+                            : record.id === 'fy26'
+                              ? '/planning-forecasting'
+                              : '#'
+                        }
                         className="list-page-name-link"
+                        onClick={() => activatePlanConfig(record)}
                       >
                         {record.name}
                       </Link>
@@ -1560,6 +1615,7 @@ const PlanningForecastingListPage: React.FC = () => {
                       <Link
                         to={getGridPathForIndustry(record.gridIndustry ?? baseIndustry)}
                         className="list-page-name-link"
+                        onClick={() => activatePlanConfig(record)}
                       >
                         {record.name} - Grid
                       </Link>
@@ -2208,6 +2264,22 @@ const PlanningForecastingListPage: React.FC = () => {
                     savePlanConfigDetail(detailToSave);
                     setActiveConfigId(detailToSave.id);
                     setIndustry(configIndustryKey(detailToSave.id));
+
+                    // Surface the new plan as the first row of the Integrated
+                    // Plans list so the user sees it on returning to this view.
+                    const newPlan: ForecastRecord = {
+                      id: `plan-${Date.now()}`,
+                      name: newRecord.planName?.trim() || 'Untitled Plan',
+                      adminTemplate: selectedPlanConfig?.name || detailToSave.name || 'Custom configuration',
+                      fiscalYear: fiscalYearFromPlanForm(newRecord),
+                      rootRecord: l1Accounts[0] || detailToSave.levels[0]?.name || '',
+                      status: 'Draft',
+                      gridIndustry: configIndustryKey(detailToSave.id),
+                      configId: detailToSave.id,
+                    };
+                    saveCreatedPlan(newPlan);
+                    setCreatedPlans(loadCreatedPlans());
+
                     navigate('/grid');
                   } else {
                     setShowCreateToast(true);

@@ -594,7 +594,7 @@ const CpmFeaturePage: React.FC = () => {
                               {step12Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">1.2 Run the "Define Dimension Hierarchy for Account Forecasting" DPE</p>
+                              <p className="cpm-req-sub-title">1.2 Run the clone of the "Define Dimension Hierarchy for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
@@ -617,7 +617,7 @@ const CpmFeaturePage: React.FC = () => {
                               {step13Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">1.3 Run the "Build Account–Product Relationships for Account Forecasting" DPE</p>
+                              <p className="cpm-req-sub-title">1.3 Run the clone of the "Build Account–Product Relationships for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
@@ -653,7 +653,7 @@ const CpmFeaturePage: React.FC = () => {
                               {step21Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">2.1 Review measures and add source DMOs</p>
+                              <p className="cpm-req-sub-title">2.1 Review existing measures</p>
                             </div>
                             <button
                               className="cpm-btn cpm-btn--outline"
@@ -674,7 +674,7 @@ const CpmFeaturePage: React.FC = () => {
                               {step22Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">2.2 Run the "Define Baseline Measures for Account Forecasting" DPE</p>
+                              <p className="cpm-req-sub-title">2.2 Run the clone of the "Define Baseline Measures for Account Forecasting" DPE</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"

@@ -6,6 +6,7 @@
 import type { MeasureData, GridRow, RowType } from '../types';
 import type { DimensionLevelDef, DimensionGlyph } from './dimensionSchemes';
 import { sumValues } from './deepHierarchyData';
+import { withForecastAsSum } from '../utils/deriveForecast';
 import { getPlanConfigDetail, type PlanConfigDetail, type PlanConfigLevel } from './planConfigStore';
 import {
   loadHierarchyRows,
@@ -76,6 +77,20 @@ export function buildOotbAccountPlanningDetail(): PlanConfigDetail {
   };
 }
 
+/**
+ * Resolve the "Account Planning" (OOTB) config detail. Prefer an explicitly saved
+ * snapshot (created when the user edits & saves the config in the builder, or when
+ * a plan is created from it) so hierarchy / level / measure customizations flow
+ * through config → plan → grid. Falls back to the live-derived default only when
+ * nothing has been saved yet (e.g. a fresh session), which keeps Setup-level
+ * hierarchy/measure edits flowing into an untouched template. This matches the
+ * grid-data layer, which already reads the stored detail first (see getBuilt and
+ * isPristineOotbAccountPlanning).
+ */
+export function resolveOotbAccountPlanningDetail(): PlanConfigDetail {
+  return getPlanConfigDetail(OOTB_ACCOUNT_PLANNING_CONFIG_ID) ?? buildOotbAccountPlanningDetail();
+}
+
 function orderedEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((x, i) => x === b[i]);
 }
@@ -121,6 +136,17 @@ function configIdFromIndustry(industry: string): string {
 
 export function isConfigLevel(levelId: string): boolean {
   return levelId.startsWith('cfg-');
+}
+
+/** The top-level dimension values the user picked in the Create Plan modal for
+ *  this config (e.g. the chosen account groups), or null when none were selected. */
+export function getConfigTopLevelValues(
+  industry: string | null | undefined,
+): string[] | null {
+  if (!isConfigIndustry(industry)) return null;
+  const detail = getPlanConfigDetail(configIdFromIndustry(industry as string));
+  const values = detail?.topLevelValues;
+  return values && values.length ? values : null;
 }
 
 /** The active plan's time frame (duration + planning period), or null when the
@@ -183,6 +209,34 @@ export function defaultGranularitiesForDuration(duration?: string): string[] {
 
 const slug = (s: string): string =>
   s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'lvl';
+
+/**
+ * Realistic sample row names for a hierarchy level, so a generated config grid
+ * reads like real data (e.g. "Strategic Group Alpha") instead of generic
+ * "<level> 1" placeholders. Matched on the level name; returns null when there's
+ * no sensible match, in which case callers fall back to the generic label.
+ */
+function realisticNamesForLevel(levelName: string): string[] | null {
+  const n = levelName.toLowerCase();
+  // Account side
+  if (/global|account group|^account$|^accounts$/.test(n)) return ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech', 'Vandelay Industries', 'Hooli'];
+  if (/strategic/.test(n)) return ['Strategic Group Alpha', 'Strategic Group Beta', 'Strategic Group Gamma', 'Strategic Group Delta'];
+  if (/segment/.test(n)) return ['Enterprise', 'Mid-Market', 'SMB', 'Public Sector'];
+  if (/sold.?to/.test(n)) return ['Sold-to North', 'Sold-to South', 'Sold-to East', 'Sold-to West'];
+  if (/ship.?to/.test(n)) return ['Ship-to Primary', 'Ship-to Secondary', 'Ship-to Central', 'Ship-to Regional'];
+  if (/region/.test(n)) return ['North America', 'Europe', 'Asia Pacific', 'Latin America'];
+  if (/country/.test(n)) return ['United States', 'Germany', 'Japan', 'Brazil'];
+  if (/territory/.test(n)) return ['West', 'Central', 'East', 'Northeast'];
+  // Product side
+  if (/company/.test(n)) return ['MagnaCorp', 'Zenith Manufacturing', 'Apex Industrial', 'Orion Works'];
+  if (/business unit|\bbu\b/.test(n)) return ['Powertrain BU', 'Chassis BU', 'Electronics BU', 'Interior BU'];
+  if (/family/.test(n)) return ['Transmission Family', 'Driveline Family', 'Braking Family', 'Steering Family'];
+  if (/commodity/.test(n)) return ['Gears', 'Bearings', 'Fasteners', 'Seals'];
+  if (/category|program/.test(n)) return ['Powertrain', 'Electronics', 'Chassis', 'Interior'];
+  if (/part|sku|product|variant/.test(n)) return ['PN-1001', 'PN-2002', 'PN-3003', 'PN-4004'];
+  if (/brand/.test(n)) return ['Brand A', 'Brand B', 'Brand C', 'Brand D'];
+  return null;
+}
 
 const ACCOUNT_PALETTE = ['#1B5E9B', '#2E7D9A', '#0F9D8C', '#3B7A57', '#6A8D2F', '#4A6FA5'];
 const PRODUCT_PALETTE = ['#6A3FB5', '#8E44AD', '#B03A78', '#C0562B', '#B8860B', '#9B59B6'];
@@ -259,7 +313,9 @@ function buildScheme(detail: PlanConfigDetail): { scheme: DimensionLevelDef[]; g
 /** Build the row tree for one measure: 2 children per node, leaves at the last
  *  level. At the top level, `topLevelValues` (the account groups picked in the
  *  Create Plan modal) drive the row count and labels so the grid matches the
- *  user's selection; deeper levels keep generic "<level> <n>" names. */
+ *  user's selection. Deeper levels are named from a realistic pool per level
+ *  (e.g. "Strategic Group Alpha") and only fall back to "<level> <n>" when the
+ *  level name has no known real-world sample. */
 function buildRows(
   scheme: DimensionLevelDef[],
   levelIdx: number,
@@ -272,10 +328,15 @@ function buildRows(
   const isLeaf = levelIdx === scheme.length - 1;
   const useSelection = levelIdx === 0 && !!topLevelValues && topLevelValues.length > 0;
   const count = useSelection ? topLevelValues!.length : 2;
+  const pool = useSelection ? null : realisticNamesForLevel(level.name);
   const rows: GridRow[] = [];
   for (let i = 0; i < count; i++) {
     const id = `${path}-${i}-${measureId}`;
-    const name = useSelection ? topLevelValues![i] : `${level.name} ${i + 1}`;
+    const name = useSelection
+      ? topLevelValues![i]
+      : pool
+        ? pool[i % pool.length]
+        : `${level.name} ${i + 1}`;
     if (isLeaf) {
       rows.push({
         id,
@@ -303,16 +364,18 @@ function buildRows(
 
 function buildData(detail: PlanConfigDetail, scheme: DimensionLevelDef[]): MeasureData[] {
   if (scheme.length === 0) return [];
-  return detail.measures.map((m, mi) => {
-    const measureId = `cfgm-${mi}-${slug(m.name)}`;
-    const roots = buildRows(scheme, 0, measureId, measureId, measureId, detail.topLevelValues);
-    return {
-      id: measureId,
-      name: m.name,
-      values: sumValues(roots.map((r) => r.values), 0, measureId),
-      children: roots,
-    };
-  });
+  return withForecastAsSum(
+    detail.measures.map((m, mi) => {
+      const measureId = `cfgm-${mi}-${slug(m.name)}`;
+      const roots = buildRows(scheme, 0, measureId, measureId, measureId, detail.topLevelValues);
+      return {
+        id: measureId,
+        name: m.name,
+        values: sumValues(roots.map((r) => r.values), 0, measureId),
+        children: roots,
+      };
+    }),
+  );
 }
 
 function build(detail: PlanConfigDetail): BuiltConfig {

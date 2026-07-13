@@ -2751,7 +2751,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 16px;
+  padding: 12px 16px 12px 0;
   border-bottom: 1px solid #e5e5e5;
 }
 .measures-new-measure-heading-left {

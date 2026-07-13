@@ -13,7 +13,7 @@ import { loadPlanConfigHierarchies } from '../data/hierarchyStore';
 import { mergeCustomMeasures } from '../data/measureStore';
 import { savePlanConfigDetail, getPlanConfigDetail, type PlanConfigDetail } from '../data/planConfigStore';
 import {
-  buildOotbAccountPlanningDetail,
+  resolveOotbAccountPlanningDetail,
   OOTB_ACCOUNT_PLANNING_CONFIG_ID,
 } from '../data/planConfigGridData';
 import '../styles/pages/PlanConfigCreatorPage.css';
@@ -71,7 +71,7 @@ const PlanConfigCreatorPage: React.FC = () => {
   // means a fresh "Create New" flow with nothing pre-selected.
   const initialConfig = useMemo<PlanConfigDetail | null>(() => {
     if (!configId) return null;
-    if (configId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return buildOotbAccountPlanningDetail();
+    if (configId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return resolveOotbAccountPlanningDetail();
     return getPlanConfigDetail(configId) ?? null;
   }, [configId]);
 

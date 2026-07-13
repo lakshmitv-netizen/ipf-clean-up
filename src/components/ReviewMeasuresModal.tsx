@@ -892,7 +892,7 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                         <EditableCell type="select" options={['Read', 'Write', 'Calculated']} value={measure.type} onCommit={(v) => updateMeasureField(index, 'type', v)} />
                       </td>
                       <td>
-                        <EditableCell type="select" options={['', 'Planning Weekly Read Measure', 'Monthly Read Measure']} placeholder="Select..." value={measure.dataSource} onCommit={(v) => updateMeasureField(index, 'dataSource', v)} disabled={!!measure.isCustom} />
+                        <EditableCell type="select" options={['', 'Planning Weekly Read Measure', 'Monthly Read Measure']} placeholder="Select..." value={measure.dataSource} onCommit={(v) => updateMeasureField(index, 'dataSource', v)} />
                       </td>
                       <td>
                         <EditableCell value={measure.measureCode} placeholder="Enter code" onCommit={(v) => updateMeasureField(index, 'measureCode', v)} />

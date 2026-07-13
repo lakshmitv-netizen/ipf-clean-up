@@ -1,10 +1,16 @@
 import { MeasureData, GridRow } from '../types';
 import { IndustryType } from '../contexts/IndustryContext';
 import { consumerGoodsData } from './consumerGoodsData';
-import { deepHierarchyData } from './deepHierarchyData';
+import { deepHierarchyData, sumValues } from './deepHierarchyData';
 import { acmeHierarchyData } from './acmeHierarchyData';
 import { deriveWeekValues } from '../utils/weekColumns';
-import { isConfigIndustry, getConfigMockData, isPristineOotbAccountPlanning } from './planConfigGridData';
+import { withForecastAsSum } from '../utils/deriveForecast';
+import {
+  isConfigIndustry,
+  getConfigMockData,
+  isPristineOotbAccountPlanning,
+  getConfigTopLevelValues,
+} from './planConfigGridData';
 
 const H1_MONTHS = ['jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026'];
 const H2_MONTHS = ['jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026'];
@@ -391,11 +397,50 @@ const createManufacturingHierarchy = (
   });
 };
 
+/** Re-key every id in a row subtree with a unique prefix (and fix parentId links)
+ *  so cloned top-level rows never collide on grid row keys. */
+function reIdRow(row: GridRow, prefix: string, parentId: string): GridRow {
+  const newId = `${prefix}-${row.id}`;
+  const cloned: GridRow = { ...row, id: newId, parentId };
+  if (row.children) cloned.children = row.children.map((c) => reIdRow(c, prefix, newId));
+  return cloned;
+}
+
+/**
+ * Relabel a dataset's top-level rows to the account groups the user picked in the
+ * Create Plan modal, keeping the realistic underlying data. The i-th selected
+ * value reuses the i-th template row (cycling if more are selected than exist),
+ * so the grid shows exactly the accounts the user chose instead of the dataset's
+ * built-in names. Measure totals are recomputed from the resulting rows.
+ */
+function applyTopLevelSelection(data: MeasureData[], values: string[]): MeasureData[] {
+  if (!values.length) return data;
+  return data.map((measure) => {
+    const templates = measure.children ?? [];
+    if (templates.length === 0) return measure;
+    const children = values.map((val, i) => {
+      const clone = reIdRow(templates[i % templates.length], `sel${i}`, measure.id);
+      clone.name = val;
+      return clone;
+    });
+    const summed = sumValues(children.map((c) => c.values), 0, measure.id);
+    return { ...measure, children, values: summed };
+  });
+}
+
 export const getMockData = (industry: IndustryType | null): MeasureData[] => {
   if (isConfigIndustry(industry)) {
     // Untouched OOTB Account Planning → serve the ready-made deep dataset (realistic
     // numbers). Any hierarchy/measure customization drops through to the generated grid.
     if (isPristineOotbAccountPlanning(industry)) {
+      // Honor the account groups picked in Create Plan by relabeling the top-level
+      // rows; fall back to the dataset's built-in accounts when none were chosen.
+      const selected = getConfigTopLevelValues(industry);
+      if (selected) {
+        const relabeled = applyTopLevelSelection(deepHierarchyData, selected);
+        ensureWeekValues(relabeled);
+        return relabeled;
+      }
       ensureWeekValues(deepHierarchyData);
       return deepHierarchyData;
     }
@@ -420,7 +465,7 @@ export const getMockData = (industry: IndustryType | null): MeasureData[] => {
   return manufacturingData;
 };
 
-const manufacturingData: MeasureData[] = [
+const manufacturingData: MeasureData[] = withForecastAsSum([
   // Sales Agreement Quantity
   {
     id: 'measure-sa-qty',
@@ -491,5 +536,5 @@ const manufacturingData: MeasureData[] = [
     values: monthlyValue(100000),
     children: createManufacturingHierarchy('measure-forecast-rev', 100000, 50000, 10000),
   },
-];
+]);
 

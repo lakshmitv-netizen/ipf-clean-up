@@ -229,23 +229,34 @@ export default function PlanningGridConfig({
 
     const dimOf = (hierarchy: string): 'Account' | 'Product' =>
       /product/i.test(hierarchy) ? 'Product' : 'Account';
+    // Resolve a saved level's source hierarchy by its stored name first (so a
+    // user-created hierarchy like "df" is re-selected exactly); fall back to
+    // dimension inference for older snapshots that stored a generic label.
+    const hierarchyForLevel = (levelHierarchyName: string) =>
+      hierarchiesData.find((x) => x.name === levelHierarchyName) ||
+      hierarchiesData.find((x) => x.dimension === dimOf(levelHierarchyName));
 
     const dimsInOrder: string[] = [];
-    initialConfig.levels.forEach((lvl) => {
-      const dim = dimOf(lvl.hierarchy);
-      if (!dimsInOrder.includes(dim)) dimsInOrder.push(dim);
-    });
-
     const hByDim: Record<string, string> = {};
     const enabledByHid: Record<string, boolean[]> = {};
-    dimsInOrder.forEach((dim) => {
-      const h = hierarchiesData.find((x) => x.dimension === dim);
+    initialConfig.levels.forEach((lvl) => {
+      const h = hierarchyForLevel(lvl.hierarchy);
       if (!h) return;
-      hByDim[dim] = h.id;
+      const dim = h.dimension;
+      if (!dimsInOrder.includes(dim)) {
+        dimsInOrder.push(dim);
+        hByDim[dim] = h.id;
+      }
+    });
+    Object.values(hByDim).forEach((hid) => {
+      const h = hierarchiesData.find((x) => x.id === hid);
+      if (!h) return;
       const wanted = new Set(
-        initialConfig.levels.filter((l) => dimOf(l.hierarchy) === dim).map((l) => l.name),
+        initialConfig.levels
+          .filter((l) => hierarchyForLevel(l.hierarchy)?.id === hid)
+          .map((l) => l.name),
       );
-      enabledByHid[h.id] = h.levels.map((lvl) => wanted.has(lvl.name));
+      enabledByHid[hid] = h.levels.map((lvl) => wanted.has(lvl.name));
     });
 
     if (dimsInOrder.length) {
@@ -341,8 +352,11 @@ export default function PlanningGridConfig({
         hierarchiesData.find((x) => x.dimension === dim);
       if (!h) return;
       const enabled = enabledLevels[h.id] ?? defaultEnabled(h);
+      // Persist the actual hierarchy name (e.g. "Account Sales Hierarchy" or a
+      // user-created one like "df") so the plan/grid and a later reopen reflect
+      // exactly what was chosen — not a generic "<dim> Hierarchy" placeholder.
       h.levels.forEach((lvl, i) => {
-        if (enabled[i]) levels.push({ name: lvl.name, hierarchy: `${dim} Hierarchy` });
+        if (enabled[i]) levels.push({ name: lvl.name, hierarchy: h.name });
       });
     });
 

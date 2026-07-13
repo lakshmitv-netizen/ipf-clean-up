@@ -8,6 +8,7 @@
 // sum of their children. Weekly columns are added later by getMockData via ensureWeekValues.
 
 import type { MeasureData, GridRow, RowType } from '../types';
+import { withForecastAsSum } from '../utils/deriveForecast';
 
 const seededRandom = (seed: string): number => {
   let h = 5381;
@@ -142,12 +143,14 @@ const MEASURES: { id: string; name: string; base: number }[] = [
   { id: 'measure-forecast-rev',  name: 'Forecasted Revenue',                   base: 100000 },
 ];
 
-export const deepHierarchyData: MeasureData[] = MEASURES.map((m) => {
-  const children = buildDeepHierarchy(m.id, m.base);
-  return {
-    id: m.id,
-    name: m.name,
-    values: sumValues(children.map((c) => c.values), m.base, m.id),
-    children,
-  };
-});
+export const deepHierarchyData: MeasureData[] = withForecastAsSum(
+  MEASURES.map((m) => {
+    const children = buildDeepHierarchy(m.id, m.base);
+    return {
+      id: m.id,
+      name: m.name,
+      values: sumValues(children.map((c) => c.values), m.base, m.id),
+      children,
+    };
+  }),
+);
