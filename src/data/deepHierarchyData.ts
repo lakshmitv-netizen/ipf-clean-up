@@ -51,7 +51,7 @@ function finalizeValues(months: Record<string, number>, base: number, seed: stri
   const q4 = months.oct2026 + months.nov2026 + months.dec2026;
   const year = q1 + q2 + q3 + q4;
   const cost = Math.round((year || base) * (0.45 + seededRandom(`${seed}-cost`) * 0.5));
-  return { year, q1, q2, q3, q4, ...months, _cost: cost } as unknown as ValueBag;
+  return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months, _cost: cost } as unknown as ValueBag;
 }
 
 interface LevelDef {

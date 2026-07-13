@@ -27,13 +27,14 @@ import type { PlanningGridCellMapsSnapshot } from '../contexts/PlanningGridSessi
 import { SearchHighlight } from './SearchHighlight';
 import ColumnFilterPopover, { ColumnFilter } from './ColumnFilterPopover';
 import { buildWeekHeaders, deriveWeekValues, weekOverlapsRange } from '../utils/weekColumns';
+import { getConfigTimeFrame, getPlanPeriodScope } from '../data/planConfigGridData';
 import '../styles/components/Grid.css';
 
 type HierarchyDim = 'account' | 'category' | 'product';
 
 /** Time keys used when diffing pre/post recalc for impacted styling (must match calculateMeasureValues rollups). */
 const GRID_IMPACT_TIME_KEYS: (keyof GridRowType['values'])[] = [
-  'year', 'q1', 'q2', 'q3', 'q4',
+  'year', 'h1', 'h2', 'q1', 'q2', 'q3', 'q4',
   'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
   'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
 ];
@@ -55,7 +56,7 @@ function zeroMonthsRollup(): GridRowType['values'] {
   for (const mk of MONTH_KEYS_FOR_ROLLUP) {
     (out as Record<string, number>)[mk] = 0;
   }
-  out.q1 = out.q2 = out.q3 = out.q4 = out.year = 0;
+  out.q1 = out.q2 = out.q3 = out.q4 = out.h1 = out.h2 = out.year = 0;
   return out;
 }
 
@@ -68,6 +69,8 @@ function addMonthsRollup(a: GridRowType['values'], b: GridRowType['values']): Gr
   out.q2 = out.apr2026 + out.may2026 + out.jun2026;
   out.q3 = out.jul2026 + out.aug2026 + out.sep2026;
   out.q4 = out.oct2026 + out.nov2026 + out.dec2026;
+  out.h1 = out.q1 + out.q2;
+  out.h2 = out.q3 + out.q4;
   out.year = out.q1 + out.q2 + out.q3 + out.q4;
   return out;
 }
@@ -224,6 +227,8 @@ const QUARTER_MONTH_KEYS: Record<string, string[]> = {
   q2: ['apr2026', 'may2026', 'jun2026'],
   q3: ['jul2026', 'aug2026', 'sep2026'],
   q4: ['oct2026', 'nov2026', 'dec2026'],
+  h1: ['jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026'],
+  h2: ['jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026'],
   year: [
     'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
     'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
@@ -1466,6 +1471,13 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
           row.values.q4 = row.values.oct2026 + row.values.nov2026 + row.values.dec2026;
         }
         
+        // Calculate half-years from quarters (H1 = Q1+Q2, H2 = Q3+Q4).
+        if (!isCellLocked(rowId, 'h1')) {
+          row.values.h1 = row.values.q1 + row.values.q2;
+        }
+        if (!isCellLocked(rowId, 'h2')) {
+          row.values.h2 = row.values.q3 + row.values.q4;
+        }
         // Calculate year from quarters - include locked quarters (they contribute their current value)
         // But don't recalculate if the year itself is locked
         if (!isCellLocked(rowId, 'year')) {
@@ -2013,6 +2025,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       : monthKeys;
     const allTimeKeys: { key: keyof GridRowType['values']; granularity: string; label: string; shortLabel?: string }[] = [
       { key: 'year', granularity: 'year', label: 'FY26' },
+      { key: 'h1', granularity: 'half', label: 'H1' },
+      { key: 'h2', granularity: 'half', label: 'H2' },
       { key: 'q1', granularity: 'quarter', label: 'Q1' },
       { key: 'q2', granularity: 'quarter', label: 'Q2' },
       { key: 'q3', granularity: 'quarter', label: 'Q3' },
@@ -2047,11 +2061,27 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
           const m = /^week(\d+)_/.exec(tk.key as string);
           if (!m) return true;
           return weekOverlapsRange(parseInt(m[1], 10), rangeStart, rangeEnd, calendarStartMonth, calendarStartYear);
-        } else if (tk.granularity === 'year') {
-          // Show year if any months are visible
+        } else if (tk.granularity === 'year' || tk.granularity === 'half') {
+          // Show year / half-year aggregates if any months are visible
           return true;
         }
         return true;
+      });
+    }
+
+    // Scope columns to the active plan's time frame (e.g. an "H2 FY25" plan shows
+    // only H2 and its quarters/months — not the whole year).
+    const planScope = getPlanPeriodScope(getConfigTimeFrame(industry)?.planningPeriod);
+    if (planScope.scoped) {
+      filteredKeys = filteredKeys.filter(tk => {
+        if (tk.granularity === 'week') {
+          if (!planScope.weekRange) return true;
+          const m = /^week(\d+)_/.exec(tk.key as string);
+          if (!m) return true;
+          const n = parseInt(m[1], 10);
+          return n >= planScope.weekRange[0] && n <= planScope.weekRange[1];
+        }
+        return planScope.keys.has(tk.key as string);
       });
     }
 
@@ -2082,7 +2112,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       granularity: tk.granularity,
       shortLabel: tk.shortLabel,
     }));
-  }, [selectedTimeGranularities, calendarStartMonth, calendarStartYear, searchTerm, showAllPeriods, startPeriod, endPeriod, isMonthInRange, isQuarterInRange]);
+  }, [selectedTimeGranularities, calendarStartMonth, calendarStartYear, searchTerm, showAllPeriods, startPeriod, endPeriod, isMonthInRange, isQuarterInRange, industry]);
 
   // Track previous visible headers to detect structural changes
   const previousVisibleHeadersRef = useRef<string>('');
@@ -2416,7 +2446,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     const q3 = targetRow.values.jul2026 + targetRow.values.aug2026 + targetRow.values.sep2026;
     const q4 = targetRow.values.oct2026 + targetRow.values.nov2026 + targetRow.values.dec2026;
     
-    // Recalculate year from quarters
+    // Recalculate half-years and year from quarters
+    const h1 = q1 + q2;
+    const h2 = q3 + q4;
     const year = q1 + q2 + q3 + q4;
 
     updates.push(
@@ -2424,6 +2456,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       { rowId, monthKey: 'q2', newValue: q2 },
       { rowId, monthKey: 'q3', newValue: q3 },
       { rowId, monthKey: 'q4', newValue: q4 },
+      { rowId, monthKey: 'h1', newValue: h1 },
+      { rowId, monthKey: 'h2', newValue: h2 },
       { rowId, monthKey: 'year', newValue: year }
     );
 

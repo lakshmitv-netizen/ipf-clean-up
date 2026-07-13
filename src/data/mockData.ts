@@ -4,12 +4,22 @@ import { consumerGoodsData } from './consumerGoodsData';
 import { deepHierarchyData } from './deepHierarchyData';
 import { acmeHierarchyData } from './acmeHierarchyData';
 import { deriveWeekValues } from '../utils/weekColumns';
-import { isConfigIndustry, getConfigMockData } from './planConfigGridData';
+import { isConfigIndustry, getConfigMockData, isPristineOotbAccountPlanning } from './planConfigGridData';
 
-// Ensure every node in a measure tree carries weekly columns (derived from months).
+const H1_MONTHS = ['jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026'];
+const H2_MONTHS = ['jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026'];
+
+/** Derive half-year aggregates (H1 = Jan–Jun, H2 = Jul–Dec) from the month values. */
+export const deriveHalfYearValues = (values: Record<string, number>): void => {
+  values.h1 = H1_MONTHS.reduce((sum, mk) => sum + Number(values[mk] ?? 0), 0);
+  values.h2 = H2_MONTHS.reduce((sum, mk) => sum + Number(values[mk] ?? 0), 0);
+};
+
+// Ensure every node in a measure tree carries weekly + half-year columns (derived from months).
 const ensureWeekValues = (rows: (MeasureData | GridRow)[]): void => {
   rows.forEach((r) => {
     deriveWeekValues(r.values as Record<string, number>);
+    deriveHalfYearValues(r.values as Record<string, number>);
     if (r.children && r.children.length) ensureWeekValues(r.children);
   });
 };
@@ -55,6 +65,8 @@ const monthlyValue = (base: number) => {
   
   return {
     year,
+    h1: q1 + q2,
+    h2: q3 + q4,
     q1,
     q2,
     q3,
@@ -110,7 +122,7 @@ const accountMonthlyValue = (base: number, seed: string) => {
     const q3 = months.jul2026 + months.aug2026 + months.sep2026;
     const q4 = months.oct2026 + months.nov2026 + months.dec2026;
     const year = q1 + q2 + q3 + q4;
-    return { year, q1, q2, q3, q4, ...months };
+    return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months };
   }
 
   // Demo profile: make one visible SA Qty account highly volatile so PM demos
@@ -136,7 +148,7 @@ const accountMonthlyValue = (base: number, seed: string) => {
     const q3 = forcedMonths.jul2026 + forcedMonths.aug2026 + forcedMonths.sep2026;
     const q4 = forcedMonths.oct2026 + forcedMonths.nov2026 + forcedMonths.dec2026;
     const year = q1 + q2 + q3 + q4;
-    return { year, q1, q2, q3, q4, ...forcedMonths };
+    return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...forcedMonths };
   }
 
   // Keep other Sales Agreement Quantity accounts comparatively flatter so
@@ -158,7 +170,7 @@ const accountMonthlyValue = (base: number, seed: string) => {
     const q3 = months.jul2026 + months.aug2026 + months.sep2026;
     const q4 = months.oct2026 + months.nov2026 + months.dec2026;
     const year = q1 + q2 + q3 + q4;
-    return { year, q1, q2, q3, q4, ...months };
+    return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months };
   }
 
   const baseFactors = [0.60, 0.78, 0.98, 1.18, 1.32, 1.55, 1.08, 1.68, 0.72, 1.42, 0.76, 1.24];
@@ -180,7 +192,7 @@ const accountMonthlyValue = (base: number, seed: string) => {
   const q3 = months.jul2026 + months.aug2026 + months.sep2026;
   const q4 = months.oct2026 + months.nov2026 + months.dec2026;
   const year = q1 + q2 + q3 + q4;
-  return { year, q1, q2, q3, q4, ...months };
+  return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months };
 };
 
 // Helper: round to nearest integer for cleaner display
@@ -192,7 +204,7 @@ const buildValues = (months: Record<string, number>) => {
   const q2 = months.apr2026 + months.may2026 + months.jun2026;
   const q3 = months.jul2026 + months.aug2026 + months.sep2026;
   const q4 = months.oct2026 + months.nov2026 + months.dec2026;
-  return { year: q1+q2+q3+q4, q1, q2, q3, q4, ...months } as GridRow['values'];
+  return { year: q1+q2+q3+q4, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months } as GridRow['values'];
 };
 
 const MONTH_KEYS = [
@@ -381,6 +393,12 @@ const createManufacturingHierarchy = (
 
 export const getMockData = (industry: IndustryType | null): MeasureData[] => {
   if (isConfigIndustry(industry)) {
+    // Untouched OOTB Account Planning → serve the ready-made deep dataset (realistic
+    // numbers). Any hierarchy/measure customization drops through to the generated grid.
+    if (isPristineOotbAccountPlanning(industry)) {
+      ensureWeekValues(deepHierarchyData);
+      return deepHierarchyData;
+    }
     const configData = getConfigMockData(industry as string);
     ensureWeekValues(configData);
     return configData;

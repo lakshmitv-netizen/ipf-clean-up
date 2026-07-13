@@ -44,6 +44,8 @@ const monthlyValue = (base: number) => {
   
   return {
     year,
+    h1: q1 + q2,
+    h2: q3 + q4,
     q1,
     q2,
     q3,
@@ -78,7 +80,7 @@ const accountMonthlyValue = (base: number, seed: string) => {
   const q3 = months.jul2026 + months.aug2026 + months.sep2026;
   const q4 = months.oct2026 + months.nov2026 + months.dec2026;
   const year = q1 + q2 + q3 + q4;
-  return { year, q1, q2, q3, q4, ...months };
+  return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...months };
 };
 
 // Helper function to create the standard hierarchy structure for a measure

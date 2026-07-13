@@ -10,6 +10,12 @@ import type { Measure as PlanConfigMeasure } from './planConfigData';
 
 export const CUSTOM_MEASURES_KEY = 'cpm_custom_measures';
 
+// Full working copy of the CPM setup page's measure list (OOTB measures plus any
+// edits and additions). Persisted so measure edits stay put when navigating away
+// from and back to the setup page within a session; cleared on refresh by the
+// session-reset bootstrap, restoring the OOTB measures.
+export const SESSION_MEASURES_KEY = 'cpm_review_measures';
+
 // Loose shape that covers both the ReviewMeasuresModal Measure and stored JSON.
 export interface StoredMeasure {
   id?: number;
@@ -44,6 +50,31 @@ export function loadCustomMeasures(): StoredMeasure[] {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+/** Persist the setup page's full measure list (OOTB + edits + additions). */
+export function saveSessionMeasures(list: StoredMeasure[]): void {
+  try {
+    localStorage.setItem(SESSION_MEASURES_KEY, JSON.stringify(list));
+  } catch {
+    /* localStorage unavailable */
+  }
+}
+
+/**
+ * Load the persisted full measure list for the current session, or null when
+ * nothing has been saved yet (e.g. right after a refresh) so callers fall back
+ * to the OOTB seed.
+ */
+export function loadSessionMeasures(): StoredMeasure[] | null {
+  try {
+    const raw = localStorage.getItem(SESSION_MEASURES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length ? parsed : null;
+  } catch {
+    return null;
   }
 }
 

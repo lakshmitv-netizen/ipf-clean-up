@@ -54,6 +54,8 @@ export interface GridRow {
   descendantsExcludedByColumnFilter?: boolean;
   values: {
     year: number; // FY26 - sum of all months
+    h1: number;   // H1 - sum of Jan..Jun (Q1 + Q2)
+    h2: number;   // H2 - sum of Jul..Dec (Q3 + Q4)
     q1: number;   // Q1 - sum of Jan, Feb, Mar
     q2: number;   // Q2 - sum of Apr, May, Jun
     q3: number;   // Q3 - sum of Jul, Aug, Sep
@@ -80,6 +82,8 @@ export interface MeasureData {
   name: string;
   values: {
     year: number;
+    h1: number;
+    h2: number;
     q1: number;
     q2: number;
     q3: number;

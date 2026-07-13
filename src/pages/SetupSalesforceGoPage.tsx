@@ -17,7 +17,7 @@ const SetupSalesforceGoPage: React.FC = () => {
   return (
     <iframe
       title="Salesforce Go"
-      src={`${import.meta.env.BASE_URL}sfgo.html?v=3`}
+      src={`${import.meta.env.BASE_URL}sfgo.html?v=4`}
       style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', border: 'none' }}
     />
   );

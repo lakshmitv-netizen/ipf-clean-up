@@ -31,9 +31,17 @@ const levelStructureOf = (row: HierarchyRow): string => {
   return `${names.length} Levels`;
 };
 
+export interface HierarchyChangeToast {
+  message: string;
+  description?: string;
+}
+
 interface ManageHierarchiesModalProps {
   isOpen: boolean;
-  onClose: () => void;
+  /** Called when the modal closes. When a change was made while open (create /
+   *  clone / edit / delete), the last change summary is passed so the parent can
+   *  show a success toast after the modal has closed. */
+  onClose: (result?: HierarchyChangeToast) => void;
   onGoToSetup?: () => void;
 }
 
@@ -45,6 +53,14 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
   const [hierarchies, setHierarchies] = useState<HierarchyRow[]>(() => loadHierarchyRows());
   const [selectedDimension, setSelectedDimension] = useState<Dimension>('Account');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // Summary of the last change made while the modal is open. Passed to onClose so
+  // the parent can show a success toast once the modal has closed.
+  const [changeSummary, setChangeSummary] = useState<HierarchyChangeToast | null>(null);
+
+  const handleCloseModal = () => {
+    onClose(changeSummary ?? undefined);
+    setChangeSummary(null);
+  };
 
   const [createPanelOpen, setCreatePanelOpen] = useState(false);
   const [isCreatePanelClosing, setIsCreatePanelClosing] = useState(false);
@@ -240,7 +256,12 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
     };
     setHierarchies((prev) => [created, ...prev]);
     setSelectedDimension(createDimension);
+    const wasClone = Boolean(cloneSourceName);
     closeCreatePanel();
+    setChangeSummary({
+      message: wasClone ? 'Hierarchy cloned successfully' : 'Hierarchy created successfully',
+      description: `"${trimmedName}" is now available.`,
+    });
   };
 
   const toggleMenu = (hierarchyId: string) => {
@@ -259,6 +280,10 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
     }
     if (action === 'delete') {
       setHierarchies((prev) => prev.filter((item) => item.id !== hierarchy.id));
+      setChangeSummary({
+        message: 'Hierarchy deleted successfully',
+        description: `"${hierarchy.name}" has been removed.`,
+      });
     }
   };
 
@@ -274,22 +299,27 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
         h.id === selectedHierarchy.id ? { ...h, levelNames: normalized, levels: normalized.length } : h,
       ),
     );
+    const editedName = selectedHierarchy.name;
     closeEditPanel();
+    setChangeSummary({
+      message: 'Hierarchy updated successfully',
+      description: `Changes to "${editedName}" have been saved.`,
+    });
   };
 
   const handleGoToSetup = () => {
-    onClose();
+    handleCloseModal();
     onGoToSetup?.();
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="mh2-modal-overlay" onClick={onClose}>
+    <div className="mh2-modal-overlay" onClick={handleCloseModal}>
       <div className="mh2-modal-container mh2-modal-hierarchies-2" onClick={(e) => e.stopPropagation()}>
         <div className="mh2-modal-header mh2-modal-header-simple">
           <h2 className="mh2-modal-title">Manage Hierarchies</h2>
-          <button className="mh2-modal-close-button" onClick={onClose}>
+          <button className="mh2-modal-close-button" onClick={handleCloseModal}>
             <img src={imgCloseIcon} alt="Close" />
           </button>
         </div>
@@ -325,7 +355,8 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
                 <>
                   <div className="mh2-manage-hierarchies-2-create-header-left">
                     <button type="button" className="mh2-manage-hierarchies-2-back-button" onClick={closeCreatePanel}>
-                      ← Back
+                      <span className="mh2-back-arrow" aria-hidden="true">←</span>
+                      Back to list
                     </button>
                     <p className="mh2-manage-hierarchies-2-panel-title">
                       {cloneSourceName ? `Clone of ${cloneSourceName}` : `New ${createDimension} Hierarchy`}
@@ -352,7 +383,8 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
                 <>
                   <div className="mh2-manage-hierarchies-2-create-header-left">
                     <button type="button" className="mh2-manage-hierarchies-2-back-button" onClick={closeEditPanel}>
-                      ← Back
+                      <span className="mh2-back-arrow" aria-hidden="true">←</span>
+                      Back to list
                     </button>
                     <p className="mh2-manage-hierarchies-2-panel-title">Edit Hierarchy</p>
                   </div>
@@ -619,7 +651,17 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
 
                   <div className="mh2-edit-panel-notification">
                     <div className="mh2-notification-icon">ⓘ</div>
-                    <p className="mh2-notification-text">You can only edit the level names but not no.of levels</p>
+                    <p className="mh2-notification-text">
+                      You can only edit the level names but not no.of levels. If you want to
+                      change the no.of levels,{' '}
+                      <button
+                        type="button"
+                        className="mh2-notification-clone-link"
+                        onClick={() => selectedHierarchy && openClonePanel(selectedHierarchy)}
+                      >
+                        Clone this hierarchy
+                      </button>.
+                    </p>
                   </div>
 
                   <div className="mh2-edit-panel-tree">
@@ -663,14 +705,14 @@ const ManageHierarchiesModal: React.FC<ManageHierarchiesModalProps> = ({
         <div className="mh2-modal-footer">
           <button
             className="mh2-modal-cancel-button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             disabled={createPanelOpen || editPanelOpen}
           >
             Cancel
           </button>
           <button
             className="mh2-modal-save-button"
-            onClick={onClose}
+            onClick={handleCloseModal}
             disabled={createPanelOpen || editPanelOpen}
           >
             Save

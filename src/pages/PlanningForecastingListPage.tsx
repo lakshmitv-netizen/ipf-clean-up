@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import ExportCsvModal from '../components/ExportCsvModal';
 import MeasureToast from '../components/MeasureToast';
+import SearchableMultiSelect from '../components/SearchableMultiSelect';
 import { APP_USERS } from '../contexts/UserContext';
 import { useIndustry, getGridPathForIndustry } from '../contexts/IndustryContext';
 import '../styles/pages/PlanningForecastingListPage.css';
@@ -24,22 +25,37 @@ import {
   setActiveConfigId,
   type PlanConfigDetail,
 } from '../data/planConfigStore';
-import { configIndustryKey } from '../data/planConfigGridData';
+import {
+  configIndustryKey,
+  buildOotbAccountPlanningDetail,
+  OOTB_ACCOUNT_PLANNING_CONFIG_ID,
+} from '../data/planConfigGridData';
 
 /** Sample values for the top-level dimension dropdown, based on the level name. */
 function sampleValuesForLevel(levelName: string): string[] {
   const n = levelName.toLowerCase();
-  if (/region/.test(n)) return ['North America', 'Europe', 'Asia Pacific', 'Latin America'];
-  if (/country/.test(n)) return ['United States', 'Germany', 'Japan', 'Brazil'];
-  if (/global|account group|^account$|^accounts$/.test(n)) return ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech'];
-  if (/division/.test(n)) return ['Light Trucks', 'Heavy Trucks', 'Passenger Cars'];
-  if (/plant/.test(n)) return ['Midwest Assembly', 'Southwest Stamping', 'Northeast Fabrication'];
-  if (/territory/.test(n)) return ['West', 'Central', 'East'];
-  if (/category|program/.test(n)) return ['Powertrain', 'Electronics', 'Chassis'];
-  if (/brand/.test(n)) return ['Brand A', 'Brand B', 'Brand C'];
-  if (/product|sku|part|variant/.test(n)) return ['SKU-100', 'SKU-200', 'SKU-300'];
-  return [`${levelName} 1`, `${levelName} 2`, `${levelName} 3`];
+  if (/region/.test(n)) return ['North America', 'Europe', 'Asia Pacific', 'Latin America', 'Middle East & Africa', 'Greater China'];
+  if (/country/.test(n)) return ['United States', 'Germany', 'Japan', 'Brazil', 'United Kingdom', 'India'];
+  if (/global|account group|^account$|^accounts$/.test(n)) return ['Acme Partners', 'MagnaDrive', 'Globex', 'Initech', 'Vandelay Industries', 'Hooli'];
+  if (/division/.test(n)) return ['Light Trucks', 'Heavy Trucks', 'Passenger Cars', 'Commercial Vans', 'Electric Vehicles', 'Powertrain Systems'];
+  if (/plant/.test(n)) return ['Midwest Assembly', 'Southwest Stamping', 'Northeast Fabrication', 'Gulf Coast Assembly', 'Great Lakes Plant', 'Pacific Assembly'];
+  if (/territory/.test(n)) return ['West', 'Central', 'East', 'Northeast', 'Southeast', 'Northwest'];
+  if (/category|program/.test(n)) return ['Powertrain', 'Electronics', 'Chassis', 'Interior', 'Safety Systems', 'Infotainment'];
+  if (/brand/.test(n)) return ['Brand A', 'Brand B', 'Brand C', 'Brand D', 'Brand E', 'Brand F'];
+  if (/product|sku|part|variant/.test(n)) return ['SKU-100', 'SKU-200', 'SKU-300', 'SKU-400', 'SKU-500', 'SKU-600'];
+  return Array.from({ length: 6 }, (_, i) => `${levelName} ${i + 1}`);
 }
+
+/** IDs of the built-in (out-of-the-box) plan configs. For these, the top-level
+ *  dropdown offers realistic sample values (e.g. "MagnaDrive"); custom configs
+ *  offer level-name-based values (e.g. "Account Group 1") instead. */
+const BUILTIN_CONFIG_IDS = new Set([
+  OOTB_ACCOUNT_PLANNING_CONFIG_ID,
+  'template-1',
+  'template-2',
+  'plan-view-3a',
+  'plan-view-3b',
+]);
 
 /** Human-readable hierarchy summary for a plan config: the topmost hierarchy's
  *  dimension + its topmost enabled level, then the next hierarchy's dimension.
@@ -936,8 +952,9 @@ const PlanningForecastingListPage: React.FC = () => {
   const planConfigComboboxRef = useRef<HTMLDivElement>(null);
 
   // Top-level dimension selection (appears once a Plan Configuration is chosen).
-  // Its label/options come from the config's first enabled level.
-  const [l1Account, setL1Account] = useState<string>('');
+  // Its label/options come from the config's first enabled level. Multi-select:
+  // whatever is picked here becomes the first-level rows on the grid.
+  const [l1Accounts, setL1Accounts] = useState<string[]>([]);
 
   // Success toast shown after a plan config is created
   const [showCreateToast, setShowCreateToast] = useState<boolean>(false);
@@ -957,15 +974,17 @@ const PlanningForecastingListPage: React.FC = () => {
   // builder) first, then the built-in templates. Re-read when the modal opens so
   // freshly-created configs appear.
   const planConfigOptions = useMemo(() => {
-    const builtins = [
-      { id: 'template-1', name: 'ABCplanConfig' },
-      { id: 'template-2', name: 'Manufacturing Accounts Forecast' },
-      { id: 'plan-view-3a', name: 'RMPlanConfig' },
-      { id: 'plan-view-3b', name: 'RMForecastConfig' },
-    ].map((b) => ({
-      ...b,
-      meta: metaForConfigDetail(builtinConfigDetail(b.id, b.name).levels),
-    }));
+    // The OOTB Account Planning template is derived live from the current
+    // hierarchies + measures, so it always leads the list and reflects any edits.
+    const ootb = {
+      id: OOTB_ACCOUNT_PLANNING_CONFIG_ID,
+      name: 'Account Planning',
+      meta: metaForConfigDetail(buildOotbAccountPlanningDetail().levels),
+    };
+    // Only the OOTB "Account Planning" template is offered here so the Create Plan
+    // template list matches the consolidated Plan Configuration list. User-saved
+    // configs are listed above it.
+    const builtins = [ootb];
     const builtinIds = new Set(builtins.map((b) => b.id));
     const saved = loadPlanConfigDetails()
       .filter((d) => !builtinIds.has(d.id))
@@ -984,6 +1003,9 @@ const PlanningForecastingListPage: React.FC = () => {
   // Resolve a full config detail for the selected option. Saved configs come from
   // the store; built-in templates get a sensible default so they still render.
   const resolveConfigDetail = useCallback((optionId: string, optionName: string): PlanConfigDetail => {
+    // Always re-derive the OOTB template from live hierarchies + measures so a new
+    // plan reflects the latest customizations (never a stale saved snapshot).
+    if (optionId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return buildOotbAccountPlanningDetail();
     const stored = getPlanConfigDetail(optionId);
     if (stored) return stored;
     return builtinConfigDetail(optionId, optionName);
@@ -995,9 +1017,16 @@ const PlanningForecastingListPage: React.FC = () => {
     [selectedPlanConfig, resolveConfigDetail]
   );
   const firstLevelName = selectedConfigDetail?.levels[0]?.name || 'L1 Accounts';
+  // Built-in configs offer realistic sample values (MagnaDrive, etc.); custom
+  // configs offer level-name-based values (e.g. "Account Group 1"). Either way,
+  // the chosen values render as the first-level rows on the grid.
+  const isBuiltinConfig = selectedPlanConfig ? BUILTIN_CONFIG_IDS.has(selectedPlanConfig.id) : false;
   const firstLevelOptions = useMemo(
-    () => sampleValuesForLevel(firstLevelName),
-    [firstLevelName]
+    () =>
+      isBuiltinConfig
+        ? sampleValuesForLevel(firstLevelName)
+        : Array.from({ length: 6 }, (_, i) => `${firstLevelName} ${i + 1}`),
+    [firstLevelName, isBuiltinConfig]
   );
   
   // Update dropdown position when it opens. The modal can shift horizontally
@@ -1078,6 +1107,12 @@ const PlanningForecastingListPage: React.FC = () => {
       setPlanConfigSearchTerm('');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newRecord.planTemplate]);
+
+  // Clear the top-level selection when the chosen config changes, since the
+  // available options (and their labels) come from the new config's first level.
+  useEffect(() => {
+    setL1Accounts([]);
   }, [newRecord.planTemplate]);
   
   // Filter plan config options based on search - show all if search is empty
@@ -1343,7 +1378,7 @@ const PlanningForecastingListPage: React.FC = () => {
     setPlanConfigSearchTerm('');
     setPlanConfigDropdownOpen(false);
     setPlanConfigDropdownPosition(null);
-    setL1Account('');
+    setL1Accounts([]);
     setWeekStartDropdownOpen(false);
     setWeekEndDropdownOpen(false);
     setWeekStartDropdownPosition(null);
@@ -2137,17 +2172,12 @@ const PlanningForecastingListPage: React.FC = () => {
                   <div className="list-page-modal-row">
                     <div className="list-page-modal-field list-page-modal-field-full">
                       <label className="list-page-modal-label">{firstLevelName}:</label>
-                      <select
-                        className="list-page-modal-select"
-                        value={l1Account}
-                        onChange={(e) => setL1Account(e.target.value)}
-                        style={!l1Account ? { color: 'var(--slds-g-color-neutral-base-60)' } : {}}
-                      >
-                        <option value="">{`Select ${firstLevelName}`}</option>
-                        {firstLevelOptions.map((val) => (
-                          <option key={val} value={val}>{val}</option>
-                        ))}
-                      </select>
+                      <SearchableMultiSelect
+                        options={firstLevelOptions}
+                        selected={l1Accounts}
+                        onChange={setL1Accounts}
+                        placeholder={`Select ${firstLevelName}`}
+                      />
                     </div>
                   </div>
                 )}
@@ -2166,11 +2196,18 @@ const PlanningForecastingListPage: React.FC = () => {
                   setSelectedValues(new Set());
                   // Render the grid for the selected plan configuration.
                   if (selectedConfigDetail) {
-                    // Ensure the full config is persisted (built-in templates included)
-                    // so /grid can resolve it, then switch the industry to the config key.
-                    savePlanConfigDetail(selectedConfigDetail);
-                    setActiveConfigId(selectedConfigDetail.id);
-                    setIndustry(configIndustryKey(selectedConfigDetail.id));
+                    // Persist the config with the chosen top-level values so /grid
+                    // renders exactly the account groups (etc.) the user selected;
+                    // fall back to the config's defaults when nothing is picked.
+                    const detailToSave: PlanConfigDetail = {
+                      ...selectedConfigDetail,
+                      topLevelValues: l1Accounts.length ? l1Accounts : undefined,
+                      duration: newRecord.duration || undefined,
+                      planningPeriod: newRecord.planningPeriod || undefined,
+                    };
+                    savePlanConfigDetail(detailToSave);
+                    setActiveConfigId(detailToSave.id);
+                    setIndustry(configIndustryKey(detailToSave.id));
                     navigate('/grid');
                   } else {
                     setShowCreateToast(true);

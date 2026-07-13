@@ -67,7 +67,7 @@ function App() {
             <Route path="/setup/plan-config-creator" element={<PlanConfigCreatorPage />} />
             <Route path="/setup/dimensions-and-hierarchies" element={<DimensionsAndHierarchiesPage />} />
             <Route path="/grid" element={<GridPage />} />
-            <Route path="/" element={<Navigate to={homeRoute} replace />} />
+            <Route path="/" element={<Navigate to="/setup/salesforce-go" replace />} />
           </Routes>
         </Router>
         </AgentforceProvider>

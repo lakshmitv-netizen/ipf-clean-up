@@ -5,8 +5,8 @@ import type {
   Hierarchy,
   TimeGranularities,
 } from '../data/planConfigData';
-import AccessControlModal from './AccessControlModal';
-import type { PlanConfigLevel, PlanConfigMeasureLite, PlanConfigSubset } from '../data/planConfigStore';
+import MeasureToast from './MeasureToast';
+import type { PlanConfigLevel, PlanConfigMeasureLite, PlanConfigSubset, PlanConfigDetail } from '../data/planConfigStore';
 import '../styles/components/PlanningGridConfig.css';
 
 const imgCloseIcon = "data:image/svg+xml,%3Csvg width='24' height='24' viewBox='0 0 24 24' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M18 6L6 18M6 6l12 12' stroke='%23666' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E";
@@ -73,6 +73,9 @@ export interface PlanningGridConfigProps {
   measureSubsets?: MeasureSubset[];
   setMeasureSubsets?: React.Dispatch<React.SetStateAction<MeasureSubset[]>>;
   timeGranularities: TimeGranularities;
+  /** When provided, the builder opens pre-populated with this config's selected
+   *  hierarchies/levels and measures (used when opening an existing config). */
+  initialConfig?: PlanConfigDetail | null;
 }
 
 export default function PlanningGridConfig({
@@ -84,16 +87,22 @@ export default function PlanningGridConfig({
   measureSubsets: propMeasureSubsets,
   setMeasureSubsets: propSetMeasureSubsets,
   timeGranularities,
+  initialConfig,
 }: PlanningGridConfigProps) {
   const [selectedComponentTab, setSelectedComponentTab] = useState<'Dimensions' | 'Measures'>('Dimensions');
-  const [hasSavedOnce, setHasSavedOnce] = useState(false);
   const [isAssignToModalOpen, setIsAssignToModalOpen] = useState(false);
+  const [isRolesDropdownOpen, setIsRolesDropdownOpen] = useState(false);
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [showAssignToast, setShowAssignToast] = useState(false);
+  const [measureCreatedToast, setMeasureCreatedToast] = useState<string | null>(null);
+  const rolesDropdownRef = React.useRef<HTMLDivElement>(null);
+  const assignableRoles = ['Key Account Manager', 'Regional Director', 'Account Director'];
   const [isAddMeasuresModalOpen, setIsAddMeasuresModalOpen] = useState(false);
 
   // Get available subsets from props, initialize with default if empty
   const availableSubsets = propMeasureSubsets || [];
 
-  const [measureSubsets, setMeasureSubsets] = useState<LocalSubset[]>([{ id: 'default-subset', name: 'Default Subset' }]);
+  const [measureSubsets, setMeasureSubsets] = useState<LocalSubset[]>([{ id: 'default-subset', name: 'Default Category' }]);
   const [selectedSubsetId, setSelectedSubsetId] = useState<string | number>('default-subset');
   // When set, the Properties column shows measures for this category instead of
   // the selected subset. Null means a subset is selected.
@@ -114,8 +123,6 @@ export default function PlanningGridConfig({
   const [selectedCreateMeasureType, setSelectedCreateMeasureType] = useState<string | null>(null);
   const [selectedSubsetsForNewMeasure, setSelectedSubsetsForNewMeasure] = useState<Array<string | number>>(['default-subset']);
   const [showCreateSubsetDropdown, setShowCreateSubsetDropdown] = useState(false);
-  const [measureTypeSearchTerm, setMeasureTypeSearchTerm] = useState('');
-  const [showMeasureTypeOptions, setShowMeasureTypeOptions] = useState(false);
   const [newMeasureFormValues, setNewMeasureFormValues] = useState<NewMeasureForm>({
     measureName: '',
     description: '',
@@ -210,6 +217,49 @@ export default function PlanningGridConfig({
   // Default enabled-levels for a hierarchy: first 4 levels on.
   const defaultEnabled = (h: Hierarchy): boolean[] => h.levels.map((_, i) => i < 4);
   const getEnabledFor = (h?: Hierarchy): boolean[] => (h ? enabledLevels[h.id] ?? defaultEnabled(h) : []);
+
+  // Seed the builder from an incoming config (opening an existing config): select
+  // the account/product hierarchies, enable exactly the config's levels, and
+  // pre-check the config's measures in the default subset. Runs once on mount.
+  const seededRef = React.useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !initialConfig) return;
+    if (!hierarchiesData.length) return;
+    seededRef.current = true;
+
+    const dimOf = (hierarchy: string): 'Account' | 'Product' =>
+      /product/i.test(hierarchy) ? 'Product' : 'Account';
+
+    const dimsInOrder: string[] = [];
+    initialConfig.levels.forEach((lvl) => {
+      const dim = dimOf(lvl.hierarchy);
+      if (!dimsInOrder.includes(dim)) dimsInOrder.push(dim);
+    });
+
+    const hByDim: Record<string, string> = {};
+    const enabledByHid: Record<string, boolean[]> = {};
+    dimsInOrder.forEach((dim) => {
+      const h = hierarchiesData.find((x) => x.dimension === dim);
+      if (!h) return;
+      hByDim[dim] = h.id;
+      const wanted = new Set(
+        initialConfig.levels.filter((l) => dimOf(l.hierarchy) === dim).map((l) => l.name),
+      );
+      enabledByHid[h.id] = h.levels.map((lvl) => wanted.has(lvl.name));
+    });
+
+    if (dimsInOrder.length) {
+      setSelectedRowDimensions(dimsInOrder);
+      setSelectedRowDimension(dimsInOrder[0]);
+      setHierarchyByDim(hByDim);
+      setEnabledLevels(enabledByHid);
+    }
+
+    const wantedMeasures = new Set(initialConfig.measures.map((m) => m.name));
+    const ids = measuresData.filter((m) => wantedMeasures.has(m.name)).map((m) => m.id);
+    if (ids.length) setSelectedMeasuresBySubset({ 'default-subset': ids });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialConfig, hierarchiesData, measuresData]);
 
   // Select the hierarchy remembered for this dimension (or default to the first),
   // so switching Account/Product tabs keeps each dimension's own selection.
@@ -338,7 +388,6 @@ export default function PlanningGridConfig({
   // Save directly (no intermediate "Save Configuration" modal). Matches the
   // parag IPF_Shell setup flow: clicking Save persists and returns to the list.
   const handleSave = () => {
-    setHasSavedOnce(true);
     if (onBack) {
       onBack({ name: title || '', description: '', detail: buildConfigDetail() });
     }
@@ -533,16 +582,6 @@ export default function PlanningGridConfig({
   const areAllFilteredMeasuresSelected =
     hasFilteredMeasures &&
     filteredMeasures.every((measure) => selectedMeasureIdsForSubset.includes(measure.id));
-  const shouldUseMeasureTypeCombobox = availableMeasureTypes.length >= 8;
-  const filteredMeasureTypeOptions = availableMeasureTypes.filter((typeOption) =>
-    typeOption.title.toLowerCase().includes(measureTypeSearchTerm.trim().toLowerCase())
-  );
-  const canCreateMeasure = Boolean(
-    selectedCreateMeasureType &&
-      newMeasureFormValues.measureName.trim() &&
-      newMeasureFormValues.measureCode.trim() &&
-      selectedSubsetsForNewMeasure.length > 0
-  );
   const getCategoryClassName = (category: string) => {
     const normalizedCategory = category.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     return `measure-category-badge measure-category-${normalizedCategory}`;
@@ -576,8 +615,8 @@ export default function PlanningGridConfig({
         .map((id) => measuresData.find((m) => m.id === id))
         .filter((m): m is Measure => !!m && m.category === selectedConfigCategory)
     : selectedMeasuresForSubset;
-  const propertiesHeadingLabel = selectedConfigCategory ? 'Selected Category' : 'Selected Subset';
-  const propertiesHeadingValue = selectedConfigCategory || selectedSubset?.name || 'Default Subset';
+  const propertiesHeadingLabel = selectedConfigCategory ? 'Selected Category' : 'Selected Category';
+  const propertiesHeadingValue = selectedConfigCategory || selectedSubset?.name || 'Default Category';
 
   const handleSubsetDrop = (targetSubsetId: string | number) => {
     if (!draggedSubsetId || draggedSubsetId === targetSubsetId) return;
@@ -600,10 +639,8 @@ export default function PlanningGridConfig({
 
   const handleOpenCreateMeasureTypeView = () => {
     setShowCreateMeasureTypeView(true);
-    setSelectedCreateMeasureType(null);
+    setSelectedCreateMeasureType(availableMeasureTypes[0]?.id ?? 'Read only');
     setSelectedSubsetsForNewMeasure([selectedSubsetId]);
-    setMeasureTypeSearchTerm('');
-    setShowMeasureTypeOptions(false);
     setShowCreateSubsetDropdown(false);
   };
 
@@ -624,29 +661,38 @@ export default function PlanningGridConfig({
   };
 
   const handleCreateMeasure = () => {
-    if (!canCreateMeasure) {
+    const measureName = newMeasureFormValues.measureName.trim();
+    if (!measureName) {
       return;
     }
     const nextMeasureId = Date.now();
+    const measureCode =
+      newMeasureFormValues.measureCode.trim() ||
+      `M_${measureName.replace(/[^a-zA-Z0-9]+/g, '_').toUpperCase().slice(0, 12)}`;
     const createdMeasure: Measure = {
       id: nextMeasureId,
-      name: newMeasureFormValues.measureName.trim(),
-      description: newMeasureFormValues.description.trim() || newMeasureFormValues.measureName.trim(),
+      name: measureName,
+      description: newMeasureFormValues.description.trim() || measureName,
       type: selectedCreateMeasureType || 'Read',
-      sourceDmo: newMeasureFormValues.measureCode.trim(),
-      code: newMeasureFormValues.measureCode.trim(),
+      sourceDmo: measureCode,
+      code: measureCode,
       aggregation: newMeasureFormValues.aggregationRule || 'SUM',
       disaggregation: newMeasureFormValues.writebackEnabled ? 'Editable' : 'Proportional',
-      category: 'Custom',
+      category: newMeasureFormValues.valueType.trim() || 'Custom',
     };
 
     // Update measures data - add to beginning of array
     setMeasuresData((prev) => [createdMeasure, ...prev]);
 
-    // Add to selected subsets
+    // Add the new measure as a line item inside the selected subsets, falling
+    // back to the currently selected subset / default subset.
+    const targetSubsetIds =
+      selectedSubsetsForNewMeasure.length > 0
+        ? selectedSubsetsForNewMeasure
+        : [selectedSubsetId ?? 'default-subset'];
     setSelectedMeasuresBySubset((prev) => {
       const next = { ...prev };
-      selectedSubsetsForNewMeasure.forEach((subsetId) => {
+      targetSubsetIds.forEach((subsetId) => {
         const current = next[subsetId] || [];
         next[subsetId] = [nextMeasureId, ...current];
       });
@@ -663,14 +709,15 @@ export default function PlanningGridConfig({
     // Force table re-render
     setMeasureTableKey((prev) => prev + 1);
 
+    // Surface a success toast for the newly created measure
+    setMeasureCreatedToast(measureName);
+
     // Close the create view
     setShowCreateMeasureTypeView(false);
 
     // Reset create form state
     setSelectedCreateMeasureType(null);
     setSelectedSubsetsForNewMeasure([selectedSubsetId]);
-    setMeasureTypeSearchTerm('');
-    setShowMeasureTypeOptions(false);
     setShowCreateSubsetDropdown(false);
 
     // Reset form values
@@ -745,6 +792,42 @@ export default function PlanningGridConfig({
     });
   };
 
+  // Assign To is enabled once the configuration is valid: both Account and
+  // Product row dimensions are present and at least one measure is selected.
+  const canAssign =
+    selectedRowDimensions.includes('Account') &&
+    selectedRowDimensions.includes('Product') &&
+    allSelectedMeasureIds.length > 0;
+
+  const toggleRoleSelection = (roleName: string) => {
+    setSelectedRoles((prev) =>
+      prev.includes(roleName)
+        ? prev.filter((role) => role !== roleName)
+        : [...prev, roleName]
+    );
+  };
+
+  const handleCloseAssignModal = () => {
+    setIsAssignToModalOpen(false);
+    setIsRolesDropdownOpen(false);
+  };
+
+  const handleAssign = () => {
+    setShowAssignToast(true);
+    handleCloseAssignModal();
+  };
+
+  useEffect(() => {
+    if (!isRolesDropdownOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (rolesDropdownRef.current && !rolesDropdownRef.current.contains(event.target as Node)) {
+        setIsRolesDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isRolesDropdownOpen]);
+
   return (
     <div className="planning-grid-config">
       {/* Page Header */}
@@ -753,14 +836,14 @@ export default function PlanningGridConfig({
         <div className="planning-grid-header-actions">
           <div className="planning-grid-assign-wrapper">
             <button
-              className={`planning-grid-button ${hasSavedOnce ? 'planning-grid-button-neutral' : 'planning-grid-button-disabled'}`}
-              disabled={!hasSavedOnce}
+              className={`planning-grid-button ${canAssign ? 'planning-grid-button-neutral' : 'planning-grid-button-disabled'}`}
+              disabled={!canAssign}
               onClick={() => setIsAssignToModalOpen(true)}
               type="button"
             >
               Assign To
             </button>
-            {!hasSavedOnce && (
+            {!canAssign && (
               <div className="planning-grid-assign-tooltip" role="tooltip">
                 Add Account and Product dimensions, and at least one measure, before assigning this configuration.
               </div>
@@ -872,9 +955,9 @@ export default function PlanningGridConfig({
             ) : (
               <div className="planning-grid-components-content">
                 <div className="planning-grid-section">
-                  <h4 className="planning-grid-section-title">Selected Subsets</h4>
+                  <h4 className="planning-grid-section-title">Selected Categories</h4>
                   <p className="planning-grid-section-description planning-grid-subset-helper-text">
-                    Measures can be grouped into subsets. Use Manage Measures to add measures and organize subsets.
+                    Measures can be grouped into categories. Use Manage Measures to add measures and organize categories.
                   </p>
                 </div>
 
@@ -992,7 +1075,7 @@ export default function PlanningGridConfig({
                   <img src={imgMeasuresEmptyState} alt="" className="planning-grid-empty-state-image" />
                   <h4 className="planning-grid-empty-state-title">No measures yet</h4>
                   <p className="planning-grid-empty-state-description">
-                    Add measures to Default Subset, or create subsets to group them on the grid.
+                    Add measures to Default Category, or create categories to group them on the grid.
                   </p>
                   <button
                     type="button"
@@ -1188,17 +1271,17 @@ export default function PlanningGridConfig({
                 <div className="planning-grid-add-measures-left">
                   <div className="planning-grid-step-header">
                     <div className="planning-grid-step-header-text">
-                      <h4>Manage Subsets</h4>
-                      <p>Select an existing subset or create a new one.</p>
+                      <h4>Manage Categories</h4>
+                      <p>Select an existing category or create a new one.</p>
                     </div>
                   </div>
 
                   <div className="planning-grid-subset-inputs">
-                    <label>Add measure subset</label>
+                    <label>Add measure category</label>
                     <div className="planning-grid-subset-input-row" style={{ position: 'relative' }}>
                       <input
                         type="text"
-                        placeholder="Search or create subset..."
+                        placeholder="Search or create category..."
                         value={subsetNameInput}
                         onChange={(e) => {
                           setSubsetNameInput(e.target.value);
@@ -1216,7 +1299,7 @@ export default function PlanningGridConfig({
                         type="button"
                         onClick={handleCreateSubset}
                         disabled={!canCreateNew}
-                        aria-label="Add measure subset"
+                        aria-label="Add measure category"
                         style={{ cursor: canCreateNew ? 'pointer' : 'not-allowed' }}
                       >
                         +
@@ -1325,7 +1408,7 @@ export default function PlanningGridConfig({
                       <div className="planning-grid-step-header planning-grid-select-measures-header">
                         <div>
                           <h4>Select Measures</h4>
-                          <p>Selections are saved to the selected subset only.</p>
+                          <p>Selections are saved to the selected category only.</p>
                         </div>
                         <button
                           type="button"
@@ -1337,63 +1420,78 @@ export default function PlanningGridConfig({
                       </div>
 
                       <div className="planning-grid-measure-toolbar">
-                        <div className="planning-grid-measure-search">
-                          <img src={imgSearchSmall} alt="" />
-                          <input
-                            type="text"
-                            placeholder="Search by name, description..."
-                            value={measureSearchTerm}
-                            onChange={(e) => setMeasureSearchTerm(e.target.value)}
-                          />
+                        <div className="planning-grid-filter-field">
+                          <span className="planning-grid-filter-label">Search</span>
+                          <div className="planning-grid-measure-search">
+                            <img src={imgSearchSmall} alt="" />
+                            <input
+                              type="text"
+                              placeholder="Search by name, description..."
+                              value={measureSearchTerm}
+                              onChange={(e) => setMeasureSearchTerm(e.target.value)}
+                            />
+                          </div>
                         </div>
-                        <label className="planning-grid-measure-filter-wrap">
-                          <select
-                            className="planning-grid-measure-filter"
-                            value={measureTypeFilter}
-                            onChange={(e) => setMeasureTypeFilter(e.target.value)}
-                          >
-                            {measureTypeOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                          <img src={imgDropdownSmall} alt="" />
-                        </label>
-                        <label className="planning-grid-measure-filter-wrap">
-                          <select
-                            className="planning-grid-measure-filter"
-                            value={measureAggregationFilter}
-                            onChange={(e) => setMeasureAggregationFilter(e.target.value)}
-                          >
-                            {measureAggregationOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                          <img src={imgDropdownSmall} alt="" />
-                        </label>
-                        <label className="planning-grid-measure-filter-wrap">
-                          <select
-                            className="planning-grid-measure-filter"
-                            value={measureDisaggregationFilter}
-                            onChange={(e) => setMeasureDisaggregationFilter(e.target.value)}
-                          >
-                            {measureDisaggregationOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                          <img src={imgDropdownSmall} alt="" />
-                        </label>
-                        <label className="planning-grid-measure-filter-wrap">
-                          <select
-                            className="planning-grid-measure-filter"
-                            value={measureCategoryFilter}
-                            onChange={(e) => setMeasureCategoryFilter(e.target.value)}
-                          >
-                            {measureCategoryOptions.map((option) => (
-                              <option key={option} value={option}>{option}</option>
-                            ))}
-                          </select>
-                          <img src={imgDropdownSmall} alt="" />
-                        </label>
+                        <div className="planning-grid-filter-field">
+                          <span className="planning-grid-filter-label">Type</span>
+                          <label className="planning-grid-measure-filter-wrap">
+                            <select
+                              className="planning-grid-measure-filter"
+                              value={measureTypeFilter}
+                              onChange={(e) => setMeasureTypeFilter(e.target.value)}
+                            >
+                              {measureTypeOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                            <img src={imgDropdownSmall} alt="" />
+                          </label>
+                        </div>
+                        <div className="planning-grid-filter-field">
+                          <span className="planning-grid-filter-label">Aggregation</span>
+                          <label className="planning-grid-measure-filter-wrap">
+                            <select
+                              className="planning-grid-measure-filter"
+                              value={measureAggregationFilter}
+                              onChange={(e) => setMeasureAggregationFilter(e.target.value)}
+                            >
+                              {measureAggregationOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                            <img src={imgDropdownSmall} alt="" />
+                          </label>
+                        </div>
+                        <div className="planning-grid-filter-field">
+                          <span className="planning-grid-filter-label">Disaggregation</span>
+                          <label className="planning-grid-measure-filter-wrap">
+                            <select
+                              className="planning-grid-measure-filter"
+                              value={measureDisaggregationFilter}
+                              onChange={(e) => setMeasureDisaggregationFilter(e.target.value)}
+                            >
+                              {measureDisaggregationOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                            <img src={imgDropdownSmall} alt="" />
+                          </label>
+                        </div>
+                        <div className="planning-grid-filter-field">
+                          <span className="planning-grid-filter-label">Category</span>
+                          <label className="planning-grid-measure-filter-wrap">
+                            <select
+                              className="planning-grid-measure-filter"
+                              value={measureCategoryFilter}
+                              onChange={(e) => setMeasureCategoryFilter(e.target.value)}
+                            >
+                              {measureCategoryOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                            <img src={imgDropdownSmall} alt="" />
+                          </label>
+                        </div>
                       </div>
 
                       <div className="planning-grid-table-controls">
@@ -1463,11 +1561,11 @@ export default function PlanningGridConfig({
                       </div>
                     </>
                   ) : (
-                    <div className="planning-grid-measure-type-selector">
+                    <div className="planning-grid-measure-type-selector planning-grid-create-measure-view">
                       <div className="planning-grid-step-header planning-grid-create-measure-step-header">
                         <div className="planning-grid-step-header-text planning-grid-create-measure-step-title">
                           <h4>Create Measure</h4>
-                          <p>Select a type first, then complete the form.</p>
+                          <p>Complete the form to create a new measure.</p>
                         </div>
                         <div className="planning-grid-create-header-actions">
                           <button
@@ -1481,125 +1579,15 @@ export default function PlanningGridConfig({
                             type="button"
                             className="edit-panel-text-button edit-panel-save-button"
                             onClick={handleCreateMeasure}
-                            disabled={!canCreateMeasure}
-                            style={{ opacity: canCreateMeasure ? 1 : 0.5, cursor: canCreateMeasure ? 'pointer' : 'not-allowed' }}
+                            style={{ cursor: 'pointer' }}
                           >
                             Save
                           </button>
                         </div>
                       </div>
 
-                      <div className="edit-form-field planning-grid-create-subset-field">
-                        <label className="edit-form-label" htmlFor="create-measure-subset-select">
-                          Created in subset
-                        </label>
-                        <div className="planning-grid-create-subset-multi-select">
-                          <button
-                            id="create-measure-subset-select"
-                            type="button"
-                            className="planning-grid-create-subset-multi-trigger"
-                            onClick={() => setShowCreateSubsetDropdown((prev) => !prev)}
-                            onBlur={() => setTimeout(() => setShowCreateSubsetDropdown(false), 150)}
-                          >
-                            <span>
-                              {selectedSubsetsForNewMeasure
-                                .map((subsetId) => measureSubsets.find((subset) => subset.id === subsetId)?.name)
-                                .filter(Boolean)
-                                .join(', ')}
-                            </span>
-                            <img src={imgDropdownSmall} alt="" />
-                          </button>
-                          {showCreateSubsetDropdown && (
-                            <div className="planning-grid-create-subset-multi-menu">
-                              {measureSubsets.map((subset) => (
-                                <label key={subset.id} className="planning-grid-create-subset-multi-option">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedSubsetsForNewMeasure.includes(subset.id)}
-                                    onChange={() => toggleCreateSubsetSelection(subset.id)}
-                                  />
-                                  <span>{subset.name}</span>
-                                </label>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="edit-form-field planning-grid-create-type-field">
-                        <label className="edit-form-label">Select type of measure you want to create</label>
-                      </div>
-
-                      {shouldUseMeasureTypeCombobox ? (
-                        <div className="planning-grid-measure-type-combobox-wrap">
-                          <label className="planning-grid-measure-type-combobox-label" htmlFor="measure-type-combobox-input">
-                            Measure Type
-                          </label>
-                          <div className="planning-grid-measure-type-combobox">
-                            <input
-                              id="measure-type-combobox-input"
-                              type="text"
-                              value={measureTypeSearchTerm}
-                              placeholder="Search measure type..."
-                              onFocus={() => setShowMeasureTypeOptions(true)}
-                              onBlur={() => setTimeout(() => setShowMeasureTypeOptions(false), 150)}
-                              onChange={(e) => {
-                                setMeasureTypeSearchTerm(e.target.value);
-                                setShowMeasureTypeOptions(true);
-                              }}
-                            />
-                            <img src={imgDropdownSmall} alt="" />
-                          </div>
-                          {showMeasureTypeOptions && (
-                            <div className="planning-grid-measure-type-options">
-                              {filteredMeasureTypeOptions.length === 0 ? (
-                                <div className="planning-grid-measure-type-option-empty">No measure types found</div>
-                              ) : (
-                                filteredMeasureTypeOptions.map((typeOption) => (
-                                  <button
-                                    key={typeOption.id}
-                                    type="button"
-                                    className={`planning-grid-measure-type-option ${selectedCreateMeasureType === typeOption.id ? 'active' : ''}`}
-                                    onClick={() => {
-                                      setSelectedCreateMeasureType(typeOption.id);
-                                      setMeasureTypeSearchTerm(typeOption.title);
-                                      setShowMeasureTypeOptions(false);
-                                    }}
-                                  >
-                                    <span>{typeOption.icon}</span>
-                                    <span>{typeOption.title}</span>
-                                  </button>
-                                ))
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="planning-grid-measure-type-cards">
-                          {availableMeasureTypes.map((typeOption) => (
-                            <button
-                              key={typeOption.id}
-                              type="button"
-                              className={`planning-grid-measure-type-card ${selectedCreateMeasureType === typeOption.id ? 'active' : ''}`}
-                              onClick={() => setSelectedCreateMeasureType(typeOption.id)}
-                            >
-                              <span className="planning-grid-measure-type-icon">{typeOption.icon}</span>
-                              <div className="planning-grid-measure-type-content">
-                                <div className="planning-grid-measure-type-title">{typeOption.title}</div>
-                                <div className="planning-grid-measure-type-description">
-                                  This is a new potential customer not a part of the system yet
-                                </div>
-                              </div>
-                              {selectedCreateMeasureType === typeOption.id && (
-                                <span className="planning-grid-measure-type-check">✓</span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {selectedCreateMeasureType ? (
-                        <div className="planning-grid-create-measure-form">
+                      <div className="planning-grid-create-measure-form measures-new-measure-content">
+                        <div className="edit-panel-body">
                           <div className="measure-section">
                             <h4 className="measure-section-title">Information</h4>
 
@@ -1618,11 +1606,8 @@ export default function PlanningGridConfig({
                               <label className="edit-form-label">* Measure Type</label>
                               <select
                                 className="edit-form-select"
-                                value={selectedCreateMeasureType}
-                                onChange={(e) => {
-                                  setSelectedCreateMeasureType(e.target.value);
-                                  setMeasureTypeSearchTerm(e.target.value);
-                                }}
+                                value={selectedCreateMeasureType || ''}
+                                onChange={(e) => setSelectedCreateMeasureType(e.target.value)}
                               >
                                 {availableMeasureTypes.map((typeOption) => (
                                   <option key={typeOption.id} value={typeOption.id}>
@@ -1748,12 +1733,49 @@ export default function PlanningGridConfig({
                               </div>
                             )}
                           </div>
+
+                          <div className="measure-section">
+                            <h4 className="measure-section-title">Add to Categories</h4>
+
+                            <div className="edit-form-field planning-grid-create-subset-field">
+                              <label className="edit-form-label" htmlFor="create-measure-subset-select">
+                                Select categories you want to add this measure to
+                              </label>
+                              <div className="planning-grid-create-subset-multi-select">
+                                <button
+                                  id="create-measure-subset-select"
+                                  type="button"
+                                  className="planning-grid-create-subset-multi-trigger"
+                                  onClick={() => setShowCreateSubsetDropdown((prev) => !prev)}
+                                  onBlur={() => setTimeout(() => setShowCreateSubsetDropdown(false), 150)}
+                                >
+                                  <span>
+                                    {selectedSubsetsForNewMeasure
+                                      .map((subsetId) => measureSubsets.find((subset) => subset.id === subsetId)?.name)
+                                      .filter(Boolean)
+                                      .join(', ')}
+                                  </span>
+                                  <img src={imgDropdownSmall} alt="" />
+                                </button>
+                                {showCreateSubsetDropdown && (
+                                  <div className="planning-grid-create-subset-multi-menu">
+                                    {measureSubsets.map((subset) => (
+                                      <label key={subset.id} className="planning-grid-create-subset-multi-option">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedSubsetsForNewMeasure.includes(subset.id)}
+                                          onChange={() => toggleCreateSubsetSelection(subset.id)}
+                                        />
+                                        <span>{subset.name}</span>
+                                      </label>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      ) : (
-                        <div className="planning-grid-create-measure-placeholder">
-                          Select a measure type to continue.
-                        </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1808,12 +1830,103 @@ export default function PlanningGridConfig({
         </div>
       )}
 
-      <AccessControlModal
-        open={isAssignToModalOpen}
-        onClose={() => setIsAssignToModalOpen(false)}
-        title="Access control settings"
-        primaryLabel="Save"
-      />
+      {isAssignToModalOpen && (
+        <div className="modal-overlay" onClick={handleCloseAssignModal}>
+          <div
+            className="modal-container modal-container-compact planning-view-assign-modal"
+            onClick={(e) => e.stopPropagation()}
+            style={{ width: '680px', maxWidth: '95vw' }}
+          >
+            <div className="modal-header">
+              <div className="modal-header-content">
+                <h2 className="modal-title">Assign Plan Configurations</h2>
+              </div>
+              <button className="modal-close-button" onClick={handleCloseAssignModal}>
+                <img src={imgCloseIcon} alt="Close" />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="modal-content planning-view-assign-modal-content">
+                <div className="planning-view-assign-field">
+                  <label className="planning-view-assign-label">
+                    Select roles you want to assign this plan config to
+                  </label>
+                  <div className="planning-view-role-dropdown" ref={rolesDropdownRef}>
+                    <button
+                      type="button"
+                      className="planning-view-role-dropdown-trigger"
+                      onClick={() => setIsRolesDropdownOpen((prev) => !prev)}
+                    >
+                      <span>
+                        {selectedRoles.length
+                          ? `${selectedRoles.length} role${selectedRoles.length > 1 ? 's' : ''} selected`
+                          : 'Select roles'}
+                      </span>
+                      <img src={imgDropdownSmall} alt="" />
+                    </button>
+                    {isRolesDropdownOpen && (
+                      <div className="planning-view-role-dropdown-menu">
+                        {assignableRoles.map((roleName) => (
+                          <label key={roleName} className="planning-view-role-dropdown-option">
+                            <input
+                              type="checkbox"
+                              checked={selectedRoles.includes(roleName)}
+                              onChange={() => toggleRoleSelection(roleName)}
+                            />
+                            <span>{roleName}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {selectedRoles.length > 0 && (
+                    <div className="planning-view-role-pill-list">
+                      {selectedRoles.map((roleName) => (
+                        <span key={roleName} className="planning-view-role-pill">
+                          {roleName}
+                          <button
+                            type="button"
+                            className="planning-view-role-pill-remove"
+                            onClick={() => toggleRoleSelection(roleName)}
+                            aria-label={`Remove ${roleName}`}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer-buttons" style={{ padding: '0 24px 20px' }}>
+              <button className="modal-cancel-button" onClick={handleCloseAssignModal}>
+                Cancel
+              </button>
+              <button className="modal-save-button" onClick={handleAssign}>
+                Assign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignToast && (
+        <MeasureToast
+          message="Assigned Successfully"
+          onClose={() => setShowAssignToast(false)}
+        />
+      )}
+
+      {measureCreatedToast && (
+        <MeasureToast
+          message="Measure Created Successfully"
+          description={`"${measureCreatedToast}" was added to the selected category.`}
+          onClose={() => setMeasureCreatedToast(null)}
+        />
+      )}
 
     </div>
   );

@@ -226,10 +226,10 @@
 /* Card wrapper that holds the create/edit form content, so the form sits in a
    contained card while the Cancel/Save actions live in the sticky modal footer. */
 .mh2-form-card {
-  background-color: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  padding: 20px;
+  background-color: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0 10px;
   margin: 0 12px 12px;
 }
 
@@ -301,7 +301,7 @@
 
 
 .mh2-manage-hierarchies-2-panel-right .mh2-manage-hierarchies-2-panel-header .mh2-manage-hierarchies-2-panel-title {
-  padding-left: 8px;
+  padding-left: 0px;
 }
 
 
@@ -316,8 +316,43 @@
 
 
 .mh2-manage-hierarchies-2-create-header-left {
+  position: relative;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  /* Left padding reserves room for the hanging back arrow; the "Back" label and
+     the title both align to this 34px edge (so "B" sits right above "E"). */
+  padding: 10px 0 10px 34px;
+}
+
+.mh2-manage-hierarchies-2-create-header-left .mh2-manage-hierarchies-2-back-button {
+  display: inline-block;
+  margin: 0;
+  padding: 0;
+  color: #0176d3;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.mh2-manage-hierarchies-2-create-header-left .mh2-manage-hierarchies-2-back-button:hover {
+  text-decoration: underline;
+}
+
+/* Hang the arrow to the left of the aligned text column (positioned against the
+   header-left container, not the button, so the "Back" label stays aligned). */
+.mh2-manage-hierarchies-2-create-header-left .mh2-back-arrow {
+  position: absolute;
+  left: 12px;
+  top: 10px;
+  font-size: 18px;
+  line-height: 1;
+  color: #0176d3;
+}
+
+.mh2-manage-hierarchies-2-create-header-left .mh2-manage-hierarchies-2-panel-title {
+  padding: 0;
+  line-height: 1.4;
 }
 
 
@@ -537,6 +572,14 @@
   background: none;
   padding: 0;
   font: inherit;
+  /* !important beats the global `:where(button) { color: inherit !important }`
+     reset in App.css so the link stays blue. */
+  color: #0176d3 !important;
+  cursor: pointer;
+}
+
+.mh2-manage-hierarchies-2-link-button:hover {
+  text-decoration: underline;
 }
 
 
@@ -656,7 +699,7 @@
 
 
 .mh2-edit-panel-section-title {
-  padding: 6px 8px;
+  padding: 0;
 }
 
 
@@ -671,6 +714,7 @@
 .mh2-edit-panel-notification {
   display: flex;
   gap: 12px;
+  margin: 12px 0;
   padding: 10px 12px;
   background-color: #e8f4f8;
   border: 1px solid #1b96c9;
@@ -693,6 +737,24 @@
   color: #181818;
   margin: 0;
   line-height: 1.4;
+}
+
+.mh2-notification-clone-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 13px;
+  /* !important beats the global `:where(button) { font/color: inherit !important }`
+     reset in App.css so the link stays bold + blue. */
+  font-weight: 600 !important;
+  color: #0176d3 !important;
+  cursor: pointer;
+  text-decoration: underline;
+  line-height: 1.4;
+}
+
+.mh2-notification-clone-link:hover {
+  text-decoration: underline;
 }
 
 
@@ -790,6 +852,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  transform: rotate(90deg);
 }
 
 

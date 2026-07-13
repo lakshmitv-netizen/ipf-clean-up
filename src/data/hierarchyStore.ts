@@ -25,36 +25,45 @@ export type HierarchyRow = {
   dataStatus?: string;
 };
 
-/* Level-name pools used to build each hierarchy's level rows. */
-export const PRODUCT_LEVEL_NAMES = ['Category', 'Brand', 'Sub-Brand', 'SKU', 'Variant', 'Pack'];
-export const ACCOUNT_LEVEL_NAMES = ['Region', 'Country', 'Account Group', 'Account', 'Sub-Account', 'Territory'];
+/* Level-name pools used to build each hierarchy's level rows. Aligned to the OOTB
+   Account Planning template (discrete-manufacturing / B2B). */
+export const PRODUCT_LEVEL_NAMES = ['Company', 'Business Unit', 'Product Family', 'Commodity', 'Part'];
+export const ACCOUNT_LEVEL_NAMES = ['Global Account Group', 'Strategic Account Group', 'Segment', 'Sold-to', 'Ship-to'];
 
-// Bumped so any previously-seeded/test hierarchies are ignored and the Manage
-// Hierarchies modal starts empty ("No hierarchies created") on first load.
 export const HIERARCHY_STORAGE_KEY = 'cpm_hierarchies_v3';
 
-// Flag marking that the one-time reset below has already run. Once set, the live
-// key is left alone so user-created hierarchies persist across reloads.
-const HIERARCHY_RESET_FLAG = 'cpm_hierarchies_reset_v3';
-
-// Clean up legacy keys on every load, and wipe the live key exactly once so the
-// Manage Hierarchies modal starts genuinely empty ("No hierarchies created") —
-// even if a previous session persisted seed/test data to it. After this runs
-// once, anything the user creates is preserved.
-try {
-  localStorage.removeItem('cpm_hierarchies');
-  localStorage.removeItem('cpm_hierarchies_v2');
-  if (!localStorage.getItem(HIERARCHY_RESET_FLAG)) {
-    localStorage.removeItem('cpm_hierarchies_v3');
-    localStorage.setItem(HIERARCHY_RESET_FLAG, '1');
-  }
-} catch {
-  /* localStorage unavailable */
-}
-
-// No hierarchies are seeded by default — the user creates them via the
-// "Create New" flow, and they then persist for the Plan Configuration builder.
-export const HIERARCHY_ROWS: HierarchyRow[] = [];
+// OOTB (out-of-the-box) hierarchy seed. This is the immutable default the app
+// falls back to whenever localStorage is empty — i.e. on every fresh load, since
+// the session-reset bootstrap clears the working keys. Edits made during a
+// session are written to localStorage (see saveHierarchyRows) and stay connected
+// across the setup page and the Plan Configuration builder until the next
+// refresh, which restores this default.
+export const HIERARCHY_ROWS: HierarchyRow[] = [
+  {
+    id: 'ootb-account-sales',
+    name: 'Account Sales Hierarchy',
+    active: true,
+    dim: 'Account',
+    levels: 5,
+    status: 'ok',
+    sync: '12/05/2026, 10:30 AM',
+    levelNames: ['Global Account Group', 'Strategic Account Group', 'Segment', 'Sold-to', 'Ship-to'],
+    createdOn: 'Out of the box',
+    dataStatus: 'Sync Successful',
+  },
+  {
+    id: 'ootb-product-sales',
+    name: 'Product Sales Hierarchy',
+    active: true,
+    dim: 'Product',
+    levels: 5,
+    status: 'ok',
+    sync: '12/05/2026, 10:30 AM',
+    levelNames: ['Company', 'Business Unit', 'Product Family', 'Commodity', 'Part'],
+    createdOn: 'Out of the box',
+    dataStatus: 'Sync Successful',
+  },
+];
 
 /** Read the current hierarchy rows from localStorage, falling back to defaults. */
 export function loadHierarchyRows(): HierarchyRow[] {

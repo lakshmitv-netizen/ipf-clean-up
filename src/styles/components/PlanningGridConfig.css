@@ -281,9 +281,11 @@
   padding: 12px 16px;
   font-size: 13px;
   font-weight: 500;
-  color: #181818;
-  background-color: #f8f9fa;
-  border: 2px solid #e5e5e5;
+  /* !important overrides the global button reset in App.css
+     (:where(button) { border/background/color: none !important }). */
+  color: #181818 !important;
+  background-color: #f8f9fa !important;
+  border: 2px solid #e5e5e5 !important;
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -293,13 +295,13 @@
 }
 
 .planning-grid-default-dimension:hover {
-  background-color: #eef4ff;
-  border-color: #b6d7f7;
+  background-color: #eef4ff !important;
+  border-color: #b6d7f7 !important;
 }
 
 .planning-grid-default-dimension.active {
-  background-color: #eef4ff;
-  border-color: #0176d3;
+  background-color: #eef4ff !important;
+  border-color: #0176d3 !important;
   box-shadow: 0 0 0 1px #0176d3;
 }
 
@@ -552,13 +554,15 @@
   text-decoration: none;
 }
 
+/* SLDS brand button (filled blue). !important overrides the global button reset
+   in App.css (:where(button) { background/border/color: none !important }). */
 .planning-grid-empty-state-button {
   width: 100%;
   padding: 10px 16px;
-  background: white;
-  border: 1px solid #d8dde6;
+  background: #0176d3 !important;
+  border: 1px solid #0176d3 !important;
   border-radius: 4px;
-  color: #0176d3;
+  color: #fff !important;
   font-size: 13px;
   font-weight: 600;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -568,12 +572,13 @@
 }
 
 .planning-grid-empty-state-button:hover {
-  background: #f3f4f6;
-  border-color: #0176d3;
+  background: #014486 !important;
+  border-color: #014486 !important;
 }
 
 .planning-grid-empty-state-button:active {
-  background: #eef4ff;
+  background: #032d60 !important;
+  border-color: #032d60 !important;
   transform: scale(0.98);
 }
 
@@ -796,7 +801,7 @@
   max-height: 800px;
 }
 
-.planning-grid-add-measures-modal .modal-body {
+.planning-grid-config .modal-container.planning-grid-add-measures-modal .modal-body {
   padding: 0;
 }
 
@@ -813,8 +818,17 @@
 }
 
 .planning-grid-select-measures-header h4 {
-  font-size: 20px !important;
-  font-weight: 700 !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  color: #181818 !important;
+  margin: 0 0 2px 0 !important;
+}
+
+.planning-grid-select-measures-header p {
+  font-size: 13px;
+  font-weight: 400;
+  color: #5c5c5c;
+  margin: 0;
 }
 
 .planning-grid-create-measure-btn {
@@ -851,7 +865,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 24px;
+  padding: 12px 24px 24px;
   background-color: white;
   overflow: hidden;
 }
@@ -1093,47 +1107,63 @@
 
 .planning-grid-measure-toolbar {
   display: flex;
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 12px;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-end;
+}
+
+.planning-grid-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.planning-grid-filter-label {
+  font-size: 12px;
+  color: #5c5c5c;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .planning-grid-measure-search {
-  flex: 1;
-  min-width: 220px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  height: 32px;
+  padding: 6px 12px;
   background-color: white;
-  border: 1px solid #dddbda;
+  border: 1px solid #c9c9c9;
   border-radius: 4px;
 }
 
 .planning-grid-measure-search img {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   opacity: 0.6;
 }
 
 .planning-grid-measure-search input {
   flex: 1;
+  min-width: 0;
   border: none;
   outline: none;
-  font-size: 12px;
+  font-size: 13px;
+  color: #181818;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .planning-grid-measure-filter-wrap {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
 }
 
 .planning-grid-measure-filter-wrap img {
   position: absolute;
-  right: 10px;
+  right: 12px;
   width: 10px;
   height: 10px;
   pointer-events: none;
@@ -1141,9 +1171,11 @@
 }
 
 .planning-grid-measure-filter {
-  padding: 6px 28px 6px 10px;
-  font-size: 12px;
-  border: 1px solid #dddbda;
+  width: 100%;
+  height: 32px;
+  padding: 6px 28px 6px 12px;
+  font-size: 13px;
+  border: 1px solid #c9c9c9;
   border-radius: 4px;
   background-color: white;
   cursor: pointer;
@@ -1198,30 +1230,30 @@
 .planning-grid-measures-table-wrap {
   flex: 1;
   overflow: auto;
-  border: 1px solid #dddbda;
-  border-radius: 4px;
+  border: 1px solid #c9c9c9;
+  border-radius: 8px;
   background-color: white;
 }
 
 .planning-grid-measures-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .planning-grid-measures-table thead {
-  background-color: #fafafa;
+  background-color: #f3f3f3;
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
 .planning-grid-measures-table th {
-  padding: 10px 12px;
+  padding: 9px 12px;
   text-align: left;
   font-weight: 600;
-  color: #181818;
-  border-bottom: 1px solid #dddbda;
+  color: #5c5c5c;
+  border-bottom: 1px solid #c9c9c9;
   white-space: nowrap;
   font-size: 11px;
   text-transform: uppercase;
@@ -1229,14 +1261,14 @@
 }
 
 .planning-grid-measures-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid #e5e5e5;
+  padding: 9px 12px;
+  border-bottom: 1px solid #c9c9c9;
   color: #181818;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .planning-grid-measures-table tbody tr:hover {
-  background-color: #f8f9fa;
+  background-color: #f9f9f9;
 }
 
 .planning-grid-measures-table input[type="checkbox"] {
@@ -2397,8 +2429,19 @@
   background-color: #f9f9f9;
 }
 
-.planning-view-assign-modal {
-  height: 360px;
+.planning-grid-config .modal-container.planning-view-assign-modal {
+  height: auto;
+  max-height: 90vh;
+}
+
+/* Let the roles dropdown menu overflow the modal until selection completes. */
+.planning-grid-config .modal-container.planning-view-assign-modal,
+.planning-grid-config .modal-container.planning-view-assign-modal .modal-body {
+  overflow: visible;
+}
+
+.planning-grid-config .modal-container.planning-view-assign-modal .modal-body {
+  flex: 0 0 auto;
 }
 
 .planning-view-assign-modal-content {
@@ -2423,10 +2466,10 @@
   width: 100%;
 }
 
-.planning-view-role-dropdown-trigger {
+.planning-grid-config .planning-view-role-dropdown-trigger {
   width: 100%;
-  min-height: 36px;
-  border: 1px solid #c9c9c9;
+  min-height: 40px;
+  border: 1px solid #747474;
   border-radius: 4px;
   background-color: #fff;
   color: #181818;
@@ -2436,6 +2479,16 @@
   justify-content: space-between;
   cursor: pointer;
   font-size: 14px;
+}
+
+.planning-grid-config .planning-view-role-dropdown-trigger:hover {
+  border-color: #5c5c5c;
+}
+
+.planning-grid-config .planning-view-role-dropdown-trigger:focus {
+  outline: none;
+  border-color: #0176d3;
+  box-shadow: 0 0 0 1px #0176d3;
 }
 
 .planning-view-role-dropdown-trigger img {
@@ -2502,7 +2555,9 @@
 .planning-grid-link-button {
   border: none;
   background: none;
-  color: #0176d3;
+  /* !important overrides the global button reset in App.css
+     (:where(button) { color: inherit !important }) so names render as blue links. */
+  color: #0176d3 !important;
   font-size: 13px;
   cursor: pointer;
   padding: 0;
@@ -3345,4 +3400,44 @@
 .planning-grid-config .writeback-checkbox-label span {
   font-size: 13px;
   color: #181818;
+}
+
+/* Create Measure form laid out like the Review Available Measures modal:
+   two-column sections with full-width textarea/formula/category fields. */
+.planning-grid-config .planning-grid-create-measure-view .planning-grid-create-measure-form {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.planning-grid-config .planning-grid-create-measure-view .edit-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 4px;
+}
+
+.planning-grid-config .planning-grid-create-measure-view .measure-section {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+  row-gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+}
+
+.planning-grid-config .planning-grid-create-measure-view .measure-section-title {
+  grid-column: 1 / -1;
+  margin: 0 0 6px 0;
+  padding: 8px 12px;
+}
+
+.planning-grid-config .planning-grid-create-measure-view .edit-form-field {
+  margin-bottom: 0;
+}
+
+.planning-grid-config .planning-grid-create-measure-view .edit-form-field:has(.edit-form-textarea),
+.planning-grid-config .planning-grid-create-measure-view .edit-form-field:has(.formula-builder),
+.planning-grid-config .planning-grid-create-measure-view .planning-grid-create-subset-field {
+  grid-column: 1 / -1;
 }

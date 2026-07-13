@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import PlanningGridConfig from '../components/PlanningGridConfig';
 import {
   initialMeasures,
+  ootbPlanMeasures,
   initialMeasureSubsets,
   initialTimeGranularities,
   type Measure,
@@ -10,7 +11,11 @@ import {
 } from '../data/planConfigData';
 import { loadPlanConfigHierarchies } from '../data/hierarchyStore';
 import { mergeCustomMeasures } from '../data/measureStore';
-import { savePlanConfigDetail, type PlanConfigDetail } from '../data/planConfigStore';
+import { savePlanConfigDetail, getPlanConfigDetail, type PlanConfigDetail } from '../data/planConfigStore';
+import {
+  buildOotbAccountPlanningDetail,
+  OOTB_ACCOUNT_PLANNING_CONFIG_ID,
+} from '../data/planConfigGridData';
 import '../styles/pages/PlanConfigCreatorPage.css';
 
 type SavedConfigPayload = {
@@ -59,13 +64,29 @@ const NAV_TREE: NavNode[] = [
 const PlanConfigCreatorPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const planName = (location.state as { planName?: string })?.planName || '';
-  const planDescription = (location.state as { description?: string })?.description || '';
+  const configId = (location.state as { configId?: string })?.configId || '';
 
-  // Base measures plus any user-created ones persisted from the Review Measures
-  // modal, so custom measures show up in the "Add Measures" picker. Read once on
-  // mount (the page remounts on each navigation, picking up new measures).
-  const [measures, setMeasures] = useState<Measure[]>(() => mergeCustomMeasures(initialMeasures));
+  // Resolve the config being opened (if any): the OOTB template is derived live
+  // from hierarchies + measures; user-created configs come from the store. Null
+  // means a fresh "Create New" flow with nothing pre-selected.
+  const initialConfig = useMemo<PlanConfigDetail | null>(() => {
+    if (!configId) return null;
+    if (configId === OOTB_ACCOUNT_PLANNING_CONFIG_ID) return buildOotbAccountPlanningDetail();
+    return getPlanConfigDetail(configId) ?? null;
+  }, [configId]);
+
+  const planName =
+    (location.state as { planName?: string })?.planName || initialConfig?.name || '';
+  const planDescription =
+    (location.state as { description?: string })?.description || initialConfig?.description || '';
+
+  // Base measures: the OOTB Account Planning pack first (so its measures can be
+  // pre-selected by name), then the legacy demo measures, then any user-created
+  // ones persisted from the Review Measures modal. Read once on mount (the page
+  // remounts on each navigation, picking up new measures).
+  const [measures, setMeasures] = useState<Measure[]>(() =>
+    mergeCustomMeasures([...ootbPlanMeasures, ...initialMeasures]),
+  );
   const [measureSubsets, setMeasureSubsets] = useState<MeasureSubset[]>(initialMeasureSubsets);
 
   // Hierarchies come from the shared store fed by the Setup Hierarchies modal, so
@@ -85,16 +106,33 @@ const PlanConfigCreatorPage: React.FC = () => {
 
   const goBackToList = (savedConfig?: SavedConfigPayload) => {
     if (savedConfig) {
-      const id = String(Date.now());
       const now = new Date();
       const formatted = now.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
       const name = planName || savedConfig.name || 'Untitled Configuration';
       const description = planDescription || savedConfig.description || '';
+      // Editing an existing config (opened via a configId, including the OOTB
+      // template) updates that same row in place; only Create New / Clone (no
+      // configId) mints a fresh id so a new row is added.
+      const editingId = configId;
+      let id = editingId || String(Date.now());
       // Persist the saved configuration so the (iframe) list view can render it.
       try {
         const raw = localStorage.getItem('cpm_saved_configs');
         const list: Array<Record<string, string>> = raw ? JSON.parse(raw) : [];
-        list.push({ id, name, description, created: formatted, modified: formatted });
+        const existingIdx = editingId ? list.findIndex((c) => c.id === editingId) : -1;
+        if (existingIdx >= 0) {
+          // Update in place — keep original created date, refresh modified.
+          list[existingIdx] = {
+            ...list[existingIdx],
+            name,
+            description,
+            modified: formatted,
+          };
+        } else {
+          // New row (Create New / Clone) or first save of a built-in template:
+          // reuse the editingId when present so it maps to the existing row.
+          list.push({ id, name, description, created: formatted, modified: formatted });
+        }
         localStorage.setItem('cpm_saved_configs', JSON.stringify(list));
       } catch {
         /* localStorage unavailable */
@@ -193,6 +231,7 @@ const PlanConfigCreatorPage: React.FC = () => {
             measureSubsets={measureSubsets}
             setMeasureSubsets={setMeasureSubsets}
             timeGranularities={initialTimeGranularities}
+            initialConfig={initialConfig}
           />
         </div>
       </div>

@@ -11,7 +11,13 @@ const PlanConfigurationListPage: React.FC = () => {
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data && e.data.type === 'navigate' && e.data.path) {
-        navigate(e.data.path, { state: { planName: e.data.planName, description: e.data.description } });
+        navigate(e.data.path, {
+          state: {
+            planName: e.data.planName,
+            description: e.data.description,
+            configId: e.data.configId,
+          },
+        });
       }
     };
     window.addEventListener('message', handler);

@@ -31,6 +31,16 @@ export interface PlanConfigDetail {
   measures: PlanConfigMeasureLite[];
   subsets: PlanConfigSubset[];
   createdOn?: string;
+  /**
+   * Values selected for the top (first) level when creating a plan — e.g. the
+   * chosen Account Groups. When present, the grid renders exactly these as the
+   * first-level rows so the "Create Plan" dropdown and the grid stay in sync.
+   */
+  topLevelValues?: string[];
+  /** Plan duration picked in the Create Plan modal: 'yearly' | 'half-yearly' | 'quarterly'. */
+  duration?: string;
+  /** Plan planning period, e.g. 'H2 FY 2025', 'Q1 FY 2026', 'FY 2025'. Scopes the grid's time columns. */
+  planningPeriod?: string;
 }
 
 const DETAILS_KEY = 'cpm_plan_config_details';

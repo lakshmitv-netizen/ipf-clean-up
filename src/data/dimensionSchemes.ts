@@ -11,6 +11,7 @@ import {
   isConfigLevel,
   getConfigDimensionScheme,
   getConfigGlyph,
+  isPristineOotbAccountPlanning,
 } from './planConfigGridData';
 
 export interface DimensionLevelDef {
@@ -54,7 +55,12 @@ export const ACME_DIMENSION_LEVELS: DimensionLevelDef[] = [
 
 /** Ordered dimension levels for a grid, chosen by its industry key. */
 export function getDimensionScheme(industry: IndustryType | null): DimensionLevelDef[] {
-  if (isConfigIndustry(industry)) return getConfigDimensionScheme(industry as string);
+  if (isConfigIndustry(industry)) {
+    // Untouched OOTB Account Planning reuses the deep scheme (identical levels);
+    // customized configs render their own generated scheme.
+    if (isPristineOotbAccountPlanning(industry)) return DEEP_DIMENSION_LEVELS;
+    return getConfigDimensionScheme(industry as string);
+  }
   if (industry === 'manufacturing-deep') return DEEP_DIMENSION_LEVELS;
   if (industry === 'manufacturing-acme') return ACME_DIMENSION_LEVELS;
   return DEFAULT_DIMENSION_LEVELS;

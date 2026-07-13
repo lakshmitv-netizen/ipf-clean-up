@@ -314,15 +314,14 @@
         <div id="npc-template-section" class="npc-template-section">
           <label class="npc-template-label">Select from available templates</label>
           <select class="npc-select" id="npc-template" onchange="npcTemplateChange(this)">
-            <option value="KAMPlanConfig">KAMPlanConfig</option>
-            <option value="CPMTemplate">CPMTemplate</option>
+            <option value="Account Planning">Account Planning</option>
           </select>
         </div>
 
-        <!-- KAMPlanConfig info card -->
+        <!-- Account Planning info card -->
         <div id="npc-info-card" class="npc-info-card">
           <div class="npc-info-card-title">
-            <strong>KAMPlanConfig</strong> would automatically add the following to your configuration. You can always review, edit or modify these
+            <strong>Account Planning</strong> would automatically add the following to your configuration. You can always review, edit or modify these
           </div>
           <div class="npc-info-section-label">Dimensions:</div>
           <div class="npc-info-item">Account (5 level hierarchy)</div>
@@ -341,6 +340,348 @@
   </div>
 </div>
 
+<!-- ── Assign Plan Configurations Modal ── -->
+<style>
+  #asn-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 9000;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 48px;
+    font-family: "Salesforce Sans", Arial, sans-serif;
+  }
+  #asn-overlay.asn-open { display: flex; }
+  #asn-dialog {
+    background: #fff;
+    border-radius: 4px;
+    width: 680px;
+    max-width: 95vw;
+    max-height: 90vh;
+    box-shadow: 0 4px 32px rgba(0,0,0,0.28);
+    display: flex;
+    flex-direction: column;
+  }
+  #asn-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  #asn-header h2 { margin: 0; font-size: 18px; font-weight: 700; color: #181818; }
+  #asn-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    color: #706e6b;
+    font-size: 18px;
+    line-height: 1;
+  }
+  #asn-close:hover { background: #f3f3f3; color: #181818; }
+  #asn-body { padding: 20px; }
+  .asn-label { display: block; font-size: 13px; color: #181818; margin-bottom: 6px; }
+  .asn-select-wrap { position: relative; }
+  .asn-trigger {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid #dddbda;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #181818;
+    background: #fff;
+    cursor: pointer;
+  }
+  .asn-trigger:focus { border-color: #0176d3; box-shadow: 0 0 0 1px #0176d3; outline: none; }
+  .asn-trigger .asn-caret { color: #706e6b; margin-left: 8px; }
+  .asn-menu {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #dddbda;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.16);
+    z-index: 20;
+    padding: 4px 0;
+  }
+  .asn-menu.asn-menu-open { display: block; }
+  .asn-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    color: #181818;
+    cursor: pointer;
+  }
+  .asn-option:hover { background: #f3f3f3; }
+  .asn-pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .asn-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #ecebea;
+    border: 1px solid #dddbda;
+    border-radius: 12px;
+    padding: 3px 6px 3px 10px;
+    font-size: 13px;
+    color: #181818;
+  }
+  .asn-pill-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #706e6b;
+    font-size: 14px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .asn-pill-remove:hover { color: #181818; }
+  #asn-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 0 20px 20px;
+  }
+  .asn-btn {
+    height: 32px;
+    padding: 0 16px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .asn-btn-cancel { background: #fff; border: 1px solid #dddbda; color: #0176d3; }
+  .asn-btn-cancel:hover { background: #f3f3f3; }
+  .asn-btn-assign { background: #0176d3; border: 1px solid #0176d3; color: #fff; }
+  .asn-btn-assign:hover { background: #014486; }
+  #asn-toast {
+    display: none;
+    position: fixed;
+    top: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9500;
+    align-items: center;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #2e844a;
+    border-left: 4px solid #2e844a;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    padding: 12px 16px;
+    font-family: "Salesforce Sans", Arial, sans-serif;
+  }
+  #asn-toast.asn-toast-open { display: flex; }
+  .asn-toast-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #2e844a;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    flex: 0 0 auto;
+  }
+  .asn-toast-text { font-size: 14px; font-weight: 600; color: #181818; }
+</style>
+
+<div id="asn-overlay" role="dialog" aria-modal="true" aria-labelledby="asn-title">
+  <div id="asn-dialog">
+    <div id="asn-header">
+      <h2 id="asn-title">Assign Plan Configurations</h2>
+      <button id="asn-close" aria-label="Close" onclick="assignClose()">&#x2715;</button>
+    </div>
+    <div id="asn-body">
+      <label class="asn-label" for="asn-trigger">Select roles you want to assign this plan config to</label>
+      <div class="asn-select-wrap" id="asn-select-wrap">
+        <button type="button" class="asn-trigger" id="asn-trigger" aria-haspopup="listbox">
+          <span id="asn-trigger-text">Select roles</span>
+          <span class="asn-caret">&#x25BE;</span>
+        </button>
+        <div class="asn-menu" id="asn-menu" role="listbox"></div>
+      </div>
+      <div class="asn-pills" id="asn-pills"></div>
+    </div>
+    <div id="asn-footer">
+      <button class="asn-btn asn-btn-cancel" onclick="assignClose()">Cancel</button>
+      <button class="asn-btn asn-btn-assign" onclick="assignConfirm()">Assign</button>
+    </div>
+  </div>
+</div>
+
+<div id="asn-toast" role="status">
+  <span class="asn-toast-check">&#x2713;</span>
+  <span class="asn-toast-text">Assigned Successfully</span>
+</div>
+
+<script>
+(function() {
+  var roles = ['Key Account Manager', 'Regional Director', 'Account Director'];
+  var selected = [];
+
+  function render() {
+    var triggerText = document.getElementById('asn-trigger-text');
+    triggerText.textContent = selected.length
+      ? selected.length + ' role' + (selected.length > 1 ? 's' : '') + ' selected'
+      : 'Select roles';
+
+    var pills = document.getElementById('asn-pills');
+    pills.innerHTML = '';
+    selected.forEach(function(role) {
+      var pill = document.createElement('span');
+      pill.className = 'asn-pill';
+      pill.appendChild(document.createTextNode(role));
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'asn-pill-remove';
+      remove.setAttribute('aria-label', 'Remove ' + role);
+      remove.textContent = '\u00d7';
+      remove.addEventListener('click', function(e) {
+        e.stopPropagation();
+        toggle(role);
+      });
+      pill.appendChild(remove);
+      pills.appendChild(pill);
+    });
+
+    var checkboxes = document.querySelectorAll('#asn-menu input[type="checkbox"]');
+    for (var i = 0; i < checkboxes.length; i++) {
+      checkboxes[i].checked = selected.indexOf(checkboxes[i].value) !== -1;
+    }
+  }
+
+  function toggle(role) {
+    var idx = selected.indexOf(role);
+    if (idx === -1) selected.push(role);
+    else selected.splice(idx, 1);
+    render();
+  }
+
+  var menu = document.getElementById('asn-menu');
+  roles.forEach(function(role) {
+    var option = document.createElement('label');
+    option.className = 'asn-option';
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = role;
+    checkbox.addEventListener('change', function() { toggle(role); });
+    var text = document.createElement('span');
+    text.textContent = role;
+    option.appendChild(checkbox);
+    option.appendChild(text);
+    menu.appendChild(option);
+  });
+
+  document.getElementById('asn-trigger').addEventListener('click', function(e) {
+    e.stopPropagation();
+    menu.classList.toggle('asn-menu-open');
+  });
+  document.addEventListener('click', function(e) {
+    if (!document.getElementById('asn-select-wrap').contains(e.target)) {
+      menu.classList.remove('asn-menu-open');
+    }
+  });
+
+  window.assignOpen = function() {
+    document.getElementById('asn-overlay').classList.add('asn-open');
+  };
+  window.assignClose = function() {
+    document.getElementById('asn-overlay').classList.remove('asn-open');
+    menu.classList.remove('asn-menu-open');
+  };
+  window.assignConfirm = function() {
+    window.assignClose();
+    selected = [];
+    render();
+    var toast = document.getElementById('asn-toast');
+    toast.classList.add('asn-toast-open');
+    setTimeout(function() { toast.classList.remove('asn-toast-open'); }, 3000);
+  };
+
+  document.getElementById('asn-overlay').addEventListener('click', function(e) {
+    if (e.target === this) window.assignClose();
+  });
+
+  // Count how many plan-configuration rows are currently selected.
+  function selectedRowCount() {
+    var table = document.querySelector('table.slds-table');
+    var tbody = table && table.querySelector('tbody');
+    if (!tbody) return 0;
+    var checked = tbody.querySelectorAll('input[type="checkbox"]:checked');
+    if (checked.length) return checked.length;
+    return tbody.querySelectorAll('tr.slds-is-selected, tr[aria-selected="true"]').length;
+  }
+
+  // Enable the "Assign to" button only when at least one config is selected.
+  window.updateAssignButtonState = function() {
+    var btn = document.getElementById('assign-to-btn');
+    if (!btn) return;
+    var enabled = selectedRowCount() > 0;
+    btn.disabled = !enabled;
+    btn.style.opacity = enabled ? '1' : '0.5';
+    btn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+  };
+
+  // Inject an "Assign to" button next to the "Create New" button.
+  function injectAssignButton() {
+    if (document.getElementById('assign-to-btn')) {
+      window.updateAssignButtonState();
+      return;
+    }
+    var buttons = document.querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      if (buttons[i].id === 'assign-to-btn') continue;
+      if (buttons[i].textContent.trim().indexOf('Create New') !== -1) {
+        var assignBtn = document.createElement('button');
+        assignBtn.id = 'assign-to-btn';
+        assignBtn.type = 'button';
+        assignBtn.className = 'slds-button slds-button_neutral';
+        assignBtn.textContent = 'Assign to';
+        assignBtn.style.marginRight = '8px';
+        assignBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          if (assignBtn.disabled) return;
+          window.assignOpen();
+        });
+        buttons[i].parentNode.insertBefore(assignBtn, buttons[i]);
+        window.updateAssignButtonState();
+        break;
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectAssignButton);
+  } else {
+    injectAssignButton();
+  }
+  setTimeout(injectAssignButton, 500);
+  setTimeout(injectAssignButton, 1500);
+  setTimeout(injectAssignButton, 3000);
+
+  // Re-evaluate the button state whenever a row selection changes.
+  document.addEventListener('change', function() { window.updateAssignButtonState(); }, true);
+  document.addEventListener('click', function() { setTimeout(function() { window.updateAssignButtonState(); }, 0); }, true);
+
+  render();
+})();
+</script>
+
 <script>
 (function() {
   var selectedMethod = 'ootb';
@@ -355,11 +696,7 @@
 
   window.npcTemplateChange = function(sel) {
     var infoCard = document.getElementById('npc-info-card');
-    if (sel.value === 'KAMPlanConfig') {
-      infoCard.querySelector('.npc-info-card-title').innerHTML = '<strong>KAMPlanConfig</strong> would automatically add the following to your configuration. You can always review, edit or modify these';
-    } else {
-      infoCard.querySelector('.npc-info-card-title').innerHTML = '<strong>' + sel.value + '</strong> would automatically add the following to your configuration. You can always review, edit or modify these';
-    }
+    infoCard.querySelector('.npc-info-card-title').innerHTML = '<strong>' + sel.value + '</strong> would automatically add the following to your configuration. You can always review, edit or modify these';
   };
 
   window.npcCreate = function() {
@@ -484,7 +821,26 @@
     for (var i = configs.length - 1; i >= 0; i--) {
       var cfg = configs[i];
       if (!cfg || tbody.querySelector('tr[data-cpm-id="' + cfg.id + '"]')) continue;
+
+      // The OOTB "Account Planning" template already exists as a static row. When
+      // it has been saved/edited, update that same row in place instead of adding
+      // a duplicate row for it.
+      if (cfg.id === 'ootb-account-planning') {
+        var ootbRow = tbody.querySelector('tr[data-ootb="1"]');
+        if (ootbRow) {
+          ootbRow.setAttribute('data-cpm-id', cfg.id);
+          var oNameBtn = ootbRow.querySelector('[data-label="Name"] button');
+          if (oNameBtn) { oNameBtn.textContent = cfg.name; oNameBtn.title = cfg.name; }
+          var oNameCell = ootbRow.querySelector('[data-label="Name"]');
+          if (oNameCell) oNameCell.setAttribute('data-cell-value', cfg.name);
+          setCellText(ootbRow, 'Description', cfg.description || '');
+          if (cfg.modified) setCellText(ootbRow, 'Last Modified Date', cfg.modified);
+          continue;
+        }
+      }
+
       var row = template.cloneNode(true);
+      row.removeAttribute('data-ootb');
       row.setAttribute('data-cpm-id', cfg.id);
       row.setAttribute('data-row-key-value', 'cpm-' + cfg.id);
       var nameBtn = row.querySelector('[data-label="Name"] button');
@@ -535,7 +891,37 @@
     if (changed) updateCount(tbody);
   }
 
-  function run() { try { injectSavedConfigs(); applyDeletions(); } catch (e) {} }
+  /* Collapse the demo's many seeded rows down to the single OOTB "Account
+     Planning" template. Keeps the first non-injected static row, relabels it, and
+     removes the rest. Idempotent + runs before injectSavedConfigs so any
+     user-created configs still appear above it. */
+  function collapseToOotb() {
+    var table = document.querySelector('table.slds-table');
+    var tbody = table && table.querySelector('tbody');
+    if (!tbody) return;
+    if (tbody.querySelector('tr[data-ootb="1"]')) return;
+    var staticRows = [];
+    var rows = tbody.querySelectorAll('tr');
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i].getAttribute('data-cpm-id')) staticRows.push(rows[i]);
+    }
+    if (!staticRows.length) return;
+    var keep = staticRows[0];
+    for (var j = 1; j < staticRows.length; j++) {
+      staticRows[j].parentNode.removeChild(staticRows[j]);
+    }
+    keep.setAttribute('data-ootb', '1');
+    keep.setAttribute('data-row-key-value', 'ootb-account-planning');
+    var nameBtn = keep.querySelector('[data-label="Name"] button');
+    if (nameBtn) { nameBtn.textContent = 'Account Planning'; nameBtn.title = 'Account Planning'; }
+    var nameCell = keep.querySelector('[data-label="Name"]');
+    if (nameCell) nameCell.setAttribute('data-cell-value', 'Account Planning');
+    setCellText(keep, 'Description', 'B2B account \u00d7 product revenue, volume, and margin planning at defined hierarchy levels.');
+    setCellText(keep, 'Assignments', '0 roles');
+    updateCount(tbody);
+  }
+
+  function run() { try { collapseToOotb(); injectSavedConfigs(); applyDeletions(); } catch (e) {} }
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', run);
   } else {
@@ -688,6 +1074,24 @@
     e.preventDefault();
     e.stopImmediatePropagation();
     openMenu(e.clientX, e.clientY, row);
+  }, true);
+
+  /* Clicking a config Name opens the 3-panel Plan Config builder, pre-loaded with
+     that config's hierarchies + measures. OOTB row → the derived Account Planning
+     template; user rows → their saved config detail. */
+  document.addEventListener('click', function(e) {
+    var table = document.querySelector('table.slds-table');
+    if (!table || !table.contains(e.target)) return;
+    var nameCell = e.target.closest ? e.target.closest('[data-label="Name"]') : null;
+    if (!nameCell) return;
+    var row = nameCell.closest ? nameCell.closest('tr') : null;
+    if (!row) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var configId = row.getAttribute('data-ootb') === '1'
+      ? 'ootb-account-planning'
+      : (row.getAttribute('data-cpm-id') || '');
+    window.parent.postMessage({ type: 'navigate', path: '/setup/plan-config-creator', configId: configId }, '*');
   }, true);
 })();
 </script>

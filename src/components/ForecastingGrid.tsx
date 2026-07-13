@@ -13,7 +13,7 @@ import { AdjustmentNote } from '../types/adjustmentNote';
 import { getMockData } from '../data/mockData';
 import { useIndustry } from '../contexts/IndustryContext';
 import { getDimensionScheme } from '../data/dimensionSchemes';
-import { isConfigIndustry, isConfigLevel, getConfigMeasureCategories } from '../data/planConfigGridData';
+import { isConfigIndustry, isConfigLevel, getConfigMeasureCategories, getConfigTimeFrame, defaultGranularitiesForDuration } from '../data/planConfigGridData';
 import {
   cloneMeasureData,
   reviveEditHistory,
@@ -4465,8 +4465,14 @@ const ForecastingGrid: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndustry]);
   const [selectedTimeGranularities, setSelectedTimeGranularities] = useState<Set<string>>(
-    new Set(['year', 'month'])
+    () => new Set(defaultGranularitiesForDuration(getConfigTimeFrame(currentIndustry)?.duration))
   );
+  // When the active plan/config changes, reset time granularities so the plan's
+  // aggregation level (Half / Quarter / Year) is shown by default.
+  useEffect(() => {
+    setSelectedTimeGranularities(new Set(defaultGranularitiesForDuration(getConfigTimeFrame(currentIndustry)?.duration)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndustry]);
   
   // Show all periods toggle and date range
   const [showAllPeriods, setShowAllPeriods] = useState<boolean>(true);
@@ -4673,7 +4679,7 @@ const ForecastingGrid: React.FC = () => {
       setExternalCategories([]);
       setExternalMeasures([]);
       setExternalColumnFilters(null);
-      setSelectedTimeGranularities(new Set(['year', 'month']));
+      setSelectedTimeGranularities(new Set(defaultGranularitiesForDuration(getConfigTimeFrame(currentIndustry)?.duration)));
     } else {
       if (params.searchTerm !== undefined) setGridSearch(params.searchTerm);
       if (params.timeGranularities && params.timeGranularities.length > 0) {

@@ -70,6 +70,23 @@ export const initialMeasures: Measure[] = [
   { id: 13, name: 'Performance', description: 'Performance', type: 'Write', sourceDmo: 'Goal', code: 'BASL13', aggregation: 'Average', disaggregation: 'Proportional', category: 'Operations', subsets: ['Performance', 'Metrics', 'KPI'], unit: 'score', dataType: 'Number', sourceName: 'Goal', selected: false },
 ];
 
+// The out-of-the-box Account Planning measure pack. Names match the Review
+// Measures modal + deep grid + config derivation so a config's measures can be
+// pre-selected in the builder by name. Kept separate so it can be prepended to
+// the builder's measure list without disturbing the legacy demo measures above.
+export const ootbPlanMeasures: Measure[] = [
+  { id: 101, name: 'Sales Agreement Quantity (No.s)', description: 'Sales Agreement Quantity', type: 'Read', sourceDmo: 'SalesAgreement', code: 'SA_QTY', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Volume', subsets: ['SalesAgreement'], unit: 'volume', dataType: 'Number', sourceName: 'SalesAgreement', selected: false },
+  { id: 102, name: 'Sales Agreement Revenue', description: 'Sales Agreement Revenue', type: 'Read', sourceDmo: 'SalesAgreement', code: 'SA_REV', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Financials', subsets: ['SalesAgreement'], unit: 'currency', dataType: 'Currency', sourceName: 'SalesAgreement', selected: false },
+  { id: 103, name: 'Opportunity Quantity (No.s)', description: 'Opportunity Quantity', type: 'Read', sourceDmo: 'Opportunity', code: 'OPP_QTY', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Volume', subsets: ['Opportunity'], unit: 'volume', dataType: 'Number', sourceName: 'Opportunity', selected: false },
+  { id: 104, name: 'Opportunity Revenue', description: 'Opportunity Revenue', type: 'Read', sourceDmo: 'Opportunity', code: 'OPP_REV', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Financials', subsets: ['Opportunity'], unit: 'currency', dataType: 'Currency', sourceName: 'Opportunity', selected: false },
+  { id: 105, name: 'Order Quantity (No.s)', description: 'Order Quantity', type: 'Write', sourceDmo: 'Order', code: 'ORD_QTY', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Volume', subsets: ['Order'], unit: 'volume', dataType: 'Number', sourceName: 'Order', selected: false },
+  { id: 106, name: 'Order Revenue', description: 'Order Revenue', type: 'Read', sourceDmo: 'Order', code: 'ORD_REV', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Financials', subsets: ['Order'], unit: 'currency', dataType: 'Currency', sourceName: 'Order', selected: false },
+  { id: 107, name: 'Last Year Order Quantity (No.s)', description: 'Last Year Order Quantity', type: 'Read', sourceDmo: 'Order', code: 'LY_ORD_QTY', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Volume', subsets: ['Order', 'Last Year'], unit: 'volume', dataType: 'Number', sourceName: 'Order', selected: false },
+  { id: 108, name: 'Last Years Order Revenue', description: 'Last Years Order Revenue', type: 'Read', sourceDmo: 'Order', code: 'LY_ORD_REV', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Financials', subsets: ['Order', 'Last Year'], unit: 'currency', dataType: 'Currency', sourceName: 'Order', selected: false },
+  { id: 109, name: 'Forecasted Quantity (No.s)', description: 'Forecasted Quantity', type: 'Calculated', sourceDmo: 'ForecastEntry', code: 'FCST_QTY', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Volume', subsets: ['Forecast'], unit: 'volume', dataType: 'Number', sourceName: 'ForecastEntry', selected: false },
+  { id: 110, name: 'Forecasted Revenue', description: 'Forecasted Revenue', type: 'Calculated', sourceDmo: 'ForecastEntry', code: 'FCST_REV', aggregation: 'SUM', disaggregation: 'Proportional', category: 'Financials', subsets: ['Forecast'], unit: 'currency', dataType: 'Currency', sourceName: 'ForecastEntry', selected: false },
+];
+
 export const initialMeasureSubsets: MeasureSubset[] = [
   { id: 1, name: 'Revenue', description: 'Revenue and sales related measures', measureCount: 15, selected: false, lastModified: '2 days ago', measures: ['Net Sales Value (NSV)', 'Revenue Growth', 'Sales Agreement Quantity'] },
   { id: 2, name: 'Budget', description: 'Budget and financial planning measures', measureCount: 8, selected: false, lastModified: '5 days ago', measures: ['Remaining Budget', 'Fund Allocation', 'Deduction Amount'] },

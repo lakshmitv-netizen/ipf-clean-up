@@ -229,6 +229,9 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
   const [toastDescription, setToastDescription] = useState('');
   const [selectedAggregation, setSelectedAggregation] = useState('All');
   const [selectedMeasureType, setSelectedMeasureType] = useState('All');
+  const [measureSearchTerm, setMeasureSearchTerm] = useState('');
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('All Categories');
+  const [selectedDataTypeFilter, setSelectedDataTypeFilter] = useState('All Types');
   const [newMeasureForm, setNewMeasureForm] = useState({
     name: '',
     sourceName: '',
@@ -264,6 +267,34 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
     return agg.charAt(0).toUpperCase() + agg.slice(1).toLowerCase();
   };
 
+  // Category options for the filter are derived from the categories actually
+  // present on the measures, so the dropdown always reflects real data.
+  const categoryFilterOptions = Array.from(
+    new Set(measures.flatMap((m) => m.subsets || [])),
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredMeasures = measures
+    .map((measure, index) => ({ measure, index }))
+    .filter(({ measure }) => {
+      const query = measureSearchTerm.trim().toLowerCase();
+      const matchesSearch =
+        !query ||
+        measure.name.toLowerCase().includes(query) ||
+        (measure.measureCode || '').toLowerCase().includes(query);
+      const matchesCategory =
+        selectedCategoryFilter === 'All Categories' ||
+        (measure.subsets || []).includes(selectedCategoryFilter);
+      const matchesDataType =
+        selectedDataTypeFilter === 'All Types' ||
+        measure.dataType === selectedDataTypeFilter;
+      const matchesAggregation =
+        selectedAggregation === 'All' ||
+        normalizeAggregation(measure.aggregation) === normalizeAggregation(selectedAggregation);
+      const matchesType =
+        selectedMeasureType === 'All' || measure.type === selectedMeasureType;
+      return matchesSearch && matchesCategory && matchesDataType && matchesAggregation && matchesType;
+    });
+
   const showSuccessToast = (message: string, description = '') => {
     setToastMessage(message);
     setToastDescription(description);
@@ -293,20 +324,6 @@ const ReviewMeasuresModal: React.FC<ReviewMeasuresModalProps> = ({ isOpen, onClo
     const next = measures.map((m, i) => (i === index ? { ...m, [field]: value } : m));
     setMeasures(next);
     setTableDirty(true);
-  };
-
-  const handleTableSave = () => {
-    setTableDirty(false);
-    setMeasuresSnapshot(null);
-    showSuccessToast('Measures updated successfully');
-  };
-
-  const handleTableCancel = () => {
-    if (measuresSnapshot) {
-      setMeasures(measuresSnapshot);
-    }
-    setTableDirty(false);
-    setMeasuresSnapshot(null);
   };
 
   const filteredSubsets = availableSubsets.filter((subset) => {
@@ -712,6 +729,11 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
       }
       handleSaveNewMeasure();
     } else {
+      if (tableDirty) {
+        setTableDirty(false);
+        setMeasuresSnapshot(null);
+        showSuccessToast('Measures updated successfully');
+      }
       onClose();
     }
   };
@@ -738,23 +760,34 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                 <label className="filter-label">Search</label>
                 <div className="filter-search">
                   <img src={imgSearchIcon} alt="Search" />
-                  <input type="text" placeholder="" />
+                  <input
+                    type="text"
+                    placeholder=""
+                    value={measureSearchTerm}
+                    onChange={(e) => setMeasureSearchTerm(e.target.value)}
+                  />
                 </div>
               </div>
               <div className="filter-field">
-                <label className="filter-label">Subset</label>
-                <select className="filter-select">
-                  <option>All Subsets</option>
-                  <option>Budget</option>
-                  <option>Sales</option>
-                  <option>Marketing</option>
-                  <option>Operations</option>
-                  <option>Finance</option>
+                <label className="filter-label">Category</label>
+                <select
+                  className="filter-select"
+                  value={selectedCategoryFilter}
+                  onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                >
+                  <option>All Categories</option>
+                  {categoryFilterOptions.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
                 </select>
               </div>
               <div className="filter-field">
                 <label className="filter-label">Data Type</label>
-                <select className="filter-select">
+                <select
+                  className="filter-select"
+                  value={selectedDataTypeFilter}
+                  onChange={(e) => setSelectedDataTypeFilter(e.target.value)}
+                >
                   <option>All Types</option>
                   <option>Currency</option>
                   <option>Percent</option>
@@ -778,6 +811,7 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                   <option>All</option>
                   <option>Read</option>
                   <option>Write</option>
+                  <option>Calculated</option>
                 </select>
               </div>
             </div>
@@ -806,7 +840,7 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                 <thead>
                   <tr>
                     <th>Measure Name</th>
-                    <th>Measure Subsets</th>
+                    <th>Measure Categories</th>
                     <th>Unit</th>
                     <th>Data Type</th>
                     <th>Aggregation</th>
@@ -817,7 +851,7 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                   </tr>
                 </thead>
                 <tbody>
-                  {measures.map((measure, index) => (
+                  {filteredMeasures.map(({ measure, index }) => (
                     <tr
                       key={index}
                       className={(editPanelOpen || deletePanelOpen || createPanelOpen) && selectedMeasure?.name === measure.name ? 'row-selected' : ''}
@@ -880,15 +914,16 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                       </td>
                     </tr>
                   ))}
+                  {filteredMeasures.length === 0 && (
+                    <tr>
+                      <td colSpan={9} style={{ textAlign: 'center', padding: '24px', color: '#706e6b' }}>
+                        No measures match the selected filters.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
-            {tableDirty && (
-              <div className="measures-table-footer">
-                <button type="button" className="measure-neutral-btn" onClick={handleTableCancel}>Cancel</button>
-                <button type="button" className="measure-neutral-btn" onClick={handleTableSave}>Save</button>
-              </div>
-            )}
           </div>
           )}
 
@@ -923,10 +958,10 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                 </button>
               </div>
 
-              {/* Details / Measure Subsets inner tabs */}
+              {/* Details / Measure Categories inner tabs */}
               <div className="measure-tabs">
                 <button className={`measure-tab ${activeTab === 'details' ? 'measure-tab-active' : ''}`} onClick={() => setActiveTab('details')}>Details</button>
-                <button className={`measure-tab ${activeTab === 'subsets' ? 'measure-tab-active' : ''}`} onClick={() => setActiveTab('subsets')}>Measure Subsets</button>
+                <button className={`measure-tab ${activeTab === 'subsets' ? 'measure-tab-active' : ''}`} onClick={() => setActiveTab('subsets')}>Measure Categories</button>
               </div>
 
               <div className="edit-panel-body">
@@ -1097,11 +1132,11 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                 {activeTab === 'subsets' && (
                   <div className="subsets-tab-content">
                     <div className="subsets-tab-header">
-                      <p className="subsets-tab-description">Select the subsets this measure should be part of</p>
+                      <p className="subsets-tab-description">Select the categories this measure should be part of</p>
                       <div className="subsets-controls">
                         <div className="subsets-search">
                           <img src={imgSearchIcon} alt="Search" />
-                          <input type="text" placeholder="Search subsets..." value={subsetSearchTerm} onChange={(e) => setSubsetSearchTerm(e.target.value)} />
+                          <input type="text" placeholder="Search categories..." value={subsetSearchTerm} onChange={(e) => setSubsetSearchTerm(e.target.value)} />
                         </div>
                         <div className="subsets-toggle">
                           <label className="toggle-label">
@@ -1177,7 +1212,8 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
               <div className="measures-new-measure-heading">
                 <div className="measures-new-measure-heading-left">
                   <button type="button" className="measures-back-to-list" onClick={closeCreatePanel}>
-                    ← Back to list
+                    <span className="measures-back-arrow" aria-hidden="true">←</span>
+                    Back to list
                   </button>
                   <h3 className="measures-new-measure-title">
                     {panelMode === 'edit' ? 'Edit Measure' : panelMode === 'clone' ? 'Clone Measure' : 'Create New Measure'}
@@ -1315,13 +1351,13 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
                 </div>
 
                 <div className="measure-section">
-                  <h4 className="measure-section-title">Add to Subsets</h4>
+                  <h4 className="measure-section-title">Add to Categories</h4>
                   <div className="planning-view-assign-field">
-                    <label className="planning-view-assign-label">Select subsets you want to add this measure to</label>
+                    <label className="planning-view-assign-label">Select categories you want to add this measure to</label>
                     <div className="planning-view-role-dropdown" ref={newSubsetDropdownRef}>
                       <button type="button" className="planning-view-role-dropdown-trigger" onClick={() => setIsNewSubsetDropdownOpen((prev) => !prev)}>
                         <span>
-                          {selectedSubsets.length ? `${selectedSubsets.length} subset${selectedSubsets.length > 1 ? 's' : ''} selected` : 'Select subsets'}
+                          {selectedSubsets.length ? `${selectedSubsets.length} categor${selectedSubsets.length > 1 ? 'ies' : 'y'} selected` : 'Select categories'}
                         </span>
                         <img src={imgChevronDown} alt="" />
                       </button>
@@ -1418,19 +1454,19 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
           {assignSubsetPanelOpen && (
             <div className="edit-panel">
               <div className="edit-panel-header">
-                <h3 className="edit-panel-title">Assign to Measure Subset</h3>
+                <h3 className="edit-panel-title">Assign to Measure Category</h3>
               </div>
               <div className="edit-panel-body">
                 <div className="edit-form-group">
-                  <label className="edit-form-label">Select Measure Subsets</label>
-                  <p className="edit-form-description">Choose one or more subsets to assign the selected measures to</p>
+                  <label className="edit-form-label">Select Measure Categories</label>
+                  <p className="edit-form-description">Choose one or more categories to assign the selected measures to</p>
 
                   <div className="subsets-tab-content" style={{ marginTop: '12px' }}>
                     <div className="subsets-tab-header">
                       <div className="subsets-controls">
                         <div className="subsets-search">
                           <img src={imgSearchIcon} alt="Search" />
-                          <input type="text" placeholder="Search subsets..." value={subsetSearchTerm} onChange={(e) => setSubsetSearchTerm(e.target.value)} />
+                          <input type="text" placeholder="Search categories..." value={subsetSearchTerm} onChange={(e) => setSubsetSearchTerm(e.target.value)} />
                         </div>
                         <div className="subsets-toggle">
                           <label className="toggle-label">
@@ -1472,12 +1508,10 @@ I'll intelligently assign the appropriate Source DMO based on your needs.`;
 
         {(() => {
           const formOpen = createPanelOpen || deletePanelOpen;
-          const footerDisabled = tableDirty || formOpen;
+          const footerDisabled = formOpen;
           const footerTitle = formOpen
             ? 'Finish editing this measure first'
-            : tableDirty
-              ? 'Save your table changes first'
-              : undefined;
+            : undefined;
           return (
             <div className="modal-footer">
               <button

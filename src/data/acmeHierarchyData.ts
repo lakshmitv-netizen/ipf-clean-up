@@ -44,7 +44,7 @@ function bag(months: number[], seed: string): ValueBag {
   const q4 = m.oct2026 + m.nov2026 + m.dec2026;
   const year = q1 + q2 + q3 + q4;
   const cost = Math.round((year || 1) * (0.45 + seededRandom(`${seed}-cost`) * 0.5));
-  return { year, q1, q2, q3, q4, ...m, _cost: cost } as unknown as ValueBag;
+  return { year, h1: q1 + q2, h2: q3 + q4, q1, q2, q3, q4, ...m, _cost: cost } as unknown as ValueBag;
 }
 
 // ── Hierarchy skeleton ──────────────────────────────────────────────────────

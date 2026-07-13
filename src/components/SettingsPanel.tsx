@@ -123,6 +123,7 @@ export interface TimeGranularity {
 
 export const timeGranularities: TimeGranularity[] = [
   { id: 'year', name: 'Years' },
+  { id: 'half', name: 'Half Years' },
   { id: 'quarter', name: 'Quarters' },
   { id: 'month', name: 'Months' },
   { id: 'week', name: 'Weeks' }

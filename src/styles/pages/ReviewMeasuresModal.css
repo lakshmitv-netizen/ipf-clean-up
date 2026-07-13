@@ -1285,16 +1285,26 @@
 .planning-view-role-dropdown-trigger {
   width: 100%;
   min-height: 36px;
-  border: 1px solid #c9c9c9;
+  /* !important overrides the global button reset in App.css
+     (:where(button) { border/background/color: none !important }). */
+  border: 1px solid #747474 !important;
   border-radius: 4px;
-  background-color: #fff;
-  color: #181818;
+  background-color: #fff !important;
+  color: #181818 !important;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   font-size: 14px;
+}
+.planning-view-role-dropdown-trigger:hover {
+  border-color: #5c5c5c !important;
+}
+.planning-view-role-dropdown-trigger:focus {
+  outline: none;
+  border-color: #0176d3 !important;
+  box-shadow: 0 0 0 1px #0176d3;
 }
 .planning-view-role-dropdown-trigger img {
   width: 12px;
@@ -2293,16 +2303,26 @@
 .planning-view-role-dropdown-trigger {
   width: 100%;
   min-height: 36px;
-  border: 1px solid #c9c9c9;
+  /* !important overrides the global button reset in App.css
+     (:where(button) { border/background/color: none !important }). */
+  border: 1px solid #747474 !important;
   border-radius: 4px;
-  background-color: #fff;
-  color: #181818;
+  background-color: #fff !important;
+  color: #181818 !important;
   padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
   font-size: 14px;
+}
+.planning-view-role-dropdown-trigger:hover {
+  border-color: #5c5c5c !important;
+}
+.planning-view-role-dropdown-trigger:focus {
+  outline: none;
+  border-color: #0176d3 !important;
+  box-shadow: 0 0 0 1px #0176d3;
 }
 .planning-view-role-dropdown-trigger img {
   width: 12px;
@@ -2368,18 +2388,30 @@
 .measures-new-measure-content .edit-panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 24px;
+  padding: 12px 24px;
   width: 100%;
   max-width: none;
+  gap: 4px;
 }
 .measures-new-measure-content .measure-section {
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: 24px;
+  row-gap: 10px;
   align-items: start;
+  padding: 8px 0;
+  margin-bottom: 0;
 }
 .measures-new-measure-content .measure-section-title {
   grid-column: 1 / -1;
+  margin: 0 0 6px 0;
+  padding: 8px 12px;
+}
+.measures-new-measure-content .edit-form-field {
+  margin-bottom: 0;
+}
+.measures-new-measure-content .edit-form-label {
+  margin-bottom: 4px;
 }
 .measures-new-measure-content .edit-form-field:has(.edit-form-textarea),
 .measures-new-measure-content .edit-form-field:has(.formula-builder),
@@ -2636,10 +2668,36 @@
   font-size: 13px;
   color: #5c5c5c;
 }
-/* Push the New Measure button to the far right of the DMO status line. */
+/* Push the New Measure button to the far right of the DMO status line and give
+   it the SLDS neutral treatment (white fill, blue border + text). Scoped to the
+   status line so it wins over any generic button reset. */
 .measures-dmo-status .measures-new-measure-btn {
   margin-left: auto;
   align-self: center;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  padding: 0 16px !important;
+  border: 1px solid #0176d3 !important;
+  border-radius: 4px !important;
+  background-color: #fff !important;
+  color: #0176d3 !important;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.measures-dmo-status .measures-new-measure-btn:hover {
+  background-color: #eef4fb !important;
+  border-color: #014486 !important;
+  color: #014486 !important;
+}
+.measures-dmo-status .measures-new-measure-btn:active {
+  background-color: #0176d3 !important;
+  border-color: #0176d3 !important;
+  color: #fff !important;
 }
 .measures-dmo-status-label {
   font-weight: 600;
@@ -2661,21 +2719,30 @@
 .measures-new-measure-btn {
   flex: 0 0 auto;
   align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 32px;
   padding: 0 16px;
   border: 1px solid #0176d3;
   border-radius: 4px;
-  background-color: #0176d3;
-  color: #fff;
+  background-color: #fff;
+  color: #0176d3;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .measures-new-measure-btn:hover {
-  background-color: #014486;
+  background-color: #eef4fb;
   border-color: #014486;
+  color: #014486;
+}
+.measures-new-measure-btn:active {
+  background-color: #0176d3;
+  border-color: #0176d3;
+  color: #fff;
 }
 
 /* "Back to list" + title heading at the top of the Create New Measure view. */
@@ -2688,9 +2755,14 @@
   border-bottom: 1px solid #e5e5e5;
 }
 .measures-new-measure-heading-left {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  /* Left padding reserves room for the hanging back arrow; the "Back" label and
+     the title both align to this 34px edge (so "B" sits right above "C"). */
+  padding-left: 34px;
 }
 .measures-new-measure-heading-actions {
   display: flex;
@@ -2739,16 +2811,30 @@
   outline-offset: 2px !important;
 }
 .measures-back-to-list {
+  display: inline-block;
   border: none;
   background: none;
+  margin: 0;
   padding: 0;
   font-size: 14px;
+  font-weight: 600;
   color: #0176d3;
   cursor: pointer;
   white-space: nowrap;
+  line-height: 1.4;
 }
 .measures-back-to-list:hover {
   text-decoration: underline;
+}
+/* Hang the arrow to the left of the aligned text column (positioned against the
+   heading-left container, not the button, so the "Back" label stays aligned). */
+.measures-new-measure-heading-left .measures-back-arrow {
+  position: absolute;
+  left: 12px;
+  top: 0;
+  font-size: 18px;
+  line-height: 1.4;
+  color: #0176d3;
 }
 .measures-new-measure-title {
   margin: 0;
