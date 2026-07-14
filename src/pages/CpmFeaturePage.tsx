@@ -798,7 +798,7 @@ const CpmFeaturePage: React.FC = () => {
                             </button>
                             <div className="cpm-req-sub-text">
                               <p className="cpm-req-sub-title">1.2 Run the DPEs for hierarchy building and dimension relationship mapping</p>
-                              <p className="cpm-req-sub-desc">Run the DPE definitions corresponding to "Define Dimension Hierarchy for Account Forecasting" &amp;<br />"Build Account–Product Relationships for Account Forecasting" DPE Templates.</p>
+                              <p className="cpm-req-sub-desc">Run the DPE definitions corresponding to "Define Dimension Hierarchy for Account Forecasting" &amp; "Build Account–Product Relationships for Account Forecasting" DPE Templates.</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
