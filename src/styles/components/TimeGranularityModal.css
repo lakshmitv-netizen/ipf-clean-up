@@ -104,10 +104,12 @@
   border-radius: 0 0 4px 4px;
 }
 
+/* background/border/color use !important to beat the global
+   `:where(button:not(.fill-handle)) { … !important }` reset in App.css */
 .tg-ok-btn {
-  background-color: #0176d3;
-  color: #ffffff;
-  border: 1px solid #0176d3;
+  background-color: #0176d3 !important;
+  color: #ffffff !important;
+  border: 1px solid #0176d3 !important;
   border-radius: 4px;
   height: 32px;
   padding: 0 16px;
@@ -118,6 +120,6 @@
   cursor: pointer;
 }
 .tg-ok-btn:hover {
-  background-color: #014486;
-  border-color: #014486;
+  background-color: #014486 !important;
+  border-color: #014486 !important;
 }

@@ -453,11 +453,13 @@
 }
 
 
+/* background/color use !important to beat the global
+   `:where(button:not(.fill-handle)) { … !important }` reset in App.css */
 .mh2-manage-hierarchies-2-dimension-item.mh2-active {
-  background-color: #f3f8ff;
-  color: #032d60;
-  font-weight: 600;
-  box-shadow: inset 3px 0 0 #0176d3;
+  background-color: #e5f0ff !important;
+  color: #032d60 !important;
+  font-weight: 700;
+  box-shadow: inset 4px 0 0 #0176d3;
 }
 
 

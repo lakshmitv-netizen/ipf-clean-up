@@ -483,11 +483,11 @@
 /* Right rail */
 .cpm-aside {
   /* Right rail shrinks first when the window narrows. Its high shrink weight
-     makes it absorb nearly all the shrinkage until it hits 260px — exactly 50%
-     of its 520px basis — after which the middle column starts to shrink. */
-  flex: 0 100 520px;
+     makes it absorb nearly all the shrinkage until it hits 237px — exactly 50%
+     of its 473px basis — after which the middle column starts to shrink. */
+  flex: 0 100 473px;
   width: auto;
-  min-width: 260px;
+  min-width: 237px;
   display: flex;
   flex-direction: column;
   gap: 24px;

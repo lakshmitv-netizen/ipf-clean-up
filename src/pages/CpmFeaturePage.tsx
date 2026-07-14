@@ -92,6 +92,46 @@ const StepCheckBlue: React.FC = () => (
   </svg>
 );
 
+const InfoIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = '#0176d3' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+    <circle cx="8" cy="8" r="7" stroke={color} strokeWidth="1.3" />
+    <circle cx="8" cy="5" r="1" fill={color} />
+    <path d="M8 7.5v4" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const WarningIcon: React.FC<{ size?: number }> = ({ size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+    <path d="M8 1.5l6.5 11.5H1.5L8 1.5z" fill="#dd7a01" />
+    <path d="M8 6v3.2" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
+    <circle cx="8" cy="11.2" r="0.9" fill="#fff" />
+  </svg>
+);
+
+const StepCircle: React.FC = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+    <circle cx="12" cy="12" r="9.5" stroke="#c9c9c9" strokeWidth="1.5" />
+  </svg>
+);
+
+const CloseIcon: React.FC<{ size?: number; color?: string }> = ({ size = 16, color = '#747474' }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" aria-hidden>
+    <path d="M4 4l8 8M12 4l-8 8" stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const StepCheckboxSquare: React.FC<{ checked: boolean }> = ({ checked }) =>
+  checked ? (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <rect x="1" y="1" width="20" height="20" rx="5" fill="#0176d3" />
+      <path d="M6 11.2l3.2 3.2L16 7" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ) : (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden>
+      <rect x="1.75" y="1.75" width="18.5" height="18.5" rx="5" fill="#fff" stroke="#c9c9c9" strokeWidth="1.5" />
+    </svg>
+  );
+
 const Spinner: React.FC<{ size?: number }> = ({ size = 16 }) => (
   <svg
     className="cpm-spinner"
@@ -261,20 +301,24 @@ const INITIAL_MEASURES: Measure[] = [
 
 const CpmFeaturePage: React.FC = () => {
   const navigate = useNavigate();
+  const [prereqOpen, setPrereqOpen] = useState(true);
+  const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const [dataSpaceSaved, setDataSpaceSaved] = useState(false);
+  // Steps 1 & 2 are manual — the user checks them off themselves.
+  const [step1Done, setStep1Done] = useState(false);
+  const [step2Done, setStep2Done] = useState(false);
   const [turnOnOpen, setTurnOnOpen] = useState(false);
   const [turningOn, setTurningOn] = useState(false);
   const [turnedOn, setTurnedOn] = useState(false);
   const [reqOpen, setReqOpen] = useState(true);
   const [step11Done, setStep11Done] = useState(false);
   const [step12Done, setStep12Done] = useState(false);
-  const [step13Done, setStep13Done] = useState(false);
   const [step21Done, setStep21Done] = useState(false);
   const [step22Done, setStep22Done] = useState(false);
   const [step31Done, setStep31Done] = useState(false);
   const [step32Done, setStep32Done] = useState(false);
   const [step4Done, setStep4Done] = useState(false);
   const [step5Done, setStep5Done] = useState(false);
-  const [step6Done, setStep6Done] = useState(false);
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [hierarchyToast, setHierarchyToast] = useState<HierarchyChangeToast | null>(null);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
@@ -441,6 +485,164 @@ const CpmFeaturePage: React.FC = () => {
           {/* Sections + right rail */}
           <div className="cpm-content-row">
           <div className="cpm-sections">
+            {/* Complete the Prerequisites — temporarily hidden per request; remove the `false &&` below to restore */}
+            {false && (
+            <section className="cpm-section">
+              <button
+                type="button"
+                className="cpm-section-chevron"
+                aria-expanded={prereqOpen}
+                aria-label="Toggle Complete the Prerequisites"
+                onClick={() => setPrereqOpen((o) => !o)}
+              >
+                {prereqOpen ? <ChevronDown /> : <ChevronRight />}
+              </button>
+              <div className="cpm-section-body">
+                <div className="cpm-section-head">
+                  <h2
+                    className="cpm-section-title cpm-section-title--toggle"
+                    onClick={() => setPrereqOpen((o) => !o)}
+                  >
+                    Complete the Prerequisites
+                  </h2>
+                  {prereqOpen && (
+                    <p className="cpm-section-desc">
+                      Complete the Prerequistes to continue configuring Commercial Planning for Manufacturing.
+                    </p>
+                  )}
+                </div>
+
+                {prereqOpen && (
+                <div className="cpm-steps">
+                  {/* Step 1 */}
+                  <div className="cpm-step">
+                    <div className="cpm-step-rail">
+                      <button
+                        type="button"
+                        className="cpm-step-checkbtn"
+                        aria-pressed={step1Done}
+                        aria-label={step1Done ? 'Mark step incomplete' : 'Mark step complete'}
+                        onClick={() => setStep1Done((v) => !v)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
+                      >
+                        <StepCheckboxSquare checked={step1Done} />
+                      </button>
+                      <div className="cpm-step-line" />
+                    </div>
+                    <div className="cpm-step-content">
+                      <div className="cpm-step-main">
+                        <div className="cpm-step-text">
+                          <h3 className="cpm-step-title">Data Cloud Architect Permission Set</h3>
+                          <p className="cpm-step-desc">Assign the Data Cloud Architect permission set to yourself</p>
+                          <a className="cpm-link cpm-learn-more">
+                            Learn More in Help
+                            <ExternalLinkIcon />
+                          </a>
+                        </div>
+                        <div className="cpm-step-controls">
+                          <button className="cpm-btn cpm-btn--outline" type="button">
+                            Review
+                            <ExternalLinkIcon />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 2 */}
+                  <div className="cpm-step">
+                    <div className="cpm-step-rail">
+                      <button
+                        type="button"
+                        className="cpm-step-checkbtn"
+                        aria-pressed={step2Done}
+                        aria-label={step2Done ? 'Mark step incomplete' : 'Mark step complete'}
+                        onClick={() => setStep2Done((v) => !v)}
+                        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', lineHeight: 0 }}
+                      >
+                        <StepCheckboxSquare checked={step2Done} />
+                      </button>
+                      <div className="cpm-step-line" />
+                    </div>
+                    <div className="cpm-step-content">
+                      <div className="cpm-step-main">
+                        <div className="cpm-step-text">
+                          <h3 className="cpm-step-title">Set up Data 360</h3>
+                          <a className="cpm-link cpm-learn-more">
+                            Learn More in Help
+                            <ExternalLinkIcon />
+                          </a>
+                        </div>
+                        <div className="cpm-step-controls">
+                          <button className="cpm-btn cpm-btn--outline" type="button">
+                            Review
+                            <ExternalLinkIcon />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 3 — Select a Data Space */}
+                  <div className="cpm-step">
+                    <div className="cpm-step-rail">
+                      {dataSpaceSaved ? <StepCheckBlue /> : <StepCircle />}
+                    </div>
+                    <div className="cpm-step-content">
+                      <div className="cpm-step-main">
+                        <div className="cpm-step-text">
+                          <h3 className="cpm-step-title">Select a Data Space</h3>
+                          <p className="cpm-step-desc">
+                            Decide which data space to use for your Commercial Planning data.{' '}
+                            <span className="cpm-link-inline">Learn More in Help</span>
+                          </p>
+                        </div>
+                        <div className="cpm-step-controls">
+                          <button className="cpm-btn cpm-btn--disabled" type="button" disabled>
+                            Manage Data Spaces
+                            <ExternalLinkIcon color="#c9c9c9" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="cpm-embedded">
+                        <div className="cpm-field">
+                          <label className="cpm-field-label">
+                            Data Space
+                            <span className="cpm-info">
+                              <InfoIcon />
+                            </span>
+                          </label>
+                          <div className="cpm-select">Default</div>
+                        </div>
+                        {!dataSpaceSaved && (
+                          <div className="cpm-save-actions">
+                            <span className="cpm-save-warning">
+                              After saving selection, you will not be able to make updates.
+                            </span>
+                            <div className="cpm-save-buttons">
+                              <button className="cpm-btn cpm-btn--outline" type="button">
+                                Cancel
+                              </button>
+                              <button
+                                className="cpm-btn cpm-btn--brand"
+                                type="button"
+                                onClick={() => setSaveModalOpen(true)}
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                )}
+              </div>
+            </section>
+            )}
+
             {/* Turn on Commercial Planning for Manufacturing */}
             <section className="cpm-section cpm-section--turnon">
               <div className="cpm-section-body">
@@ -461,19 +663,21 @@ const CpmFeaturePage: React.FC = () => {
                       <Spinner size={20} />
                     </div>
                   ) : (
-                    <button
-                      className="cpm-btn cpm-btn--brand"
-                      type="button"
-                      onClick={() => {
-                        setTurningOn(true);
-                        setTurnOnOpen(true);
-                      }}
-                    >
-                      Turn On
-                    </button>
+                    <div className="cpm-turnon-cta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <button
+                        className="cpm-btn cpm-btn--brand"
+                        type="button"
+                        onClick={() => {
+                          setTurningOn(true);
+                          setTurnOnOpen(true);
+                          setPrereqOpen(false);
+                        }}
+                      >
+                        Turn On
+                      </button>
+                    </div>
                   )}
                 </div>
-
                 {(turningOn || turnedOn) && turnOnOpen && (
                   <div className="cpm-automation-steps">
                     <div className="cpm-auto-step">
@@ -539,8 +743,7 @@ const CpmFeaturePage: React.FC = () => {
                     </h2>
                     {reqOpen && (
                       <p className="cpm-section-desc">
-                        Work through the basics, invoke the pre-built DPEs definitions. Check off each step
-                        as you go to keep track of what you&rsquo;ve completed.
+                        Check off each step as you go to keep track of what you&rsquo;ve completed.
                       </p>
                     )}
                   </div>
@@ -550,7 +753,7 @@ const CpmFeaturePage: React.FC = () => {
                       {/* 1. Review Dimensions & Hierarchies */}
                       <div className="cpm-req-group">
                         <div className="cpm-req-lead">
-                          <span className="cpm-req-ind">{step11Done && step12Done && step13Done ? <StepCheckBlueSm /> : <RadioOff />}</span>
+                          <span className="cpm-req-ind">{step11Done && step12Done ? <StepCheckBlueSm /> : <RadioOff />}</span>
                           <div className="cpm-req-lead-text">
                             <h3 className="cpm-req-title">1. Review Dimensions &amp; Hierarchies</h3>
                           </div>
@@ -594,38 +797,16 @@ const CpmFeaturePage: React.FC = () => {
                               {step12Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">1.2 Run the clone of the "Define Dimension Hierarchy for Account Forecasting" DPE</p>
+                              <p className="cpm-req-sub-title">1.2 Run the DPEs for hierarchy building and dimension relationship mapping</p>
+                              <p className="cpm-req-sub-desc">Run the DPE definitions corresponding to "Define Dimension Hierarchy for Account Forecasting" &amp;<br />"Build Account–Product Relationships for Account Forecasting" DPE Templates.</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={`${import.meta.env.BASE_URL}1stdpe.html`}
+                              href={`${import.meta.env.BASE_URL}dpe_listview.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              Go to DPE Definition
-                              <ExternalLinkIcon />
-                            </a>
-                          </div>
-                          <div className="cpm-req-sub">
-                            <button
-                              type="button"
-                              className="cpm-req-ind cpm-req-ind--btn"
-                              onClick={() => setStep13Done((d) => !d)}
-                              aria-pressed={step13Done}
-                              aria-label={step13Done ? 'Mark step 1.3 as not complete' : 'Mark step 1.3 as complete'}
-                            >
-                              {step13Done ? <CheckboxOn /> : <CheckboxOff />}
-                            </button>
-                            <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">1.3 Run the clone of the "Build Account–Product Relationships for Account Forecasting" DPE</p>
-                            </div>
-                            <a
-                              className="cpm-btn cpm-btn--outline"
-                              href={`${import.meta.env.BASE_URL}2nddpe.html`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                            >
-                              Go to DPE Definition
+                              Go to DPE listview
                               <ExternalLinkIcon />
                             </a>
                           </div>
@@ -674,15 +855,16 @@ const CpmFeaturePage: React.FC = () => {
                               {step22Done ? <CheckboxOn /> : <CheckboxOff />}
                             </button>
                             <div className="cpm-req-sub-text">
-                              <p className="cpm-req-sub-title">2.2 Run the clone of the "Define Baseline Measures for Account Forecasting" DPE</p>
+                              <p className="cpm-req-sub-title">2.2 Run the DPE for baseline measure calculation</p>
+                              <p className="cpm-req-sub-desc">Run the DPE definition corresponding to "Define Baseline Measures for Account Forecasting" DPE Template.</p>
                             </div>
                             <a
                               className="cpm-btn cpm-btn--outline"
-                              href={`${import.meta.env.BASE_URL}dpe_definition_2_2.html`}
+                              href={`${import.meta.env.BASE_URL}dpe_listview.html`}
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              Go to DPE Definition
+                              Go to DPE Listview
                               <ExternalLinkIcon />
                             </a>
                           </div>
@@ -785,31 +967,6 @@ const CpmFeaturePage: React.FC = () => {
                           <ExternalLinkIcon />
                         </button>
                       </div>
-
-                      {/* 6. Sync Schedule for Data */}
-                      <div className="cpm-req-single">
-                        <button
-                          type="button"
-                          className="cpm-req-ind cpm-req-ind--btn"
-                          onClick={() => setStep6Done((d) => !d)}
-                          aria-pressed={step6Done}
-                          aria-label={step6Done ? 'Mark step 6 as not complete' : 'Mark step 6 as complete'}
-                        >
-                          {step6Done ? <CheckboxOn /> : <CheckboxOff />}
-                        </button>
-                        <div className="cpm-req-lead-text">
-                          <h3 className="cpm-req-title">
-                            6. Sync Schedule for Data for Measures &amp; Dimensional Hierarchies
-                          </h3>
-                          <p className="cpm-req-desc">
-                            Sync Schedule for Data for Measures &amp; Dimensional Hierarchies
-                          </p>
-                        </div>
-                        <button className="cpm-btn cpm-btn--outline" type="button">
-                          Go to DPE List
-                          <ExternalLinkIcon />
-                        </button>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -850,6 +1007,65 @@ const CpmFeaturePage: React.FC = () => {
           </div>
         </main>
       </div>
+
+      {/* Configure Data Selection modal (opens on Save) */}
+      {saveModalOpen && (
+        <div className="cpm-modal-backdrop" onClick={() => setSaveModalOpen(false)}>
+          <div className="cpm-modal-wrap" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="cpm-modal-close"
+              aria-label="Close"
+              onClick={() => setSaveModalOpen(false)}
+            >
+              <CloseIcon size={16} />
+            </button>
+            <div className="cpm-modal" role="dialog" aria-modal="true" aria-labelledby="cpm-modal-title">
+              <div className="cpm-modal-header">
+                <h2 id="cpm-modal-title" className="cpm-modal-title">
+                  Configure Data Selection?
+                </h2>
+              </div>
+              <div className="cpm-modal-body">
+                <p className="cpm-modal-text">
+                  This feature uses generative AI to generate responses using data from the selected Data Space.
+                  AI-generated outputs may be inaccurate or incomplete. Ensure that only approved data sources are
+                  connected and review responses before acting on them.
+                </p>
+                <div className="cpm-modal-disclaimers">
+                  <p className="cpm-modal-disc-title">Disclaimers</p>
+                  <div className="cpm-modal-disc-box">
+                    <p className="cpm-modal-disc-head">No Changes Allowed!</p>
+                    <p className="cpm-modal-disc-text">
+                      Saving this configuration permanently associates the selected Data Space with this feature.
+                      Changes cannot be made later.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="cpm-modal-footer">
+                <button
+                  className="cpm-btn cpm-btn--outline"
+                  type="button"
+                  onClick={() => setSaveModalOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="cpm-btn cpm-btn--brand"
+                  type="button"
+                  onClick={() => {
+                    setDataSpaceSaved(true);
+                    setSaveModalOpen(false);
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Manage Hierarchies modal (opens from step 1.1 Manage) */}
       <ManageHierarchiesModal

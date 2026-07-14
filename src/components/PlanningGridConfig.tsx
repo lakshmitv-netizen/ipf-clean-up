@@ -181,14 +181,14 @@ export default function PlanningGridConfig({
 
   const dimensionContentMap: Record<string, DimensionContent> = {
     Account: {
-      panel2Title: 'Account Hierarchy',
+      panel2Title: 'Account',
       panel2Description: 'Choose which levels of the hierarchy to display in the grid',
       levels: ['Level 0 - HQ', 'Level 1 - Regional', 'Level 2 - Country'],
       previewTitle: 'Grid preview',
       previewDescription: 'Preview for account hierarchy rows and selected measures.',
     },
     Product: {
-      panel2Title: 'Product Hierarchy',
+      panel2Title: 'Product',
       panel2Description: 'Choose which product levels should appear in the planning grid',
       levels: ['Level 0 - Category', 'Level 1 - Family', 'Level 2 - SKU'],
       previewTitle: 'Grid preview',
