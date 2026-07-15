@@ -183,18 +183,21 @@ function buildFocusAccounts(data: MeasureData[]): AgentResponse | null {
     .sort((a, b) => a.val - b.val);
   if (accounts.length === 0) return null;
 
-  const n = 3;
+  const n = Math.min(3, accounts.length);
   const bottom = accounts.slice(0, n);
   const top = accounts[accounts.length - 1];
   const names = bottom.map((b) => b.name);
   const gap = top.val - bottom[0].val;
   const cutoff = bottom[bottom.length - 1].val; // the Bottom-N boundary value
 
+  const single = accounts.length === 1;
   return {
-    answer:
-      `I ranked all ${accounts.length} accounts by FY26 ${measure.name} and pulled the **bottom ${n}** — each under ${fmtValue(measure, cutoff)}.\n` +
-      `${bottom[0].name} is furthest behind at ${fmtValue(measure, bottom[0].val)}, about ${fmtValue(measure, gap)} below your strongest account (${top.name}).\n` +
-      `Starting here closes the biggest part of the gap.`,
+    answer: single
+      ? `There's just **1 account** in view — ${bottom[0].name} at ${fmtValue(measure, bottom[0].val)} for FY26 ${measure.name}.\n` +
+        `That's your entire book right now, so all focus goes here.`
+      : `I ranked all ${accounts.length} accounts by FY26 ${measure.name} and pulled the **bottom ${n}** — each under ${fmtValue(measure, cutoff)}.\n` +
+        `${bottom[0].name} is furthest behind at ${fmtValue(measure, bottom[0].val)}, about ${fmtValue(measure, gap)} below your strongest account (${top.name}).\n` +
+        `Starting here closes the biggest part of the gap.`,
     bullets: bottom.map((b, i) => `${i + 1}. ${b.name} — ${fmtValue(measure, b.val)} (FY26)`),
     filterPreview: [
       { label: 'Measure', value: measure.name },
@@ -233,7 +236,7 @@ function buildOpportunities(data: MeasureData[]): AgentResponse | null {
     .sort((a, b) => b.val - a.val);
   if (accounts.length === 0) return null;
 
-  const n = 3;
+  const n = Math.min(3, accounts.length);
   const top = accounts.slice(0, n);
   const names = top.map((t) => t.name);
   const total = accounts.reduce((s, a) => s + a.val, 0);
@@ -363,7 +366,7 @@ function buildProducts(data: MeasureData[]): AgentResponse | null {
   const all = productInstances(measure).sort((a, b) => a.val - b.val);
   if (all.length === 0) return null;
 
-  const n = 3;
+  const n = Math.min(3, all.length);
   const products = all.slice(0, n);
   const cutoff = products[products.length - 1].val; // the Bottom-N boundary value
   const label = (p: ProductInstance) => `${p.name} · ${p.account}`;

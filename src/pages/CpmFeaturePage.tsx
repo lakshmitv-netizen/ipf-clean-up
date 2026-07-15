@@ -485,8 +485,7 @@ const CpmFeaturePage: React.FC = () => {
           {/* Sections + right rail */}
           <div className="cpm-content-row">
           <div className="cpm-sections">
-            {/* Complete the Prerequisites — temporarily hidden per request; remove the `false &&` below to restore */}
-            {false && (
+            {/* Complete the Prerequisites */}
             <section className="cpm-section">
               <button
                 type="button"
@@ -641,7 +640,6 @@ const CpmFeaturePage: React.FC = () => {
                 )}
               </div>
             </section>
-            )}
 
             {/* Turn on Commercial Planning for Manufacturing */}
             <section className="cpm-section cpm-section--turnon">
