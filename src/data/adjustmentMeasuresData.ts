@@ -262,12 +262,14 @@ const acmeAdjustmentMeasuresData: MeasureData[] = ADJUSTMENT_MEASURE_DEFS.map((m
   };
 });
 
+/** Adjustment measure names, in dependency order — used to seed the config-grid category. */
+export const ADJUSTMENT_MEASURE_NAMES: string[] = ADJUSTMENT_MEASURE_DEFS.map((m) => m.name);
+
 /** Adjustment measures whose hierarchy matches the grid's dimension scheme. */
 export function getAdjustmentMeasuresData(industry: IndustryType | null): MeasureData[] {
-  // Config-driven plan grids don't have adjustment measures.
-  if (typeof industry === 'string' && industry.startsWith('cfg:')) return [];
   if (industry === 'manufacturing-deep') return deepAdjustmentMeasuresData;
   if (industry === 'manufacturing-acme') return acmeAdjustmentMeasuresData;
+  // Standard and config-driven plan grids reuse the default 3-level adjustment dataset.
   return adjustmentMeasuresData;
 }
 

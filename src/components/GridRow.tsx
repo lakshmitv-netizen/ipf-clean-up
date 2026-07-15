@@ -179,7 +179,7 @@ const ProductIcon = `${import.meta.env.BASE_URL}product.svg`;
 const MeasureRowIcon = `${import.meta.env.BASE_URL}measure-row.svg`;
 /** Measure row when expanded but every descendant is hidden by filters (badge baked into asset). */
 const MeasureRowFilteredDescendantsIcon = `${import.meta.env.BASE_URL}measure-row-filtered-descendants.svg`;
-import { getDimensionGlyph, isDeepDimensionType } from '../data/dimensionSchemes';
+import { getDimensionGlyph, getDimensionLevelName, isDeepDimensionType } from '../data/dimensionSchemes';
 import '../styles/components/Grid.css';
 import '../styles/components/CellEditInfoPopover.css';
 
@@ -680,7 +680,9 @@ const getFrozenColumnValue = (colId: string, rowId: string, row?: GridRowType, v
   
   switch (colId) {
     case 'annotatedLevel':
-      return row ? (DIMENSION_LEVEL_LABELS[row.type] ?? '') : '';
+      // Legacy account/category/product map first, then any built-in multi-level scheme
+      // (deep / Acme) so deeper grids don't render a blank annotated level.
+      return row ? (DIMENSION_LEVEL_LABELS[row.type] ?? getDimensionLevelName(row.type) ?? '') : '';
     case 'users': {
       const userNames = [
         'John Doe', 'Jane Smith', 'Michael Johnson', 'Sarah Williams', 
@@ -1034,7 +1036,13 @@ const LEVEL_COLOR_MAP: Record<string, { color: string; bg: string; icon: React.R
 const renderFrozenCell = (colId: string, value: string, row?: GridRowType): React.ReactNode => {
   if (colId === 'annotatedLevel') {
     if (!value) return null;
-    const cfg = LEVEL_COLOR_MAP[value] ?? { color: 'var(--slds-g-color-neutral-base-50)', bg: 'var(--slds-g-color-neutral-base-95)', icon: null };
+    // Multi-level scheme rows (deep / Acme / config) carry a colored glyph — tint the badge
+    // with that same color mixed into white (light fill + solid-color text) so each level's
+    // badge matches its icon. Legacy account/category/product levels keep their preset colors.
+    const glyph = row ? getDimensionGlyph(row.type) : null;
+    const cfg = glyph
+      ? { color: glyph.bg, bg: `color-mix(in srgb, ${glyph.bg} 14%, #ffffff)`, icon: null }
+      : (LEVEL_COLOR_MAP[value] ?? { color: 'var(--slds-g-color-neutral-base-50)', bg: 'var(--slds-g-color-neutral-base-95)', icon: null });
     return (
       <div style={{
         display: 'inline-flex', alignItems: 'center', gap: '4px',

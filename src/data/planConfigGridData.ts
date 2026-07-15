@@ -15,6 +15,7 @@ import {
   PRODUCT_LEVEL_NAMES,
 } from './hierarchyStore';
 import { loadSessionMeasures } from './measureStore';
+import { ADJUSTMENT_MEASURE_NAMES } from './adjustmentMeasuresData';
 
 /** cfg industry keys look like "cfg:<configId>". */
 export const CONFIG_INDUSTRY_PREFIX = 'cfg:';
@@ -415,5 +416,10 @@ export function getConfigMeasureCategories(
   if (!isConfigIndustry(industry)) return [];
   const id = configIdFromIndustry(industry as string);
   const detail = getPlanConfigDetail(id);
-  return detail?.subsets?.map((s) => ({ name: s.name, measures: s.measures })) ?? [];
+  const base = detail?.subsets?.map((s) => ({ name: s.name, measures: s.measures })) ?? [];
+  // Config grids also expose the built-in "Adjustment Measures" category (default 3-level
+  // adjustment dataset). Appended here so every config grid gets it regardless of how its
+  // detail was seeded; the forecasting grid supplies the actual measure rows for this subset.
+  if (base.some((c) => c.name === 'Adjustment Measures')) return base;
+  return [...base, { name: 'Adjustment Measures', measures: [...ADJUSTMENT_MEASURE_NAMES] }];
 }

@@ -16,6 +16,8 @@ import '../styles/components/Grid.css';
 interface DimensionsTimeGridProps {
   data: MeasureData[];
   onDataChange?: (newData: MeasureData[]) => void;
+  /** Notified whenever the set of expanded row ids changes (used to lazily grow deep hierarchies). */
+  onExpandedRowsChange?: (expandedIds: Set<string>) => void;
   selectedDimensionLevels?: Set<string>;
   selectedTimeGranularities?: Set<string>;
   columnWidth?: number;
@@ -40,6 +42,7 @@ interface DimensionsTimeGridProps {
 const DimensionsTimeGrid: React.FC<DimensionsTimeGridProps> = ({
   data,
   onDataChange,
+  onExpandedRowsChange,
   selectedDimensionLevels,
   selectedTimeGranularities,
   columnWidth = 100,
@@ -62,6 +65,10 @@ const DimensionsTimeGrid: React.FC<DimensionsTimeGridProps> = ({
 }) => {
   const isGrid264Ux = useIsGrid264UpdatedExperience();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  // Let the data owner lazily grow deep hierarchies one level ahead of what's expanded.
+  useEffect(() => {
+    onExpandedRowsChange?.(expandedRows);
+  }, [expandedRows, onExpandedRowsChange]);
   const [focusedCell, setFocusedCell] = useState<{ rowId: string; measureId: string } | null>(initialFocusedCell || null);
   const cellRefs = useRef<Map<string, HTMLTableCellElement>>(new Map());
   const [editedCells, setEditedCells] = useState<Map<string, number>>(new Map());

@@ -298,6 +298,8 @@ function expandGlobalSortColumnKey(columnKey: string, visibleTimeKeys: string[])
 interface HierarchicalGridProps {
   data: MeasureData[];
   onDataChange?: (newData: MeasureData[]) => void;
+  /** Notified whenever the set of expanded row ids changes (used to lazily grow deep hierarchies). */
+  onExpandedRowsChange?: (expandedIds: Set<string>) => void;
   selectedDimensionLevels?: Set<string>;
   selectedTimeGranularities?: Set<string>;
   calendarStartMonth?: number; // 0=Jan..9=Oct; rotates month columns to fiscal start
@@ -426,6 +428,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   rollupStructureData,
   rollupValueSourceData,
   onDataChange, 
+  onExpandedRowsChange,
   selectedDimensionLevels, 
   selectedTimeGranularities,
   calendarStartMonth = 0,
@@ -1710,6 +1713,11 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       return newSet;
     });
   };
+
+  // Let the data owner lazily grow deep hierarchies one level ahead of what's expanded.
+  useEffect(() => {
+    onExpandedRowsChange?.(expandedRows);
+  }, [expandedRows, onExpandedRowsChange]);
 
   // Expand all rows that have children
   const handleClearAllFilters = useCallback(() => {

@@ -71,9 +71,18 @@ const SearchableMultiSelect: React.FC<SearchableMultiSelectProps> = ({
     onChange(options.filter((o) => next.has(o)));
   };
 
+  const allSelected = options.length > 0 && selected.length === options.length;
+
+  const toggleAll = () => {
+    onChange(allSelected ? [] : [...options]);
+  };
+
   const filtered = searchTerm
     ? options.filter((o) => o.toLowerCase().includes(searchTerm.toLowerCase()))
     : options;
+
+  // Only surface the "All" shortcut when not narrowing the list via search.
+  const showAllOption = !searchTerm && options.length > 0;
 
   const displayValue = open ? searchTerm : selected.join(', ');
 
@@ -165,6 +174,46 @@ const SearchableMultiSelect: React.FC<SearchableMultiSelectProps> = ({
                 }}
               >
                 <ul className="slds-listbox slds-listbox_vertical" role="listbox" aria-multiselectable="true">
+                  {showAllOption && (
+                    <li role="presentation" className="slds-listbox__item">
+                      <div
+                        role="option"
+                        aria-selected={allSelected}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          toggleAll();
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.625rem 0.75rem',
+                          cursor: 'pointer',
+                          backgroundColor: allSelected ? 'var(--color-surface-gray)' : 'var(--color-surface-white)',
+                          borderBottom: '1px solid var(--color-border-ui-strong)',
+                          transition: 'background-color 0.1s ease',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!allSelected) e.currentTarget.style.backgroundColor = 'var(--slds-g-color-accent-container-1)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = allSelected
+                            ? 'var(--color-surface-gray)'
+                            : 'var(--color-surface-white)';
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={allSelected}
+                          readOnly
+                          tabIndex={-1}
+                          style={{ pointerEvents: 'none', margin: 0 }}
+                        />
+                        <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-on-surface-strong)' }}>All</span>
+                      </div>
+                    </li>
+                  )}
                   {filtered.length > 0 ? (
                     filtered.map((opt) => {
                       const isSelected = selected.includes(opt);

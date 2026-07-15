@@ -3,6 +3,7 @@ import { MeasureData, GridRow, ParentTotalsRollupMode } from '../types';
 
 import UnifiedFilterPopover from './UnifiedFilterPopover';
 import ReorderMeasuresModal from './ReorderMeasuresModal';
+import ScopedNotification from './ScopedNotification';
 import { measureSubgroupOptions } from './SettingsPanel';
 import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
@@ -466,6 +467,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   // Track if Apply was clicked (to distinguish from Cancel/Close)
   const applyClickedRef = useRef(false);
   const [isScopeSectionOpen, setIsScopeSectionOpen] = useState(false);
+  // Two stacked accordion sections that open/close independently.
+  const [filtersCollapsed, setFiltersCollapsed] = useState(false);
+  const [filterSetsCollapsed, setFilterSetsCollapsed] = useState(false);
 
   const [filters, setFilters] = useState<Filter[]>(() => makeDefaultFilters());
 
@@ -625,6 +629,10 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   const [expandedSetName, setExpandedSetName] = useState<string | null>(null);
   const [isCreatingNewSet, setIsCreatingNewSet] = useState(false);
   const [newSetName, setNewSetName] = useState('');
+  // "Tip" banner (above the filter tabs) → save current filters as a set via a small popover.
+  const [isTipSaveOpen, setIsTipSaveOpen] = useState(false);
+  const [tipSetName, setTipSetName] = useState('');
+  const tipSaveWrapRef = useRef<HTMLDivElement | null>(null);
   // Only one filter set can be applied (pushed to the grid) at a time.
   const [appliedSetName, setAppliedSetName] = useState<string | null>(null);
   // Collapse the list to the first few sets until "View more" is clicked.
@@ -988,6 +996,34 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     const { from, to } = parseTimeCardToRange();
     previewFilterViewOnGrid(filters, from, to);
   };
+
+  // Save the current filter selections as a named set from the "Tip" popover, then apply it.
+  const handleSaveTipSet = () => {
+    const name = tipSetName.trim();
+    if (!name || name === 'None') return;
+    const newSet = snapshotCurrentSet(name);
+    setUserFilterSets(prev => [newSet, ...prev.filter(s => s.name !== name)]);
+    setSelectedFilterSet(name);
+    setShowAllSets(false);
+    setExpandedSetName(null);
+    setAppliedSetName(name);
+    const { from, to } = parseTimeCardToRange();
+    previewFilterViewOnGrid(filters, from, to);
+    setIsTipSaveOpen(false);
+    setTipSetName('');
+  };
+
+  // Close the Tip save popover when clicking outside of it.
+  useEffect(() => {
+    if (!isTipSaveOpen) return;
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (tipSaveWrapRef.current && !tipSaveWrapRef.current.contains(e.target as Node)) {
+        setIsTipSaveOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [isTipSaveOpen]);
 
   // Push the current editor selections onto the grid as a live preview.
   const handlePreviewCurrent = () => {
@@ -1691,6 +1727,41 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
     setOriginalMeasureEditDisaggregateToVisibleChildrenOnly(nextDisagg);
   };
 
+  {/* Tip banner lives only in the top-level "Filters" section — not inside filter-set cards. */}
+  const tipSaveBanner = (
+    <div className="filters-tip-wrap" ref={tipSaveWrapRef}>
+      <ScopedNotification
+        variant="inline"
+        className="filters-tip-banner"
+        message="Tip: Save your filter settings into a Filter Set so you can re-use next time."
+        ctaLabel="Save"
+        onCtaClick={() => { setTipSetName(''); setIsTipSaveOpen(v => !v); }}
+      />
+      {isTipSaveOpen && (
+        <div className="filters-tip-popover" role="dialog" aria-label="Save filter set">
+          <label className="filters-tip-popover-label" htmlFor="tip-set-name">Filter set name</label>
+          <input
+            id="tip-set-name"
+            type="text"
+            className="filters-tip-popover-input"
+            autoFocus
+            placeholder="e.g. Q2 Revenue Recovery"
+            value={tipSetName}
+            onChange={e => setTipSetName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && tipSetName.trim()) handleSaveTipSet();
+              if (e.key === 'Escape') { setIsTipSaveOpen(false); setTipSetName(''); }
+            }}
+          />
+          <div className="filters-tip-popover-actions">
+            <button type="button" className="filters-tip-popover-cancel" onClick={() => { setIsTipSaveOpen(false); setTipSetName(''); }}>Cancel</button>
+            <button type="button" className="filters-tip-popover-save" disabled={!tipSetName.trim()} onClick={handleSaveTipSet}>Save</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
   // Shared editor body (Basic + Advanced tabs) rendered inside whichever filter-set card is open.
   const filterEditorBody = (
     <>
@@ -2042,8 +2113,45 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
         )}
       </div>
 
-      {/* Filter sets — searchable, collapsible cards (like conditional-formatting rules) */}
-      <div className="fs-cards-section">
+      <div className="filters-panel-scroll">
+
+      {/* Section 1: Filters — Basic/Advanced filter editor */}
+      <div className={`fs-cards-section${filtersCollapsed ? ' fs-cards-section--collapsed' : ''}`}>
+        <button
+          type="button"
+          className="fs-cards-heading"
+          aria-expanded={!filtersCollapsed}
+          onClick={() => setFiltersCollapsed(v => !v)}
+        >
+          <span className={`fs-cards-heading-chevron${filtersCollapsed ? '' : ' fs-cards-heading-chevron--open'}`} aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+          <span className="fs-cards-title">Filters</span>
+        </button>
+        {!filtersCollapsed && (
+          <div className="filters-accordion-body">
+            {tipSaveBanner}
+            {filterEditorBody}
+          </div>
+        )}
+      </div>
+
+      {/* Section 2: Filter Sets — searchable, collapsible cards */}
+      <div className={`fs-cards-section${filterSetsCollapsed ? ' fs-cards-section--collapsed' : ''}`}>
+        <button
+          type="button"
+          className="fs-cards-heading"
+          aria-expanded={!filterSetsCollapsed}
+          onClick={() => setFilterSetsCollapsed(v => !v)}
+        >
+          <span className={`fs-cards-heading-chevron${filterSetsCollapsed ? '' : ' fs-cards-heading-chevron--open'}`} aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
+          <span className="fs-cards-title">Filter Sets</span>
+        </button>
+        {!filterSetsCollapsed && (
+          <div className="fs-cards-body">
+            <p className="fs-cards-desc">Save and reuse combinations of filters to quickly switch between views.</p>
         {!isCreatingNewSet && (
         <div className="fs-cards-toolbar">
           <div className="fs-search">
@@ -2162,6 +2270,9 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
             </>
           );
         })()}
+          </div>
+        )}
+      </div>
       </div>
       {/* Unified Filter Popover */}
       {editingFilterId && (() => {

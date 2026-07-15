@@ -98,6 +98,20 @@ export function getDimensionIcon(levelId: string): string {
   return ICON_BY_LEVEL_ID[levelId] ?? `${BASE}category.svg`;
 }
 
+// Level id -> display name across every built-in scheme, so features keyed off a row's
+// `type` (e.g. the "Annotated Level" row-information column) can label rows in any grid,
+// not just the default account/category/product scheme.
+const LEVEL_NAME_BY_ID: Record<string, string> = Object.fromEntries(
+  [...DEFAULT_DIMENSION_LEVELS, ...DEEP_DIMENSION_LEVELS, ...ACME_DIMENSION_LEVELS].map(
+    (l) => [l.id, l.name],
+  ),
+);
+
+/** Display name for a dimension level / row type across the built-in schemes (undefined if unknown). */
+export function getDimensionLevelName(levelId: string): string | undefined {
+  return LEVEL_NAME_BY_ID[levelId];
+}
+
 // Colored 2-letter acronym glyphs for the deep-hierarchy levels. Account levels use a
 // cool palette and product levels use a warm palette so the two hierarchies read as
 // distinct groups. All glyphs use white text.

@@ -11,6 +11,7 @@ import {
 } from '../types/editHistory';
 import { AdjustmentNote } from '../types/adjustmentNote';
 import { getMockData } from '../data/mockData';
+import { ensureDeepChildren } from '../data/deepHierarchyData';
 import { useIndustry } from '../contexts/IndustryContext';
 import { getDimensionScheme } from '../data/dimensionSchemes';
 import { isConfigIndustry, isConfigLevel, getConfigMeasureCategories, getConfigTimeFrame, defaultGranularitiesForDuration } from '../data/planConfigGridData';
@@ -49,7 +50,7 @@ import AlertsPanel, { FocusGridParams } from './AlertsPanel';
 import AgentforcePanel from './AgentforcePanel';
 import { useAgentforce } from '../contexts/AgentforceContext';
 import { ColumnFilter } from './ColumnFilterPopover';
-import ScopedNotification from './ScopedNotification';
+import ScopedNotification, { ScopedNotificationToggle } from './ScopedNotification';
 import { getMeasureName } from '../utils/cellInfoUtils';
 
 // ── Approval review "semantic chunking" ──────────────────────────────────────
@@ -268,6 +269,12 @@ const DEFAULT_VISIBLE_MEASURE_IDS = new Set([
   'measure-ly-order-rev',
   'measure-forecast-qty',
   'measure-forecast-rev',
+  // Adjustment Measures — shown by default alongside Revenue & Quantity.
+  'measure-baseline-forecast',
+  'measure-account-manager-adjusted',
+  'measure-sales-manager-adjusted',
+  'measure-regional-director-adjusted',
+  'measure-final-forecast',
 ]);
 
 // Pre-seeded admin conditional-formatting rules (mirrors the deployed grid's Formatting tab).
@@ -318,7 +325,7 @@ const ForecastingGrid: React.FC = () => {
     planStatus === 'Submitted' &&
     planSubmittedByUserId != null &&
     planSubmittedByUserId === currentUser.id;
-  const [selectedMeasureSubgroup, setSelectedMeasureSubgroup] = useState<Set<string>>(new Set(['Revenue & Quantity Measures']));
+  const [selectedMeasureSubgroup, setSelectedMeasureSubgroup] = useState<Set<string>>(new Set(['Revenue & Quantity Measures', 'Adjustment Measures']));
   const [selectedLayoutState, setSelectedLayoutState] = useState<string>('Measures / Dimensions x Time');
   
   // Get data based on current industry, default to manufacturing if not set
@@ -684,7 +691,7 @@ const ForecastingGrid: React.FC = () => {
       const names = getConfigMeasureCategories(ind).map((c) => c.name);
       setSelectedMeasureSubgroup(new Set(names.length > 0 ? names : ['Revenue & Quantity Measures']));
     } else {
-      setSelectedMeasureSubgroup(new Set(['Revenue & Quantity Measures']));
+      setSelectedMeasureSubgroup(new Set(['Revenue & Quantity Measures', 'Adjustment Measures']));
     }
   }, [industry]);
   
@@ -3366,6 +3373,18 @@ const ForecastingGrid: React.FC = () => {
         });
       });
 
+      // The "Adjustment Measures" category is synthetic for config grids (its measures
+      // aren't in the config's own measure list), so pull those rows from the shared
+      // adjustment dataset when that subset is selected.
+      if (selectedMeasureSubgroup.has('Adjustment Measures')) {
+        getAdjustmentMeasuresData(industry).forEach((measure: MeasureData) => {
+          if (!measureMap.has(measure.id)) {
+            measureMap.set(measure.id, measure);
+            allMeasureIds.push(measure.id);
+          }
+        });
+      }
+
       // Fallback: config has no subsets, or none matched — show every config measure.
       if (measureMap.size === 0) {
         dataWithHistory.forEach((m: MeasureData) => {
@@ -3575,6 +3594,7 @@ const ForecastingGrid: React.FC = () => {
   const [isQuickAccessModalOpen, setIsQuickAccessModalOpen] = useState(false);
   const [isEditFrozenColumnsModalOpen, setIsEditFrozenColumnsModalOpen] = useState(false);
   const [selectedFrozenColumns, setSelectedFrozenColumns] = useState<FrozenColumn[]>([
+    { id: 'annotatedLevel', name: 'Annotated Level' },
     { id: 'users', name: 'Users' },
     { id: 'condition', name: 'Condition' },
     { id: 'status', name: 'Status' },
@@ -3729,6 +3749,14 @@ const ForecastingGrid: React.FC = () => {
 
   const handleHierarchicalGridDataChange = useCallback((newData: MeasureData[]) => {
     setData(newData);
+  }, []);
+
+  // Lazily materialize deep (8–10-per-level) hierarchies one level ahead of the expanded
+  // rows. `ensureDeepChildren` returns null (a no-op) for non-deep datasets and once the
+  // needed children already exist, so this settles after a single grow per expand.
+  const handleGridExpandedRowsChange = useCallback((expandedIds: Set<string>) => {
+    setData((prev) => ensureDeepChildren(prev, expandedIds) ?? prev);
+    setOriginalData((prev) => ensureDeepChildren(prev, expandedIds) ?? prev);
   }, []);
 
   useEffect(() => {
@@ -5274,7 +5302,7 @@ const ForecastingGrid: React.FC = () => {
               <span className="grid-scope-label">
                 Calculation Scope:{' '}
                 <span className={`slds-badge grid-scope-badge${includeFilteredOutChildren ? ' grid-scope-badge--everything' : ''}`}>
-                  {includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}
+                  {includeFilteredOutChildren ? 'All rows' : 'Only Filtered Rows'}
                 </span>
               </span>
               <button
@@ -5283,7 +5311,7 @@ const ForecastingGrid: React.FC = () => {
                 className={`grid-scope-menu-trigger${includeFilteredOutChildren ? ' grid-scope-menu-trigger--everything' : ''}${isScopePopoverOpen ? ' grid-scope-menu-trigger--open' : ''}`}
                 aria-haspopup="menu"
                 aria-expanded={isScopePopoverOpen}
-                aria-label={`Calculation scope: ${includeFilteredOutChildren ? 'All rows' : 'Only Visible Rows'}. Change`}
+                aria-label={`Calculation scope: ${includeFilteredOutChildren ? 'All rows' : 'Only Filtered Rows'}. Change`}
                 onClick={() => {
                   if (!isScopePopoverOpen) setScopeDraftEverything(includeFilteredOutChildren);
                   setIsScopePopoverOpen((v) => !v);
@@ -5332,7 +5360,7 @@ const ForecastingGrid: React.FC = () => {
                       >
                         <span className="grid-scope-option__radio" aria-hidden="true" />
                         <span className="grid-scope-option__body">
-                          <span className="grid-scope-option__label">Only Visible Rows</span>
+                          <span className="grid-scope-option__label">Only Filtered Rows</span>
                           <span className="grid-scope-option__desc">
                             Totals &amp; edits apply to the visible rows only. Rows outside your filter are never changed.
                           </span>
@@ -5499,12 +5527,33 @@ const ForecastingGrid: React.FC = () => {
           onEndPeriodChange={setEndPeriod}
         />
       )}
+      {showHierarchicalParentTotalsHint && (
+        <ScopedNotification
+          variant="inline"
+          className="scoped-notification--grid-totals-hint"
+          message={
+            includeFilteredOutChildren
+              ? 'Totals include all rows — parent totals roll up over every child, including rows hidden by your filters.'
+              : 'Totals reflect only the filtered rows — parent totals roll up over the visible (filtered) children only.'
+          }
+          action={
+            <ScopedNotificationToggle
+              label="Include all rows in totals"
+              checked={includeFilteredOutChildren}
+              onChange={setScopeEverything}
+            />
+          }
+          closeLabel="Clear filters"
+          onClose={handleClearAllGridFilters}
+        />
+      )}
       <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
         <div className="grid-wrapper">
         {selectedLayoutState === 'Dimensions / Time x Measures' ? (
           <DimensionsTimeGrid 
             data={filteredData} 
             onDataChange={setData} 
+            onExpandedRowsChange={handleGridExpandedRowsChange}
             selectedDimensionLevels={selectedDimensionLevels}
             selectedTimeGranularities={selectedTimeGranularities}
             columnWidth={columnWidth}
@@ -5545,6 +5594,7 @@ const ForecastingGrid: React.FC = () => {
           <TimeDimensionsGrid 
             data={filteredData} 
             onDataChange={setData} 
+            onExpandedRowsChange={handleGridExpandedRowsChange}
             selectedDimensionLevels={selectedDimensionLevels}
             selectedTimeGranularities={selectedTimeGranularities}
             columnWidth={columnWidth}
@@ -5588,6 +5638,7 @@ const ForecastingGrid: React.FC = () => {
             data={hierarchicalGridData}
             rollupValueSourceData={hierarchicalRollupValueSource}
             onDataChange={handleHierarchicalGridDataChange} 
+            onExpandedRowsChange={handleGridExpandedRowsChange}
             parentTotalsRollupMode={parentTotalsRollupMode}
             propagateIntoNoMatchRows={propagateIntoNoMatchRows}
             measureEditDisaggregateVisibleChildrenDefault={measureEditDisaggregateToVisibleChildrenOnly}

@@ -319,6 +319,7 @@ const CpmFeaturePage: React.FC = () => {
   const [step32Done, setStep32Done] = useState(false);
   const [step4Done, setStep4Done] = useState(false);
   const [step5Done, setStep5Done] = useState(false);
+  const [step6Done, setStep6Done] = useState(false);
   const [hierarchyModalOpen, setHierarchyModalOpen] = useState(false);
   const [hierarchyToast, setHierarchyToast] = useState<HierarchyChangeToast | null>(null);
   const [measuresModalOpen, setMeasuresModalOpen] = useState(false);
@@ -652,6 +653,14 @@ const CpmFeaturePage: React.FC = () => {
                     >
                       Turn on Commercial Planning for Manufacturing
                     </h2>
+                    {!dataSpaceSaved && (
+                      <span className="cpm-tooltip-wrap" tabIndex={0} aria-describedby="cpm-turnon-tip">
+                        <WarningIcon />
+                        <span className="cpm-tooltip" role="tooltip" id="cpm-turnon-tip">
+                          Complete the pre-requisites to turn on the feature
+                        </span>
+                      </span>
+                    )}
                   </div>
                   {turnedOn ? (
                     <span className="cpm-on-badge">On</span>
@@ -663,8 +672,9 @@ const CpmFeaturePage: React.FC = () => {
                   ) : (
                     <div className="cpm-turnon-cta" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <button
-                        className="cpm-btn cpm-btn--brand"
+                        className={`cpm-btn ${dataSpaceSaved ? 'cpm-btn--brand' : 'cpm-btn--turn-on'}`}
                         type="button"
+                        disabled={!dataSpaceSaved}
                         onClick={() => {
                           setTurningOn(true);
                           setTurnOnOpen(true);
@@ -716,6 +726,11 @@ const CpmFeaturePage: React.FC = () => {
                   </div>
                 )}
 
+                {!turningOn && !turnedOn && turnOnOpen && (
+                  <p className="cpm-section-desc">
+                    Complete the prerequisites above before turning on Commercial Planning for Manufacturing.
+                  </p>
+                )}
               </div>
             </section>
 
@@ -964,6 +979,25 @@ const CpmFeaturePage: React.FC = () => {
                           Go to Plan Configuration List
                           <ExternalLinkIcon />
                         </button>
+                      </div>
+
+                      {/* 6. Sync Schedule for Data for Measures & Dimensional Hierarchies */}
+                      <div className="cpm-req-single">
+                        <button
+                          type="button"
+                          className="cpm-req-ind cpm-req-ind--btn"
+                          onClick={() => setStep6Done((d) => !d)}
+                          aria-pressed={step6Done}
+                          aria-label={step6Done ? 'Mark step 6 as not complete' : 'Mark step 6 as complete'}
+                        >
+                          {step6Done ? <CheckboxOn /> : <CheckboxOff />}
+                        </button>
+                        <div className="cpm-req-lead-text">
+                          <h3 className="cpm-req-title">6. Sync Schedule for Data for Measures &amp; Dimensional Hierarchies</h3>
+                          <p className="cpm-req-desc">
+                            Sync Schedule for Data for Measures &amp; Dimensional Hierarchies
+                          </p>
+                        </div>
                       </div>
                     </div>
                   )}
