@@ -45,27 +45,64 @@
     true
   );
 
+  // Locate the main data grid (its rows carry the job-name row header).
+  function findDataGrid() {
+    var tables = document.querySelectorAll('table');
+    for (var i = 0; i < tables.length; i++) {
+      if (tables[i].querySelector('th[scope="row"]')) return tables[i];
+    }
+    return null;
+  }
+
   // Remove the trailing row-action ("Show Actions") column — the rightmost
   // column of controls in the list view — from the header and every row.
   function removeLastColumn() {
-    var tables = document.querySelectorAll('table');
-    for (var i = 0; i < tables.length; i++) {
-      var table = tables[i];
-      // Only touch the data grid (rows carry the job-name row header).
-      if (!table.querySelector('th[scope="row"]')) continue;
-      var rows = table.querySelectorAll('tr');
-      for (var r = 0; r < rows.length; r++) {
-        var cells = rows[r].children;
-        if (cells.length) {
-          rows[r].removeChild(cells[cells.length - 1]);
-        }
+    var table = findDataGrid();
+    if (!table) return;
+    var rows = table.querySelectorAll('tr');
+    for (var r = 0; r < rows.length; r++) {
+      var cells = rows[r].children;
+      if (cells.length) {
+        rows[r].removeChild(cells[cells.length - 1]);
       }
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', removeLastColumn);
-  } else {
+  // Remove the first N data rows (top of the list). Only rows carrying a
+  // row-header (job name) count as data rows, so header rows are untouched.
+  function removeFirstRows(count) {
+    var table = findDataGrid();
+    if (!table) return 0;
+    var trs = table.querySelectorAll('tr');
+    var dataRows = [];
+    for (var r = 0; r < trs.length; r++) {
+      if (trs[r].querySelector('th[scope="row"]')) dataRows.push(trs[r]);
+    }
+    var removed = 0;
+    for (var d = 0; d < count && d < dataRows.length; d++) {
+      dataRows[d].parentNode.removeChild(dataRows[d]);
+      removed++;
+    }
+    return dataRows.length - removed;
+  }
+
+  // Keep the "N items • Sorted by …" status line consistent with what's shown.
+  function updateItemCount(remaining) {
+    var el = document.querySelector('.countSortedByFilteredBy');
+    if (el) {
+      el.textContent = el.textContent.replace(/^\s*\d+\s+items/, remaining + ' items');
+    }
+  }
+
+  function applyRowEdits() {
     removeLastColumn();
+    var remaining = removeFirstRows(14);
+    updateItemCount(remaining);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyRowEdits);
+  } else {
+    applyRowEdits();
   }
 })();
