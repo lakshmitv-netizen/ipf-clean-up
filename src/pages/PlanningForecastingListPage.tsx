@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallba
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
+import PlanAgentPanel from '../components/PlanAgentPanel';
+import { useAgentforce } from '../contexts/AgentforceContext';
 import ExportCsvModal from '../components/ExportCsvModal';
 import MeasureToast from '../components/MeasureToast';
 import SearchableMultiSelect from '../components/SearchableMultiSelect';
@@ -615,6 +617,7 @@ const PlanningForecastingListPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { industry, setIndustry } = useIndustry();
+  const { isOpen: isAgentOpen, close: closeAgent } = useAgentforce();
   // The industry context is sticky, so after visiting the deep-hierarchy grid it stays
   // 'manufacturing-deep'. Records without an explicit gridIndustry must never inherit the
   // deep grid — they should fall back to the regular manufacturing grid.
@@ -1435,6 +1438,43 @@ const PlanningForecastingListPage: React.FC = () => {
     setPlanModalMode('create');
   }, []);
 
+  // Opens the "Create New Plan" modal from a fresh state. Used by the manual
+  // New button on the list header.
+  const openCreatePlanModal = useCallback(() => {
+    resetPlanFormForCreate();
+    setIsModalOpen(true);
+    setSelectedValues(new Set());
+    setAccessControlMatrix(buildInitialAccessMatrix(industry));
+  }, [resetPlanFormForCreate, industry]);
+
+  // Opens the workspace for the plan the Plan Setup Agent creates (FY26 Acme
+  // Partners, built from the "Manufacturing Account Forecast" definition). This
+  // is the pre-mapped Acme grid, so it loads with zero manual setup — matching
+  // the demo narrative where the agent instantiates and loads the workspace.
+  const openAcmePlanWorkspace = useCallback(() => {
+    closeAgent();
+    setIndustry('manufacturing-acme');
+    navigate(getGridPathForIndustry('manufacturing-acme'));
+  }, [closeAgent, setIndustry, navigate]);
+
+  // Opens the record detail page for the agent-created plan (fired from the
+  // blue plan-name link in the record card). The record page renders the plan
+  // details passed via navigation state.
+  const openAcmePlanRecord = useCallback(() => {
+    closeAgent();
+    setIndustry('manufacturing-acme');
+    navigate('/planning-forecasting', {
+      state: {
+        plan: {
+          name: 'Planning & Forecasting FY26 – Acme Partners',
+          fiscalYear: '2026',
+          planConfiguration: 'Manufacturing Account Forecast',
+          rootRecord: 'Acme Partners',
+        },
+      },
+    });
+  }, [closeAgent, setIndustry, navigate]);
+
   const openClonePlanModal = useCallback((record: ForecastRecord) => {
     setRowActionMenuRecordId(null);
     setRowActionMenuPosition(null);
@@ -1502,6 +1542,13 @@ const PlanningForecastingListPage: React.FC = () => {
   return (
     <div className="app">
       <Header />
+      <PlanAgentPanel
+        isOpen={isAgentOpen}
+        onClose={closeAgent}
+        onOpenPlan={openAcmePlanWorkspace}
+        onOpenRecord={openAcmePlanRecord}
+        records={visibleRecords}
+      />
       <div className="main-content list-page-content">
         <div className="list-page-container">
           {/* Page Header */}
@@ -1530,12 +1577,7 @@ const PlanningForecastingListPage: React.FC = () => {
             <div className="list-page-header-right">
               <button
                 className="list-page-new-btn"
-                onClick={() => {
-                  resetPlanFormForCreate();
-                  setIsModalOpen(true);
-                  setSelectedValues(new Set());
-                  setAccessControlMatrix(buildInitialAccessMatrix(industry));
-                }}
+                onClick={openCreatePlanModal}
               >
                 New
               </button>

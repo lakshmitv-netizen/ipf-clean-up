@@ -1,0 +1,221 @@
+/* ── Plan-list Agentforce panel ───────────────────────────────────────────────
+   Reuses the base .agentforce-* look, but on the list page there is no grid
+   flex-row to slot into, so we anchor it as a fixed right-side drawer that sits
+   below the global header (50px top row + 40px nav row = 90px). The compound
+   selector (.agentforce-panel.plan-agent-panel-fixed) beats the base rules. */
+
+.agentforce-panel.plan-agent-panel-fixed {
+  position: fixed;
+  top: 90px;
+  right: 0;
+  bottom: 0;
+  height: auto;
+  max-height: none;
+  z-index: 1200;
+  border-top: none;
+  border-right: none;
+  border-bottom: none;
+  box-shadow: -6px 0 18px rgba(0, 0, 0, 0.12);
+  animation: plan-agent-slide-in 0.18s ease-out;
+}
+
+@keyframes plan-agent-slide-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Primary "Create a new plan" starter — visually leads the suggestion list. */
+.agentforce-suggestion.plan-agent-suggestion--primary {
+  border-color: var(--slds-g-color-brand-base-50, #0176d3);
+  background: var(--slds-g-color-brand-base-95, #eef4ff);
+  color: var(--slds-g-color-brand-base-30, #0b5cab);
+  font-weight: 600;
+}
+
+.agentforce-suggestion.plan-agent-suggestion--primary:hover {
+  background: var(--slds-g-color-brand-base-90, #d8e6fe);
+  border-color: var(--slds-g-color-brand-base-40, #014486);
+}
+
+.agentforce-suggestion.plan-agent-suggestion--primary .agentforce-suggestion-arrow {
+  color: var(--slds-g-color-brand-base-50, #0176d3);
+}
+
+/* Inline call-to-action button inside an agent reply. */
+.plan-agent-cta-row {
+  margin-top: 12px;
+}
+
+.plan-agent-cta-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 4px;
+  background: var(--slds-g-color-brand-base-50, #0176d3);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.plan-agent-cta-btn:hover {
+  background: var(--slds-g-color-brand-base-40, #014486);
+}
+
+/* ── Agent-created record card (SLDS "agent creates a record" pattern) ─────── */
+.plan-agent-record {
+  margin-top: 12px;
+  border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+  border-radius: 8px;
+  background: #fff;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.plan-agent-record-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.plan-agent-record-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: var(--slds-g-color-brand-base-50, #0176d3);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.plan-agent-record-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--slds-g-color-neutral-base-15, #1c1c1c);
+  line-height: 1.3;
+}
+
+.plan-agent-record-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.plan-agent-record-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slds-g-color-neutral-base-30, #514f4d);
+  margin-bottom: 1px;
+}
+
+.plan-agent-record-value {
+  font-size: 13px;
+  color: var(--slds-g-color-neutral-base-20, #2e2e2e);
+  line-height: 1.35;
+}
+
+.plan-agent-record-value--link {
+  color: var(--slds-g-color-brand-base-50, #0176d3);
+  font-weight: 500;
+}
+
+/* When the link value is a button, strip native chrome and make it a text link. */
+button.plan-agent-record-value--link {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+button.plan-agent-record-value--link:hover {
+  text-decoration: underline;
+}
+
+.plan-agent-record-actions {
+  margin-top: 16px;
+}
+
+/* SLDS Button — Neutral (brand-outline), copied from Figma tokens:
+   white surface, 1px #5c5c5c border, fully-rounded (pill) edges,
+   #0250d9 label, SF Pro 14px / 590. */
+.plan-agent-record-view {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 32px !important;
+  min-width: 72px !important;
+  padding: 0 var(--slds-g-spacing-4, 16px) !important;
+  border: 1px solid var(--slds-g-color-border-2, #5c5c5c) !important;
+  border-radius: var(--slds-g-radius-border-circle, 9999px) !important;
+  background: var(--slds-g-color-surface-container-1, #fff) !important;
+  color: var(--slds-g-color-accent-2, #0250d9) !important;
+  font-family: var(--slds-g-font-family-base, 'SF Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif) !important;
+  font-size: 14px !important;
+  font-weight: 590 !important;
+  line-height: 19px !important;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.plan-agent-record-view:hover {
+  background: var(--slds-g-color-neutral-base-95, #f3f3f3) !important;
+}
+
+.plan-agent-record-view:active {
+  background: var(--slds-g-color-neutral-base-90, #ecebea) !important;
+}
+
+/* ── Specialist-agent reasoning note ("Plan Setup Agent · …") ──────────────── */
+.plan-agent-note {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: var(--slds-g-color-brand-base-95, #f3f8ff);
+  border: 1px solid var(--slds-g-color-brand-base-90, #d8e6fe);
+}
+
+.plan-agent-note-spark {
+  color: var(--slds-g-color-brand-base-50, #0176d3);
+  flex-shrink: 0;
+  line-height: 0;
+  margin-top: 1px;
+}
+
+.plan-agent-note-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.plan-agent-note-agent {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--slds-g-color-brand-base-30, #0b5cab);
+  text-transform: none;
+}
+
+.plan-agent-note-text {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--slds-g-color-neutral-base-30, #514f4d);
+}

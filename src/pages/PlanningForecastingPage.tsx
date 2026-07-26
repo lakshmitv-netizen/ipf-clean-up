@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Header from '../components/Header';
 import SalesforcePath from '../components/SalesforcePath';
 import { APPROVER_ROSTER } from '../types/approvalRequest';
@@ -120,9 +120,27 @@ function approverPlanDecisionLabel(outcome: ApproverPlanDecisionOutcome): string
   }
 }
 
+/** Plan detail fields the record page can be opened with (e.g. from the
+ *  Agentforce "View" action). Falls back to the default FY26 record. */
+interface RecordPagePlan {
+  name?: string;
+  fiscalYear?: string;
+  planConfiguration?: string;
+  rootRecord?: string;
+}
+
 const PlanningForecastingPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { industry } = useIndustry();
+
+  // Plan data passed via navigation state overrides the default FY26 record,
+  // so the same record page can render whichever plan the user opened.
+  const planOverride = (location.state as { plan?: RecordPagePlan } | null)?.plan;
+  const planName = planOverride?.name ?? 'Planning & Forecasting FY26';
+  const planFiscalYear = planOverride?.fiscalYear ?? '2026';
+  const planConfiguration = planOverride?.planConfiguration ?? 'KAMPlanConfig';
+  const planRootRecord = planOverride?.rootRecord ?? 'Acme';
   const gridHomePath = getGridPathForIndustry(industry);
   const { currentUser } = useCurrentUser();
   const { session } = usePlanningGridSession();
@@ -444,7 +462,7 @@ const PlanningForecastingPage: React.FC = () => {
             <div className="planning-page-title-section">
               <Link to="/planning-forecasting-list" className="planning-page-subtitle">Planning & Forecasting</Link>
               <div className="planning-page-title-row">
-                <h1 className="planning-page-title">Planning & Forecasting FY26</h1>
+                <h1 className="planning-page-title">{planName}</h1>
                 <svg className="planning-page-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
@@ -529,7 +547,7 @@ const PlanningForecastingPage: React.FC = () => {
                   <h3 className="planning-section-title">Information</h3>
                   <div className="planning-info-field">
                     <label className="planning-info-label">Plan Name</label>
-                    <div className="planning-info-value">Planning & Forecasting FY26</div>
+                    <div className="planning-info-value">{planName}</div>
                   </div>
                   <div className="planning-info-field">
                     <label className="planning-info-label">Plan Status</label>
@@ -558,15 +576,15 @@ const PlanningForecastingPage: React.FC = () => {
                     )}
                   <div className="planning-info-field">
                     <label className="planning-info-label">Fiscal Year</label>
-                    <div className="planning-info-value">2026</div>
+                    <div className="planning-info-value">{planFiscalYear}</div>
                   </div>
                   <div className="planning-info-field">
                     <label className="planning-info-label">Plan Configuration</label>
-                    <div className="planning-info-value">KAMPlanConfig</div>
+                    <div className="planning-info-value">{planConfiguration}</div>
                   </div>
                   <div className="planning-info-field">
                     <label className="planning-info-label">Root Record</label>
-                    <div className="planning-info-value">Acme</div>
+                    <div className="planning-info-value">{planRootRecord}</div>
                   </div>
                 </div>
               )}

@@ -13,6 +13,8 @@ interface DeadlineTask {
   timeKey?: string;
   cellKeys?: string[];
   type: 'submit' | 'review' | 'approve';
+  // For approval-request cards: who submitted the change awaiting the user's decision.
+  requesterName?: string;
   // Which tab this item belongs to: 'alert' (system-surfaced risk/anomaly) or 'task'
   // (a scheduled to-do). Defaults to 'task' when omitted.
   category?: 'alert' | 'task';
@@ -78,11 +80,12 @@ const TODAY = new Date('2026-03-17');
 const MOCK_DEADLINES: DeadlineTask[] = [
   {
     id: 'dl-1',
-    title: 'Submit Q1 Forecast',
+    title: 'Approve Q1 Forecast',
     description: 'Sales Agreement Quantity · Jan–Mar 2026',
     dueDate: new Date('2026-03-10'),
     measureId: 'measure-sa-qty',
-    type: 'submit',
+    type: 'approve',
+    requesterName: 'David Chen',
     searchTerm: 'Sales Agreement',
     startPeriod: 'jan2026',
     endPeriod: 'mar2026',
@@ -218,6 +221,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   const [showTasks, setShowTasks] = useState(true);
   const [showApprovals, setShowApprovals] = useState(true);
   const [showNotifications, setShowNotifications] = useState(true);
+  // Local decision state for deadline-based approval-request cards (mock; no backend).
+  const [resolvedDeadlineApprovals, setResolvedDeadlineApprovals] = useState<Record<string, 'approved' | 'rejected'>>({});
   const [draftShowTasks, setDraftShowTasks] = useState(true);
   const [draftShowApprovals, setDraftShowApprovals] = useState(true);
   const [draftShowNotifications, setDraftShowNotifications] = useState(true);
@@ -400,6 +405,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           endPeriod: task.endPeriod,
         };
 
+    const isApproval = task.type === 'approve';
+    const decision = resolvedDeadlineApprovals[task.id];
+
     return (
       <div
         key={task.id}
@@ -412,16 +420,23 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
             <span className="alerts-card-title">{task.title}</span>
           </div>
           <span className={`alerts-type-badge alerts-type-badge--${task.type}`}>
-            {task.type === 'submit' ? 'Submit' : 'Review'}
+            {task.type === 'submit' ? 'Submit' : task.type === 'approve' ? 'Approval' : 'Review'}
           </span>
         </div>
 
         {/* Sub / context */}
-        <div className="alerts-card-sub">{task.description}</div>
+        <div className="alerts-card-sub">
+          {isApproval && task.requesterName ? `Requested by ${task.requesterName} · ` : ''}
+          {task.description}
+        </div>
 
-        {/* Deadline chip */}
+        {/* Status / deadline chip */}
         <div className="alerts-card-meta">
-          {days > 0
+          {isApproval && decision ? (
+            decision === 'approved'
+              ? <span className="alerts-chip alerts-chip--green">✓ Approved</span>
+              : <span className="alerts-chip alerts-chip--red">✗ Rejected</span>
+          ) : days > 0
             ? <span className="alerts-chip alerts-chip--red">⏱ {days} day{days !== 1 ? 's' : ''} overdue · was due {formatDate(task.dueDate)}</span>
             : days === 0
               ? <span className="alerts-chip alerts-chip--amber">⏱ Due today</span>
@@ -429,16 +444,32 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           }
         </div>
 
-        {/* Focus action */}
-        {onFocusGrid && (
-          <div className="alerts-card-actions">
+        {/* Actions: approve/reject for approval requests, plus grid focus */}
+        <div className="alerts-card-actions">
+          {isApproval && !decision && (
+            <>
+              <button
+                className="alerts-approve-btn"
+                onClick={() => setResolvedDeadlineApprovals(prev => ({ ...prev, [task.id]: 'approved' }))}
+              >
+                Approve
+              </button>
+              <button
+                className="alerts-reject-btn"
+                onClick={() => setResolvedDeadlineApprovals(prev => ({ ...prev, [task.id]: 'rejected' }))}
+              >
+                Reject
+              </button>
+            </>
+          )}
+          {onFocusGrid && (
             <FocusToggleBtn
               active={isFocused}
               disabled={isDimmed}
               onClick={() => handleFocusToggle(task.id, focusParams)}
             />
-          </div>
-        )}
+          )}
+        </div>
       </div>
     );
   };

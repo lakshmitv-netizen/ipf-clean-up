@@ -375,6 +375,31 @@
 .alerts-chip--amber { background: var(--slds-g-color-warning-container-1); color: var(--slds-g-color-warning-1); }
 .alerts-chip--grey  { background: var(--slds-g-color-surface-container-1); color: var(--slds-g-color-neutral-base-40); }
 .alerts-chip--blue  { background: var(--slds-g-color-accent-container-2); color: var(--slds-g-color-brand-base-40); }
+.alerts-chip--green { background: var(--slds-g-color-success-container-1, #ddf1e4); color: var(--slds-g-color-success-1, #2e844a); }
+
+/* ── Approval-request action buttons ─────────────────────────────────────── */
+.alerts-approve-btn,
+.alerts-reject-btn {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.alerts-approve-btn {
+  border: 1px solid var(--slds-g-color-success-1, #2e844a);
+  background: var(--slds-g-color-success-1, #2e844a);
+  color: #fff;
+}
+.alerts-approve-btn:hover { background: #1f6b39; border-color: #1f6b39; }
+.alerts-reject-btn {
+  border: 1px solid var(--slds-g-color-border-base-4, #c9c9c9);
+  background: #fff;
+  color: var(--slds-g-color-error-1, #ba0517);
+}
+.alerts-reject-btn:hover { background: var(--slds-g-color-error-container-1, #fdd8d8); }
 
 /* ── Card actions row ────────────────────────────────────────────────────── */
 .alerts-card-actions {

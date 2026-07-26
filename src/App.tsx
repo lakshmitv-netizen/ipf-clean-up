@@ -16,6 +16,7 @@ import DpeDefinitionPage from './pages/DpeDefinitionPage';
 import PlanConfigurationListPage from './pages/PlanConfigurationListPage';
 import PlanConfigCreatorPage from './pages/PlanConfigCreatorPage';
 import DimensionsAndHierarchiesPage from './pages/DimensionsAndHierarchiesPage';
+import PresentationPage from './pages/PresentationPage';
 import IndustryUrlSync from './components/IndustryUrlSync';
 import ErrorBoundary from './components/ErrorBoundary';
 import './styles/App.css';
@@ -67,7 +68,8 @@ function App() {
             <Route path="/setup/plan-config-creator" element={<PlanConfigCreatorPage />} />
             <Route path="/setup/dimensions-and-hierarchies" element={<DimensionsAndHierarchiesPage />} />
             <Route path="/grid" element={<GridPage />} />
-            <Route path="/" element={<Navigate to="/setup/salesforce-go" replace />} />
+            <Route path="/presentation" element={<PresentationPage />} />
+            <Route path="/" element={<Navigate to="/presentation" replace />} />
           </Routes>
         </Router>
         </AgentforceProvider>

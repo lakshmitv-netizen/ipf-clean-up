@@ -38,6 +38,8 @@ import GridToolbar from './GridToolbar';
 import SettingsPanel, { CALENDAR_OPTIONS, DEFAULT_CALENDAR_ID } from './SettingsPanel';
 import { QuickAccessBar, ConfigureQuickAccessModal } from './QuickAccessToolbar';
 import FiltersPanel from './FiltersPanel';
+import ChartsPanel from './ChartsPanel';
+import ScenarioDrawer from './ScenarioDrawer';
 import CellDetailsHistoryPanel from './CellDetailsHistoryPanel';
 import CellEditInfoPopover from './CellEditInfoPopover';
 import CellContextMenu from './CellContextMenu';
@@ -45,6 +47,8 @@ import ConditionalFormattingRuleModal from './ConditionalFormattingRuleModal';
 import CellExplainabilityModal, { SourceRecord } from './CellExplainabilityModal';
 import EditFrozenColumnsModal, { FrozenColumn } from './EditFrozenColumnsModal';
 import EditSubColumnsModal, { SubColumn } from './EditSubColumnsModal';
+import ConfigureChartsModal, { ChartConfig } from './ConfigureChartsModal';
+import MiniChart from './MiniChart';
 import GlobalSortPanel, { GlobalSortConfig } from './GlobalSortPanel';
 import AlertsPanel, { FocusGridParams } from './AlertsPanel';
 import AgentforcePanel from './AgentforcePanel';
@@ -236,6 +240,71 @@ const MONTH_SORT_COLUMN_OPTIONS: { key: string; label: string }[] = [
   { key: 'nov2026', label: 'Nov' }, { key: 'dec2026', label: 'Dec' },
 ];
 
+/** Find a row (measure or nested dimension row) by id in the measure tree — used by the Charts panel to resolve live values. */
+/** Sum numeric value bags (months/quarters/year/…) — used to roll up a parent from its children. */
+function sumChartValueBags(bags: GridRow['values'][]): GridRow['values'] {
+  const out: Record<string, number> = {};
+  for (const bag of bags) {
+    for (const key in bag) {
+      const v = (bag as unknown as Record<string, unknown>)[key];
+      if (typeof v === 'number') out[key] = (out[key] ?? 0) + v;
+    }
+  }
+  return out as unknown as GridRow['values'];
+}
+
+/**
+ * Rebuild a row's subtree so every parent's values are the recursive sum of its leaf
+ * descendants — matching the grid's parent-total rollup (grid never trusts stored parent
+ * values). This keeps the Charts panel numbers identical to what the grid displays.
+ */
+function rollupChartRow(node: GridRow): GridRow {
+  if (!node.children || node.children.length === 0) return node;
+  const children = node.children.map(rollupChartRow);
+  return {
+    ...node,
+    children,
+    values: { ...node.values, ...sumChartValueBags(children.map((c) => c.values)) },
+  };
+}
+
+/** Name of the top-level measure whose subtree contains `id` (for the Charts panel context). */
+function findMeasureAncestorName(measures: MeasureData[], id: string): string | null {
+  const inSubtree = (rows: GridRow[]): boolean => {
+    for (const r of rows) {
+      if (r.id === id) return true;
+      if (r.children && r.children.length > 0 && inSubtree(r.children)) return true;
+    }
+    return false;
+  };
+  for (const m of measures) {
+    if (m.id === id) return m.name;
+    if (m.children && m.children.length > 0 && inSubtree(m.children)) return m.name;
+  }
+  return null;
+}
+
+function findChartRowById(measures: MeasureData[], id: string): GridRow | null {
+  const searchRows = (rows: GridRow[]): GridRow | null => {
+    for (const r of rows) {
+      if (r.id === id) return r;
+      if (r.children && r.children.length > 0) {
+        const found = searchRows(r.children);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  for (const m of measures) {
+    if (m.id === id) return m as unknown as GridRow;
+    if (m.children && m.children.length > 0) {
+      const found = searchRows(m.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 const ensureFixedSubColumns = (columns: SubColumn[]): SubColumn[] => {
   const seen = new Set<string>();
   const merged = [...FIXED_SUB_COLUMNS, ...columns].filter(col => {
@@ -345,6 +414,7 @@ const ForecastingGrid: React.FC = () => {
   const [originalData, setOriginalData] = useState<MeasureData[]>(() =>
     sessionMatchesIndustry ? cloneMeasureData(session.originalData) : industryData
   );
+
   const [visibleMeasureIds, setVisibleMeasureIds] = useState<Set<string>>(new Set(DEFAULT_VISIBLE_MEASURE_IDS));
   // Measures whose cells auto-lock after an edit (configured in the Reorder Measures modal)
   const [autoLockMeasureIds, setAutoLockMeasureIds] = useState<Set<string>>(new Set());
@@ -3604,6 +3674,14 @@ const ForecastingGrid: React.FC = () => {
   const [customSubColumns, setCustomSubColumns] = useState<SubColumn[]>([]);
   const [isEditSubColumnsModalOpen, setIsEditSubColumnsModalOpen] = useState(false);
   const [showSubColumns, setShowSubColumns] = useState(false);
+  // "Show chart area on top" (Table Settings → Layout): renders a chart card row above
+  // the grid. The configure modal manages which charts appear there.
+  const [showChartArea, setShowChartArea] = useState(false);
+  const [isConfigureChartsOpen, setIsConfigureChartsOpen] = useState(false);
+  const [chartConfigs, setChartConfigs] = useState<ChartConfig[]>([
+    { id: 'chart-trend', name: 'Trend', type: 'bar', series: ['Actual'] },
+    { id: 'chart-composition', name: 'Share of children', type: 'donut', series: ['Actual'] },
+  ]);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   // When the Filters panel is opened via an Agentforce hand-off, force the Advanced tab.
   const [filtersInitialTab, setFiltersInitialTab] = useState<'basic' | 'advanced' | undefined>(undefined);
@@ -3617,6 +3695,21 @@ const ForecastingGrid: React.FC = () => {
   const [cellDetailsInitialTab, setCellDetailsInitialTab] = useState<'single' | 'multi' | 'details'>('multi');
   const [cellDetailsFocusSection, setCellDetailsFocusSection] = useState<'approval' | 'explainability' | null>(null);
   const [isAlertsOpen, setIsAlertsOpen] = useState(false);
+  // Charts panel: opened from the toolbar pie icon, a row's "Show Charts" menu item, or a cell edit.
+  const [isChartsOpen, setIsChartsOpen] = useState(false);
+  const [chartsFocusRowId, setChartsFocusRowId] = useState<string | null>(null);
+  // On a cell edit, the edited time period drives the Charts pie/donut (grid ↔ chart sync).
+  const [chartsFocusPeriod, setChartsFocusPeriod] = useState<string | null>(null);
+  const [chartsFocusPeriodSignal, setChartsFocusPeriodSignal] = useState(0);
+  // Drill trail (origin → current) for the Charts panel breadcrumb; last entry = focused row.
+  const [chartsBreadcrumb, setChartsBreadcrumb] = useState<{ id: string; name: string }[]>([]);
+  // Rows the user has picked (via the ⋮ menu) to compare side-by-side in the Charts panel.
+  // Ordered — the first row acts as the baseline for deltas.
+  const [compareRowIds, setCompareRowIds] = useState<string[]>([]);
+  // Row the Charts panel was focused on when a comparison was started — lets "Back" restore it.
+  const [compareReturnRowId, setCompareReturnRowId] = useState<string | null>(null);
+  // Imperative handler exposed by the grid to open + scroll to a row when drilling from a pie slice.
+  const drillToRowRef = useRef<((rowId: string, opts?: { scroll?: boolean }) => void) | null>(null);
   const [activeFilterCount, setActiveFilterCount] = useState(0);
   const [isScopePopoverOpen, setIsScopePopoverOpen] = useState(false);
   const scopePopoverRef = useRef<HTMLDivElement>(null);
@@ -3745,6 +3838,204 @@ const ForecastingGrid: React.FC = () => {
   const hierarchicalRollupValueSource = useMemo(
     () => mergeRowValuesIntoFullTree(originalData, data),
     [originalData, data],
+  );
+
+  /**
+   * Live row for the Charts panel. Resolve from the full-tree rollup source (same values the
+   * grid rolls parent totals from) and re-sum descendants so the chart's numbers match the
+   * grid exactly. Falls back to the grid/base data when the row isn't in the rollup tree.
+   */
+  const chartsRow = useMemo(() => {
+    if (!chartsFocusRowId) return null;
+    const fromRollup = findChartRowById(hierarchicalRollupValueSource, chartsFocusRowId);
+    if (fromRollup) return rollupChartRow(fromRollup);
+    return findChartRowById(hierarchicalGridData, chartsFocusRowId) ?? findChartRowById(data, chartsFocusRowId);
+  }, [chartsFocusRowId, hierarchicalRollupValueSource, hierarchicalGridData, data]);
+
+  /** Measure this charted row belongs to — shown in the panel header for context. */
+  const chartsMeasureName = useMemo(
+    () =>
+      chartsFocusRowId
+        ? findMeasureAncestorName(hierarchicalRollupValueSource, chartsFocusRowId) ??
+          findMeasureAncestorName(data, chartsFocusRowId)
+        : null,
+    [chartsFocusRowId, hierarchicalRollupValueSource, data],
+  );
+
+  const resolveChartRowName = useCallback(
+    (id: string): string =>
+      (findChartRowById(hierarchicalGridData, id) ?? findChartRowById(data, id))?.name ?? id,
+    [hierarchicalGridData, data],
+  );
+
+  /** Visible top-level measure rows, rolled up so their monthly numbers match the grid.
+   *  Feeds the Charts panel "overview" (multi-measure trend) shown before a row is focused. */
+  const chartsOverviewRows = useMemo(() => {
+    return hierarchicalGridData.map((r) => {
+      const fromRollup = findChartRowById(hierarchicalRollupValueSource, r.id);
+      return (fromRollup ? rollupChartRow(fromRollup) : (r as unknown as GridRow)) as GridRow;
+    });
+  }, [hierarchicalGridData, hierarchicalRollupValueSource]);
+
+  /** Set form of the compare selection (for O(1) menu-label lookups in the grid rows). */
+  const compareRowIdSet = useMemo(() => new Set(compareRowIds), [compareRowIds]);
+
+  /** The picked comparison rows, resolved + rolled up so their numbers match the grid.
+   *  Order is preserved (first = baseline). Ids that no longer resolve are dropped. */
+  const compareRows = useMemo(() => {
+    return compareRowIds
+      .map((id) => {
+        const fromRollup = findChartRowById(hierarchicalRollupValueSource, id);
+        if (fromRollup) return rollupChartRow(fromRollup);
+        return findChartRowById(hierarchicalGridData, id) ?? findChartRowById(data, id);
+      })
+      .filter((r): r is GridRow => !!r);
+  }, [compareRowIds, hierarchicalRollupValueSource, hierarchicalGridData, data]);
+
+  /** Flattened list of the currently-visible grid rows, for the in-panel "Compare rows" picker.
+   *  Each row carries its top-level measure (`group`, for SLDS listbox grouping so users compare
+   *  like-with-like), its `parentId` (so "Compare peers" can seed a row + its siblings), and its
+   *  `path` — the dimension ancestors between the measure and this row, rendered as a breadcrumb
+   *  subline so rows with duplicate names stay uniquely identifiable (no faux-tree indentation). */
+  const compareCandidates = useMemo(() => {
+    const out: {
+      id: string;
+      name: string;
+      depth: number;
+      type?: string;
+      group: string;
+      parentId: string | null;
+      path: string[];
+    }[] = [];
+    const walk = (
+      rows: readonly unknown[] | undefined,
+      depth: number,
+      group: string,
+      parentId: string | null,
+      path: string[],
+    ) => {
+      if (!rows) return;
+      for (const raw of rows) {
+        const r = raw as { id?: string; name?: string; type?: string; children?: unknown[] };
+        if (!r || !r.id) continue;
+        const name = r.name ?? r.id;
+        const g = depth === 0 ? name : group;
+        out.push({ id: r.id, name, depth, type: r.type, group: g, parentId, path });
+        // Children below the measure accumulate dimension ancestors (measure stays as the group).
+        const childPath = depth === 0 ? [] : [...path, name];
+        if (r.children && r.children.length) walk(r.children, depth + 1, g, r.id, childPath);
+      }
+    };
+    walk(hierarchicalGridData as unknown[], 0, '', null, []);
+    return out;
+  }, [hierarchicalGridData]);
+
+  /** Toggle a row in/out of the comparison set and reveal the Charts panel in compare mode. */
+  const handleToggleCompare = useCallback(
+    (row: { id: string }) => {
+      // First row of a fresh comparison → remember the current focus so "Back" can restore it.
+      if (compareRowIds.length === 0) setCompareReturnRowId(chartsFocusRowId);
+      setCompareRowIds((prev) =>
+        prev.includes(row.id) ? prev.filter((id) => id !== row.id) : [...prev, row.id],
+      );
+      setChartsFocusRowId(null);
+      setChartsBreadcrumb([]);
+      setIsChartsOpen(true);
+      setIsSettingsOpen(false);
+      setIsFiltersOpen(false);
+      setIsSortPanelOpen(false);
+      setIsCellDetailsHistoryOpen(false);
+      setIsAlertsOpen(false);
+    },
+    [compareRowIds.length, chartsFocusRowId],
+  );
+
+  /** Leave compare mode and return to the charts view the comparison was launched from
+   *  (the focused row's detail, or the all-measures overview if it started there). */
+  const handleExitCompare = useCallback(() => {
+    setCompareRowIds([]);
+    if (compareReturnRowId) {
+      const found =
+        findChartRowById(hierarchicalGridData, compareReturnRowId) ??
+        findChartRowById(data, compareReturnRowId);
+      setChartsFocusRowId(compareReturnRowId);
+      setChartsBreadcrumb(found ? [{ id: compareReturnRowId, name: found.name }] : []);
+    } else {
+      setChartsFocusRowId(null);
+      setChartsBreadcrumb([]);
+    }
+    setCompareReturnRowId(null);
+  }, [compareReturnRowId, hierarchicalGridData, data]);
+
+  /** Name of the return row (for the compare "Back to …" label). */
+  const compareReturnName = useMemo(() => {
+    if (!compareReturnRowId) return null;
+    const found =
+      findChartRowById(hierarchicalGridData, compareReturnRowId) ??
+      findChartRowById(data, compareReturnRowId);
+    return found?.name ?? null;
+  }, [compareReturnRowId, hierarchicalGridData, data]);
+
+  /** Data row that feeds the on-grid "chart area" mini charts — the focused chart row when
+   *  one is open, otherwise the first (top) measure, rolled up so numbers match the grid. */
+  const gridChartSourceRow = useMemo(() => {
+    if (chartsRow) return chartsRow;
+    const first = hierarchicalGridData[0];
+    if (!first) return null;
+    const fromRollup = findChartRowById(hierarchicalRollupValueSource, first.id);
+    return fromRollup ? rollupChartRow(fromRollup) : (first as unknown as GridRow);
+  }, [chartsRow, hierarchicalGridData, hierarchicalRollupValueSource]);
+
+  // Expand + (optionally) scroll the grid to a row. Breadcrumb navigation scrolls; chart
+  // clicks pass scroll=false so the grid stays put while the row is expanded/selected.
+  const drillGridToRow = useCallback((rowId: string, scroll = true) => {
+    drillToRowRef.current?.(rowId, { scroll });
+  }, []);
+
+  /** Select a specific grid cell (row × month) from a chart click, without scrolling the grid. */
+  const handleChartsSelectCell = useCallback(
+    (rowId: string, monthKey: string) => {
+      // Only month columns map to a single grid cell; quarters/year have no single cell.
+      const isMonthKey = /^[a-z]{3}\d{4}$/.test(monthKey);
+      drillGridToRow(rowId, false);
+      if (!isMonthKey) return;
+      const cellKey = `${rowId}-${monthKey}`;
+      const single = new Set([cellKey]);
+      setSelectedCells(single);
+      selectedCellsRef.current = single;
+      selectedCellsOrderRef.current = [cellKey];
+      setSelectedCellsOrder([cellKey]);
+    },
+    [drillGridToRow],
+  );
+
+  // Drill into a child slice: refocus the Charts panel and extend the breadcrumb trail.
+  const handleChartsDrill = useCallback(
+    (childId: string) => {
+      setChartsFocusRowId(childId);
+      setChartsFocusPeriod(null);
+      setChartsBreadcrumb((prev) =>
+        prev.length && prev[prev.length - 1].id === childId
+          ? prev
+          : [...prev, { id: childId, name: resolveChartRowName(childId) }],
+      );
+      // Reveal/expand the drilled row on the grid, but don't scroll it into view.
+      drillGridToRow(childId, false);
+    },
+    [resolveChartRowName, drillGridToRow],
+  );
+
+  // Jump back to an earlier level in the breadcrumb trail.
+  const handleChartsBreadcrumbNav = useCallback(
+    (index: number) => {
+      const target = chartsBreadcrumb[index];
+      if (!target) return;
+      setChartsBreadcrumb((prev) => prev.slice(0, index + 1));
+      setChartsFocusRowId(target.id);
+      setChartsFocusPeriod(null);
+      drillGridToRow(target.id);
+    },
+    [chartsBreadcrumb, drillGridToRow],
   );
 
   const handleHierarchicalGridDataChange = useCallback((newData: MeasureData[]) => {
@@ -3908,22 +4199,31 @@ const ForecastingGrid: React.FC = () => {
   }, [clipboardValue]);
 
   const handleContextToggleLock = useCallback(() => {
-    if (contextMenu) {
-      setLockedCells((prev: Set<string>) => {
-        const newSet = new Set(prev);
-        if (newSet.has(contextMenu.cellKey)) {
-          newSet.delete(contextMenu.cellKey);
-        } else {
-          newSet.add(contextMenu.cellKey);
-          // Close side panels when locking a cell
-          setIsCellDetailsHistoryOpen(false);
-          setIsSettingsOpen(false);
-          setIsFiltersOpen(false);
-        }
-        return newSet;
+    if (!contextMenu) return;
+    // When multiple cells are selected, lock/unlock the whole selection; otherwise just the
+    // right-clicked cell. Toggle direction follows the right-clicked cell's current state so it
+    // matches the menu label ("Lock Cell" vs "Unlock Cell").
+    const selected = Array.from(selectedCellsRef.current ?? selectedCells);
+    const targetKeys =
+      selected.length > 1
+        ? Array.from(new Set([...selected, contextMenu.cellKey]))
+        : [contextMenu.cellKey];
+    const shouldUnlock = lockedCells.has(contextMenu.cellKey);
+    setLockedCells((prev: Set<string>) => {
+      const newSet = new Set(prev);
+      targetKeys.forEach((key) => {
+        if (shouldUnlock) newSet.delete(key);
+        else newSet.add(key);
       });
+      return newSet;
+    });
+    if (!shouldUnlock) {
+      // Close side panels when locking cells
+      setIsCellDetailsHistoryOpen(false);
+      setIsSettingsOpen(false);
+      setIsFiltersOpen(false);
     }
-  }, [contextMenu]);
+  }, [contextMenu, selectedCells, lockedCells]);
 
   const handleContextMassUpdate = useCallback(() => {
     // Close context menu first
@@ -4193,6 +4493,69 @@ const ForecastingGrid: React.FC = () => {
     // Proportional / leaf row / all children locked → edit the row directly.
     cellChangeHandlerRef.current(rowId, monthKey as any, newValue, adjustmentNote);
   }, [selectedLayoutState, findRowChildren, lockedCells]);
+
+  // --- Scenario drawer: apply a scenario's driver multipliers to the grid AS EDITS ---
+  // Rather than silently rescaling the numbers, we push the scenario through the normal
+  // cell-change pipeline so it shows up like any manual edit: modified/impacted cell
+  // highlights, per-cell deltas, the "impacted measures" bottom bar, and the ability to
+  // Save (or discard) the changes.
+  //
+  // We edit each visible measure's *year* total once. That single edit disaggregates down
+  // through quarters → months → dimension children (and cross-measure dependencies) via the
+  // grid's own logic, so one edit per measure produces the full impacted-cell cascade. The
+  // brief cascade is masked by an overlay so the user only ever sees the final outcome.
+  const scenarioApplyingRef = useRef(false);
+  const [isApplyingScenario, setIsApplyingScenario] = useState(false);
+  const applyScenarioToGrid = useCallback(
+    (mult: { rev: number; qty: number; growth: number }) => {
+      if (
+        selectedLayoutState !== 'Measures / Dimensions x Time' ||
+        !cellChangeHandlerRef.current ||
+        scenarioApplyingRef.current
+      ) {
+        return;
+      }
+
+      const factorFor = (name: string): number => {
+        const n = name.toLowerCase();
+        if (n.includes('quantity') || n.includes('qty') || n.includes('units') || n.includes('no.s')) return mult.qty;
+        if (n.includes('revenue') || n.includes('price') || n.includes('cost') || n.includes('$')) return mult.rev;
+        return mult.growth;
+      };
+
+      // One edit per visible measure: scale its yearly total; the grid distributes downward.
+      const edits: { rowId: string; newValue: number }[] = [];
+      for (const m of data) {
+        if (visibleMeasureIds.size > 0 && !visibleMeasureIds.has(m.id)) continue;
+        const f = factorFor(m.name);
+        if (Math.abs(f - 1) < 0.001) continue;
+        const cur = (m.values as unknown as Record<string, number>).year;
+        if (typeof cur !== 'number' || cur === 0) continue;
+        const next = Math.round(cur * f);
+        if (next !== cur) edits.push({ rowId: m.id, newValue: next });
+      }
+      if (edits.length === 0) return;
+
+      // Apply sequentially so each edit closes over the latest rolled-up state, but keep the
+      // grid hidden behind an overlay until all edits land so only the outcome is shown.
+      scenarioApplyingRef.current = true;
+      setIsApplyingScenario(true);
+      const note = 'Scenario adjustment';
+      const run = async () => {
+        for (let i = 0; i < edits.length; i++) {
+          if (i > 0) await new Promise((r) => setTimeout(r, 55));
+          const e = edits[i];
+          cellChangeHandlerRef.current?.(e.rowId, 'year' as any, e.newValue, note);
+        }
+        // Let the final state settle for a frame before revealing.
+        await new Promise((r) => setTimeout(r, 120));
+        scenarioApplyingRef.current = false;
+        setIsApplyingScenario(false);
+      };
+      run();
+    },
+    [selectedLayoutState, data, visibleMeasureIds],
+  );
 
   // Handler for toggling cell lock from the panel
   const handleToggleCellLock = useCallback((cellKey: string) => {
@@ -5103,6 +5466,37 @@ const ForecastingGrid: React.FC = () => {
     return `${time}, ${date}`;
   });
 
+  // Data-freshness indicator shown next to "Last refreshed". Hovering the pill
+  // reveals a short summary of what was newly ingested and when. The popover is
+  // portaled to <body> (fixed positioning) so it renders on the top layer and
+  // is never clipped by the header/grid overflow.
+  const [isDataStatusOpen, setIsDataStatusOpen] = useState(false);
+  const [dataStatusPos, setDataStatusPos] = useState<{ top: number; right: number } | null>(null);
+  const dataStatusPillRef = useRef<HTMLButtonElement>(null);
+  const dataStatusCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dataStatusFresh = true;
+  const openDataStatus = useCallback(() => {
+    if (dataStatusCloseTimer.current) clearTimeout(dataStatusCloseTimer.current);
+    const rect = dataStatusPillRef.current?.getBoundingClientRect();
+    if (rect) setDataStatusPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
+    setIsDataStatusOpen(true);
+  }, []);
+  const scheduleCloseDataStatus = useCallback(() => {
+    if (dataStatusCloseTimer.current) clearTimeout(dataStatusCloseTimer.current);
+    dataStatusCloseTimer.current = setTimeout(() => setIsDataStatusOpen(false), 140);
+  }, []);
+  const dpeRunTimestamp = '06:42 AM, 25/07/2026';
+  const dpeRunTime = '06:42 AM';
+  const dataIngestionFeed = useMemo(
+    () => [
+      { source: 'Sales Agreement Quantity', detail: 'Committed volumes · Midwest Assembly (Powertrain, Electronics, Thermal) & Southwest Stamping (Control Arm)', when: `DPE · ${dpeRunTime}` },
+      { source: 'Opportunity Quantity', detail: 'Live pipeline · Falcon ADAS refresh, e-motor housing ramp, RWD subframe cost-down — stage-weighted', when: `DPE · ${dpeRunTime}` },
+      { source: 'Order Quantity', detail: 'Actual shipments · Powertrain run-rate → FY26 Thermal bridge order', when: `DPE · ${dpeRunTime}` },
+      { source: 'Last Year Order Quantity', detail: 'Curated history tied to plant & SKU — powers the predictive forecast', when: 'Data Cloud' },
+    ],
+    [],
+  );
+
   const headerSummaryText = useMemo(() => {
     // Measure categories (M of N)
     const allMeasureCategories = isConfigIndustry(industry)
@@ -5426,17 +5820,74 @@ const ForecastingGrid: React.FC = () => {
         </div>
         <div className="page-header-right">
           <div className="last-refreshed-row">
-            <div className="last-refreshed">
-              Last refreshed {lastRefreshed}
+            <div
+              className="data-status"
+              onMouseEnter={openDataStatus}
+              onMouseLeave={scheduleCloseDataStatus}
+            >
+              <button
+                ref={dataStatusPillRef}
+                type="button"
+                className={`data-status-pill ${dataStatusFresh ? 'data-status-pill--fresh' : 'data-status-pill--stale'}`}
+                aria-label={`Data status: ${dataStatusFresh ? 'Fresh' : 'Stale'}`}
+                aria-expanded={isDataStatusOpen}
+                onClick={() => (isDataStatusOpen ? setIsDataStatusOpen(false) : openDataStatus())}
+              >
+                <span className="data-status-label">Data Status:</span>
+                <span className={`data-status-value ${dataStatusFresh ? 'data-status-value--fresh' : 'data-status-value--stale'}`}>
+                  {dataStatusFresh ? (
+                    <svg className="data-status-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <span className="data-status-dot" aria-hidden="true" />
+                  )}
+                  {dataStatusFresh ? 'Fresh' : 'Stale'}
+                </span>
+              </button>
+              {isDataStatusOpen && dataStatusPos && createPortal(
+                <div
+                  className="data-status-popover"
+                  role="dialog"
+                  aria-label="Data ingestion status"
+                  style={{ top: dataStatusPos.top, right: dataStatusPos.right }}
+                  onMouseEnter={() => {
+                    if (dataStatusCloseTimer.current) clearTimeout(dataStatusCloseTimer.current);
+                  }}
+                  onMouseLeave={scheduleCloseDataStatus}
+                >
+                  <div className="data-status-popover-head">
+                    <div className="data-status-popover-headtext">
+                      <div className="data-status-popover-title">
+                        {dataStatusFresh ? 'All base sources are fresh' : 'A base source may be stale'}
+                      </div>
+                      <div className="data-status-popover-sub">Last DPE run {dpeRunTimestamp} · via Data Cloud</div>
+                    </div>
+                    <button className="refresh-button data-status-refresh" type="button" title="Re-run DPE sync">
+                      <svg className="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 2v6h-6"/>
+                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
+                        <path d="M3 22v-6h6"/>
+                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="data-status-popover-label">Manufacturing Cloud → DPE → Data Cloud</div>
+                  <ul className="data-status-feed">
+                    {dataIngestionFeed.map((item, i) => (
+                      <li key={i} className="data-status-feed-item">
+                        <div className="data-status-feed-main">
+                          <span className="data-status-feed-source">{item.source}</span>
+                          <span className="data-status-feed-when">{item.when}</span>
+                        </div>
+                        <div className="data-status-feed-detail">{item.detail}</div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>,
+                document.body,
+              )}
             </div>
-            <button className="refresh-button" type="button" title="Refresh">
-              <svg className="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 2v6h-6"/>
-                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/>
-                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
-              </svg>
-            </button>
           </div>
           <div className="page-header-right-top">
             <GridToolbar 
@@ -5446,6 +5897,7 @@ const ForecastingGrid: React.FC = () => {
                 setIsSortPanelOpen(false);
                 setIsCellDetailsHistoryOpen(false);
                 setIsAlertsOpen(false);
+                setIsChartsOpen(false);
               }}
               onFilterClick={() => {
                 setIsFiltersOpen(true);
@@ -5453,6 +5905,7 @@ const ForecastingGrid: React.FC = () => {
                 setIsSortPanelOpen(false);
                 setIsCellDetailsHistoryOpen(false);
                 setIsAlertsOpen(false);
+                setIsChartsOpen(false);
               }}
               onNotesClick={() => {
                 setCellDetailsInitialTab('multi');
@@ -5462,6 +5915,7 @@ const ForecastingGrid: React.FC = () => {
                 setIsFiltersOpen(false);
                 setIsSortPanelOpen(false);
                 setIsAlertsOpen(false);
+                setIsChartsOpen(false);
               }}
               onSortClick={() => {
                 setIsSortPanelOpen(v => !v);
@@ -5469,6 +5923,7 @@ const ForecastingGrid: React.FC = () => {
                 setIsFiltersOpen(false);
                 setIsCellDetailsHistoryOpen(false);
                 setIsAlertsOpen(false);
+                setIsChartsOpen(false);
               }}
               onAlertClick={() => {
                 setIsAlertsOpen(v => !v);
@@ -5476,6 +5931,15 @@ const ForecastingGrid: React.FC = () => {
                 setIsFiltersOpen(false);
                 setIsCellDetailsHistoryOpen(false);
                 setIsSortPanelOpen(false);
+                setIsChartsOpen(false);
+              }}
+              onChartClick={() => {
+                setIsChartsOpen(v => !v);
+                setIsSettingsOpen(false);
+                setIsFiltersOpen(false);
+                setIsSortPanelOpen(false);
+                setIsCellDetailsHistoryOpen(false);
+                setIsAlertsOpen(false);
               }}
               searchValue={gridSearch}
               onSearchChange={setGridSearch}
@@ -5484,6 +5948,7 @@ const ForecastingGrid: React.FC = () => {
               isNotesActive={isCellDetailsHistoryOpen}
               isSortActive={isSortPanelOpen || globalSortConfig.criteria.length > 0 || (globalSortConfig.dimensionSorts?.length ?? 0) > 0}
               isAlertActive={isAlertsOpen}
+              isChartActive={isChartsOpen}
               activeFilterCount={activeFilterCount}
               activeSortCount={globalSortConfig.criteria.length + (globalSortConfig.dimensionSorts?.length ?? 0)}
               globalSortConfig={globalSortConfig}
@@ -5549,6 +6014,48 @@ const ForecastingGrid: React.FC = () => {
       )}
       <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
         <div className="grid-wrapper">
+        {isApplyingScenario && (
+          <div className="scenario-apply-overlay" role="status" aria-live="polite">
+            <div className="scenario-apply-overlay-card">
+              <span className="scenario-apply-spinner" aria-hidden="true" />
+              <span className="scenario-apply-overlay-text">Applying scenario…</span>
+            </div>
+          </div>
+        )}
+        {showChartArea && (
+          <div className="grid-chart-area">
+            {chartConfigs.map((chart) => (
+              <button
+                key={chart.id}
+                type="button"
+                className="grid-chart-area-card"
+                onClick={() => {
+                  setIsChartsOpen(true);
+                  setIsSettingsOpen(false);
+                  setIsFiltersOpen(false);
+                }}
+                title={`${chart.name} — click to open charts`}
+              >
+                <span className="grid-chart-area-card-head">
+                  <span className="grid-chart-area-card-name">{chart.name}</span>
+                  <span className="grid-chart-area-card-type">{chart.type}</span>
+                </span>
+                <span className="grid-chart-area-card-body">
+                  <MiniChart type={chart.type} row={gridChartSourceRow} />
+                </span>
+              </button>
+            ))}
+            <button
+              type="button"
+              className="grid-chart-area-add"
+              onClick={() => setIsConfigureChartsOpen(true)}
+              title="Add a chart"
+            >
+              <span className="grid-chart-area-plus" aria-hidden="true">+</span>
+              <span className="grid-chart-area-text">Add chart</span>
+            </button>
+          </div>
+        )}
         {selectedLayoutState === 'Dimensions / Time x Measures' ? (
           <DimensionsTimeGrid 
             data={filteredData} 
@@ -5663,6 +6170,31 @@ const ForecastingGrid: React.FC = () => {
             onResetColumnWidths={(handler) => { resetColumnWidthsRef.current = handler; }}
             onClearAllFilters={(handler) => { clearAllFiltersRef.current = handler; }}
             onSettingsClick={() => setIsSettingsOpen(true)}
+            onShowCharts={(row) => {
+              setChartsFocusRowId(row.id);
+              setChartsBreadcrumb([{ id: row.id, name: row.name }]);
+              setIsChartsOpen(true);
+              setIsSettingsOpen(false);
+              setIsFiltersOpen(false);
+              setIsSortPanelOpen(false);
+              setIsCellDetailsHistoryOpen(false);
+              setIsAlertsOpen(false);
+            }}
+            onCellEdited={(rowId, periodKey) => {
+              // Reflect the edit: focus the Charts panel on the edited row and snap
+              // the composition breakdown to the edited time period.
+              setChartsFocusRowId(rowId);
+              setChartsBreadcrumb([{ id: rowId, name: resolveChartRowName(rowId) }]);
+              setChartsFocusPeriod(periodKey);
+              setChartsFocusPeriodSignal((s) => s + 1);
+              setIsChartsOpen(true);
+              setIsSettingsOpen(false);
+              setIsFiltersOpen(false);
+              setIsSortPanelOpen(false);
+              setIsCellDetailsHistoryOpen(false);
+              setIsAlertsOpen(false);
+            }}
+            onDrillToRowReady={(handler) => { drillToRowRef.current = handler; }}
             initialFocusedCell={mapToHierarchicalFocus(dimensionsTimeGridFocusRef.current)}
             onFocusedCellChange={(focus) => { 
               hierarchicalGridFocusRef.current = focus;
@@ -5843,6 +6375,9 @@ const ForecastingGrid: React.FC = () => {
           showSubColumns={showSubColumns}
           onShowSubColumnsChange={setShowSubColumns}
           onEditSubColumns={() => setIsEditSubColumnsModalOpen(true)}
+          showChartArea={showChartArea}
+          onShowChartAreaChange={setShowChartArea}
+          onConfigureCharts={() => setIsConfigureChartsOpen(true)}
           showQuickAccessToolbar={showQuickAccessToolbar}
           onShowQuickAccessToolbarChange={setShowQuickAccessToolbar}
           onConfigureQuickAccess={() => setIsQuickAccessModalOpen(true)}
@@ -5888,6 +6423,17 @@ const ForecastingGrid: React.FC = () => {
             }
             
             setIsEditSubColumnsModalOpen(false);
+          }}
+        />
+        <ConfigureChartsModal
+          isOpen={isConfigureChartsOpen}
+          onClose={() => setIsConfigureChartsOpen(false)}
+          charts={chartConfigs}
+          onSave={(charts) => {
+            setChartConfigs(charts);
+            // Opening the configure modal implies the user wants the chart area shown.
+            if (charts.length > 0) setShowChartArea(true);
+            setIsConfigureChartsOpen(false);
           }}
         />
         <ConfigureQuickAccessModal
@@ -5945,6 +6491,33 @@ const ForecastingGrid: React.FC = () => {
           initialTabSignal={filtersInitialTabSignal}
           externalFilterLogic={externalFilterLogic}
           externalFilterLogicSignal={externalFilterLogicSignal}
+        />
+        <ChartsPanel
+          isOpen={isChartsOpen}
+          onClose={() => setIsChartsOpen(false)}
+          row={chartsRow}
+          overviewRows={chartsOverviewRows}
+          onFocusRow={handleChartsDrill}
+          compareRows={compareRows}
+          compareCandidates={compareCandidates}
+          compareRowIds={compareRowIdSet}
+          onToggleCompare={handleToggleCompare}
+          onRemoveCompare={(id) => setCompareRowIds((prev) => prev.filter((x) => x !== id))}
+          onClearCompare={() => {
+            setCompareRowIds([]);
+            setCompareReturnRowId(null);
+          }}
+          onExitCompare={handleExitCompare}
+          compareReturnName={compareReturnName}
+          measureName={chartsMeasureName}
+          subColumns={showSubColumns ? selectedSubColumns : []}
+          focusPeriod={chartsFocusPeriod}
+          focusPeriodSignal={chartsFocusPeriodSignal}
+          breadcrumb={chartsBreadcrumb}
+          onDrill={handleChartsDrill}
+          onBreadcrumbNav={handleChartsBreadcrumbNav}
+          onExpandRow={(rowId) => drillGridToRow(rowId, false)}
+          onSelectCell={handleChartsSelectCell}
         />
         <GlobalSortPanel
           isOpen={isSortPanelOpen}
@@ -6132,6 +6705,10 @@ const ForecastingGrid: React.FC = () => {
           />
         )}
       </div>
+      <ScenarioDrawer
+        onApplyToGrid={applyScenarioToGrid}
+        onPromote={(name) => console.log('Promote scenario to plan:', name)}
+      />
     </div>
   );
 };

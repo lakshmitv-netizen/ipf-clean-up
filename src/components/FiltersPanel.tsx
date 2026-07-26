@@ -3,7 +3,6 @@ import { MeasureData, GridRow, ParentTotalsRollupMode } from '../types';
 
 import UnifiedFilterPopover from './UnifiedFilterPopover';
 import ReorderMeasuresModal from './ReorderMeasuresModal';
-import ScopedNotification from './ScopedNotification';
 import { measureSubgroupOptions } from './SettingsPanel';
 import { getMockData } from '../data/mockData';
 import { adjustmentMeasuresData } from '../data/adjustmentMeasuresData';
@@ -1730,13 +1729,16 @@ const FiltersPanel: React.FC<FiltersPanelProps> = ({
   {/* Tip banner lives only in the top-level "Filters" section — not inside filter-set cards. */}
   const tipSaveBanner = (
     <div className="filters-tip-wrap" ref={tipSaveWrapRef}>
-      <ScopedNotification
-        variant="inline"
-        className="filters-tip-banner"
-        message="Tip: Save your filter settings into a Filter Set so you can re-use next time."
-        ctaLabel="Save"
-        onCtaClick={() => { setTipSetName(''); setIsTipSaveOpen(v => !v); }}
-      />
+      <div className="filters-tip-row">
+        <span className="filters-tip-text">Save your filter settings into a Filter Set to re-use next time.</span>
+        <button
+          type="button"
+          className="filters-tip-save-btn"
+          onClick={() => { setTipSetName(''); setIsTipSaveOpen(v => !v); }}
+        >
+          Save
+        </button>
+      </div>
       {isTipSaveOpen && (
         <div className="filters-tip-popover" role="dialog" aria-label="Save filter set">
           <label className="filters-tip-popover-label" htmlFor="tip-set-name">Filter set name</label>

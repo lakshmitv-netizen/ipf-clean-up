@@ -239,6 +239,7 @@ interface GridRowProps {
   quickFilter?: import('./AddRemoveChildNodesModal').QuickFilterCriteria | null; // Current quick filter for this row
   getQuickFilter?: (rowId: string) => import('./AddRemoveChildNodesModal').QuickFilterCriteria | null; // Function to get quick filter for a row
   onEditNode?: (rowId: string) => void; // Callback to edit a node
+  onShowCharts?: (row: GridRowType) => void; // Open the Charts panel focused on this row
   onDeleteNode?: (rowId: string) => void; // Callback to delete a node
   onReparentNode?: (rowId: string, parentNodeId: string | null) => void; // Callback to reparent a node
   data?: MeasureData[]; // Full data structure for hierarchy operations
@@ -395,19 +396,44 @@ const DATA_BAR_AMBER_FILL = 'var(--slds-g-color-palette-yellow-75)';
 
 const getTargetAchievementPct = (rowId: string, colKey: string): number => {
   const rand = seededRandom(`${rowId}-${colKey}-targetAchievement`);
-  if (rand < 0.18) {
-    return Math.round(4 + rand * 170); // roughly 4% to low-30s
+  // Target is generally set a bit above Actual, so achievement (= actual / target) sits
+  // mostly in the 78%–97% band → target ≈ 1.03×–1.28× actual (a smooth, modest gap, no
+  // wild spikes). Occasionally Actual just meets/edges past target (rare, up to ~104%).
+  if (rand > 0.9) {
+    return Math.round(100 + ((rand - 0.9) / 0.1) * 4); // 100%–104% (rare: actual ≈/≥ target)
   }
-  if (rand > 0.78) {
-    return Math.round(100 + (rand - 0.78) / 0.22 * 35); // 100% to 135%
-  }
-  return Math.round(55 + ((rand - 0.18) / 0.60) * 45); // 55% to 100%
+  return Math.round(78 + (rand / 0.9) * 19); // ~78%–97%
 };
 
+// Story/demo overrides: pin a specific derived Target cell to an exact value so a narrative
+// lands on a known number. Matched by row-id signature + month.
+const TARGET_VALUE_OVERRIDES: { match: (rowId: string, colKey: string) => boolean; value: number }[] = [
+  {
+    // O2 Sensor - Downstream · MagnaDrive California · Opportunity Quantity · May → 16
+    match: (rowId, colKey) =>
+      colKey === 'may2026' &&
+      rowId.includes('-cal-') &&
+      rowId.includes('o2dn') &&
+      rowId.includes('measure-opp-qty'),
+    value: 16,
+  },
+];
+
+// Target represents a fixed plan, so it must NOT move when the user edits Actual (which would
+// otherwise drag it via the achievement ratio). Cache each cell's Target at its first-seen
+// (original) value and reuse it thereafter, so editing Actual leaves Target unchanged.
+const targetValueCache = new Map<string, number>();
+
 const getTargetValue = (actualValue: number, rowId: string, colKey: string): number => {
+  const override = TARGET_VALUE_OVERRIDES.find((o) => o.match(rowId, colKey));
+  if (override) return override.value;
+  const cacheKey = `${rowId}-${colKey}`;
+  const cached = targetValueCache.get(cacheKey);
+  if (cached !== undefined) return cached;
   const achievementPct = getTargetAchievementPct(rowId, colKey);
-  if (actualValue === 0 || achievementPct <= 0) return 0;
-  return actualValue / (achievementPct / 100);
+  const value = actualValue === 0 || achievementPct <= 0 ? 0 : actualValue / (achievementPct / 100);
+  targetValueCache.set(cacheKey, value);
+  return value;
 };
 
 const getSubColumnValue = (
@@ -494,6 +520,66 @@ const getSubColumnNumericValue = (
     return getTargetAchievementPct(rowId, colKey);
   }
   return 0;
+};
+
+export type SubColumnUnit = 'currency' | 'percent' | 'text';
+
+/** Unit of a sub-column, used to decide chart axis grouping / value formatting. */
+export const getSubColumnUnit = (subColId: string, formula?: string): SubColumnUnit => {
+  if (formula && formula.trim()) return 'currency';
+  switch (subColId) {
+    case 'yoy':
+    case 'mom':
+    case 'variance':
+    case 'targetAchievement':
+      return 'percent';
+    case 'attribute':
+    case 'approvalStatus':
+      return 'text';
+    default:
+      return 'currency';
+  }
+};
+
+/**
+ * Numeric value for a sub-column at a given cell — mirrors the grid's rendered
+ * value (see getSubColumnValue) so charts stay in sync with the table.
+ * Returns null for non-numeric sub-columns (attribute / approval status).
+ */
+export const getSubColumnNumeric = (
+  subColId: string,
+  actualValue: number,
+  rowId: string,
+  colKey: string,
+  formula?: string
+): number | null => {
+  if (formula && formula.trim()) {
+    return evaluateFormulaExpression(formula, actualValue, [actualValue], rowId, colKey);
+  }
+  const rand = seededRandom(`${rowId}-${colKey}-${subColId}`);
+  switch (subColId) {
+    case 'yoy':
+      return Math.round((rand * 40) - 20);
+    case 'mom':
+      return Math.round((rand * 20) - 10);
+    case 'variance': {
+      const planned = actualValue * (0.85 + rand * 0.2);
+      return Math.round(((actualValue - planned) / Math.abs(planned)) * 100);
+    }
+    case 'target':
+      return getTargetValue(actualValue, rowId, colKey);
+    case 'targetAchievement':
+      return getTargetAchievementPct(rowId, colKey);
+    case 'planned':
+      return actualValue * (0.85 + rand * 0.2);
+    case 'achieved':
+      return actualValue;
+    case 'attribute':
+    case 'approvalStatus':
+      return null;
+    default:
+      return actualValue;
+  }
 };
 
 // Render diverging data bar for YoY/MoM values
@@ -1176,6 +1262,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   quickFilter = null,
   getQuickFilter,
   onEditNode,
+  onShowCharts,
   onDeleteNode,
   onReparentNode,
   data = [],
@@ -1320,19 +1407,26 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       ? hasChildren || (typeof fullMeasureChildCount === 'number' && fullMeasureChildCount > 0)
       : hasChildren;
 
+  // A dimension row is anything below the measure: legacy account/category/product OR a
+  // multi-level scheme level (deep/Acme dimensions rendered with colored acronym glyphs).
+  const isDimensionRowType =
+    row.type === 'account' ||
+    row.type === 'category' ||
+    row.type === 'product' ||
+    isDeepDimensionType(row.type);
+
   const flattenedDimensionAncestorNames = React.useMemo(() => {
     if (!flattenedSortShowAncestorPath) return [];
-    if (row.type !== 'account' && row.type !== 'category' && row.type !== 'product') return [];
+    if (!isDimensionRowType) return [];
     if (!measureId || data.length === 0) return [];
     return getDimensionAncestorNamesForFlatSortHint(row, measureId, data);
-  }, [flattenedSortShowAncestorPath, row.type, row.parentId, row.id, measureId, data]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flattenedSortShowAncestorPath, isDimensionRowType, row.parentId, row.id, measureId, data]);
 
   const hierarchyPathLine =
     flattenedDimensionAncestorNames.length > 0 ? flattenedDimensionAncestorNames.join(' > ') : '';
   const showFlattenedHierarchyPath =
-    flattenedSortShowAncestorPath &&
-    hierarchyPathLine &&
-    (row.type === 'account' || row.type === 'category' || row.type === 'product');
+    flattenedSortShowAncestorPath && !!hierarchyPathLine && isDimensionRowType;
   
   // Check if this is a leaf node (no children)
   const isLeafNode = !hasChildren;
@@ -4323,6 +4417,41 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     >
                       <span>Collapse All</span>
                     </button>
+                    {onShowCharts && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMeasureMenu(false);
+                          onShowCharts(row);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '13px',
+                          color: 'var(--color-on-surface-strong)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: 'none',
+                          borderTop: '1px solid var(--slds-g-color-neutral-base-90)',
+                          transition: 'background-color 0.15s',
+                          width: '100%',
+                          background: 'var(--color-surface-white)',
+                          font: 'inherit',
+                          textAlign: 'left',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--slds-g-color-neutral-base-95)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }}
+                      >
+                        <span>Show Charts</span>
+                      </button>
+                    )}
                   </div>,
                   document.body
                 )}
@@ -4552,6 +4681,41 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     >
                       <span>Node Settings</span>
                     </button>
+                    {onShowCharts && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDimensionMenu(false);
+                          onShowCharts(row);
+                        }}
+                        style={{
+                          padding: '10px 12px',
+                          fontSize: '13px',
+                          color: 'var(--color-on-surface-strong)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          border: 'none',
+                          borderTop: '1px solid var(--slds-g-color-neutral-base-90)',
+                          transition: 'background-color 0.15s',
+                          width: '100%',
+                          background: 'var(--color-surface-white)',
+                          font: 'inherit',
+                          textAlign: 'left',
+                          appearance: 'none',
+                          WebkitAppearance: 'none',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--slds-g-color-neutral-base-95)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'white';
+                        }}
+                      >
+                        <span>Show Charts</span>
+                      </button>
+                    )}
                   </div>,
                   document.body
                 )}
@@ -5620,6 +5784,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 quickFilter={getQuickFilter ? getQuickFilter(child.id) : null}
                 getQuickFilter={getQuickFilter}
                 onEditNode={onEditNode}
+                onShowCharts={onShowCharts}
                 onDeleteNode={onDeleteNode}
                 onReparentNode={onReparentNode}
                 data={data}

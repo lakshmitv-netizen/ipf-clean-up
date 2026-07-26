@@ -1,0 +1,916 @@
+/* ==========================================================================
+   ScenarioDrawer — bottom overlay sheet for scenario planning
+   Overlays the grid (never reflows it). Anchored header rail; bands reveal
+   additively as the drawer grows.
+   ========================================================================== */
+
+/* Overlay shown over the grid while a scenario is being applied as edits, so the
+   user only sees the final outcome rather than each intermediate edit landing. */
+.scenario-apply-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(1.5px);
+}
+.scenario-apply-overlay-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.16);
+  border: 1px solid #e5e5e5;
+}
+.scenario-apply-overlay-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #032d60;
+}
+.scenario-apply-spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid #d8e3f0;
+  border-top-color: #0176d3;
+  animation: scenario-apply-spin 0.7s linear infinite;
+}
+@keyframes scenario-apply-spin {
+  to { transform: rotate(360deg); }
+}
+
+.scenario-drawer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Must sit above .grid-wrapper (z-index: 1002) so the strip isn't painted over. */
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-white, #ffffff);
+  border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+  box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.12);
+  font-family: var(--font-family-base, 'Salesforce Sans', -apple-system, BlinkMacSystemFont, sans-serif);
+  overflow: hidden;
+}
+
+/* ---- Resize handle (top edge) ---- */
+.scenario-drawer-resizer {
+  flex: 0 0 auto;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  touch-action: none;
+}
+.scenario-drawer-grip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #c9c9c9;
+  transition: background 0.15s ease;
+}
+.scenario-drawer-resizer:hover .scenario-drawer-grip {
+  background: #0176d3;
+}
+
+/* ==========================================================================
+   HEADER RAIL — anchored, identical in every state
+   ========================================================================== */
+.scenario-rail {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 2px 12px 8px;
+  min-height: 34px;
+}
+.scenario-rail-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.scenario-rail-title {
+  font-size: 11px;
+  font-weight: 400;
+  color: #444444;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+}
+.scenario-rail-active {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #c9d5e3;
+  border-radius: 6px;
+  padding: 2px 6px 2px 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.scenario-rail-active:hover {
+  border-color: #0176d3;
+}
+.scenario-rail-active:focus-within {
+  border-color: #0176d3;
+  box-shadow: 0 0 0 2px rgba(1, 118, 211, 0.2);
+}
+.scenario-active-select {
+  border: none;
+  background-color: transparent;
+  /* Chevron caret so the control reads clearly as a dropdown. */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23514f4d' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 2px center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #181818;
+  cursor: pointer;
+  max-width: 180px;
+  -webkit-appearance: none;
+  appearance: none;
+  padding: 2px 20px 2px 2px;
+  border-radius: 4px;
+}
+.scenario-active-select:focus {
+  outline: none;
+}
+.scenario-vs {
+  font-size: 11px;
+  color: #706e6b;
+}
+.scenario-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Quick levers */
+.scenario-rail-levers {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.scenario-lever {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.scenario-lever--disabled {
+  opacity: 0.45;
+}
+.scenario-lever-label {
+  font-size: 12px;
+  color: #514f4d;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.scenario-lever-value {
+  font-size: 12px;
+  color: #0176d3;
+  font-weight: 700;
+  min-width: 34px;
+  text-align: right;
+}
+.scenario-lever-range {
+  width: 88px;
+  accent-color: #0176d3;
+  cursor: pointer;
+}
+.scenario-lever-range:disabled {
+  cursor: not-allowed;
+}
+
+.scenario-rail-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Show in grid button */
+.scenario-showgrid-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 6px;
+  border: 1px solid #0176d3;
+  background: #fff;
+  color: #0176d3;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+.scenario-showgrid-btn:hover:not(:disabled) {
+  background: #eef4ff;
+}
+.scenario-showgrid-btn--on {
+  background: #0176d3;
+  color: #fff;
+  border-color: #0176d3;
+}
+.scenario-showgrid-btn--on:hover:not(:disabled) {
+  background: #014486;
+  border-color: #014486;
+}
+.scenario-showgrid-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.scenario-showgrid-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+  animation: scenario-pulse 1.6s ease-in-out infinite;
+}
+@keyframes scenario-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+.scenario-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  color: #514f4d;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.scenario-icon-btn:hover:not(:disabled) {
+  background: #f0f3f8;
+  color: #0176d3;
+}
+.scenario-icon-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* ==========================================================================
+   BODY
+   ========================================================================== */
+.scenario-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+}
+.scenario-body-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.scenario-band {
+  flex: 0 0 auto;
+  border-top: 1px solid #eef1f6;
+  padding-top: 10px;
+}
+.scenario-band-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.scenario-band-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #032d60;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.scenario-band-sub {
+  font-size: 11px;
+  color: #706e6b;
+}
+.scenario-add-btn {
+  margin-left: auto;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid #0176d3 !important;
+  border-radius: 6px;
+  background: #fff !important;
+  color: #0176d3 !important;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scenario-add-btn:hover {
+  background: #eef4ff !important;
+}
+
+/* ---- Scenario cards ---- */
+.scenario-cards {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.scenario-card {
+  position: relative;
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid #e5e5e5;
+  border-left: 3px solid var(--sc-color, #5c6b7a);
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.scenario-card:hover {
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.08);
+}
+.scenario-card--active {
+  border-color: var(--sc-color, #0176d3);
+  box-shadow: 0 0 0 1px var(--sc-color, #0176d3), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.scenario-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.scenario-card-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #181818;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scenario-card-lift {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 999px;
+}
+.scenario-card-lift.up {
+  color: #04844b;
+  background: #ecf9f1;
+}
+.scenario-card-lift.down {
+  color: #c23934;
+  background: #fdecea;
+}
+.scenario-card-archetype {
+  font-size: 11px;
+  color: #706e6b;
+}
+.scenario-card-drivers {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+}
+.scenario-driver-select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.scenario-driver-label {
+  font-size: 10px;
+  color: #969492;
+  width: 72px;
+  flex-shrink: 0;
+}
+.scenario-driver-select select {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  font-size: 11px;
+  border: 1px solid #d8d8d8;
+  border-radius: 4px;
+  background: #fff;
+  color: #181818;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.scenario-driver-select select:disabled {
+  background: #f7f7f7;
+  color: #969492;
+  cursor: default;
+}
+.scenario-card-remove {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  font-size: 16px;
+  line-height: 1;
+  color: #969492;
+  cursor: pointer;
+}
+.scenario-card-remove:hover {
+  color: #c23934;
+}
+
+/* ---- KPI matrix ---- */
+.scenario-matrix-scroll {
+  overflow-x: auto;
+}
+.scenario-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  /* Fixed layout so scenario columns share the remaining width equally — this
+     is what lets the cards above line up with each column. */
+  table-layout: fixed;
+}
+.scenario-matrix th,
+.scenario-matrix td {
+  padding: 6px 12px;
+  text-align: right;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+.scenario-matrix thead th {
+  position: sticky;
+  top: 0;
+  background: #fafbfd;
+  border-bottom: 2px solid #e5e5e5;
+  vertical-align: bottom;
+}
+.scenario-matrix-kpi {
+  width: var(--sc-kpi-w, 168px);
+  text-align: left !important;
+  color: #514f4d;
+  font-weight: 600;
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+  white-space: normal;
+}
+.scenario-matrix thead .scenario-matrix-kpi {
+  background: #fafbfd;
+}
+.scenario-matrix-colname {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+  font-weight: 700;
+  color: #181818;
+}
+.scenario-matrix-colsub {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: #969492;
+  margin-top: 2px;
+}
+.scenario-matrix th.is-active,
+.scenario-matrix td.is-active {
+  background: #e6f2fe;
+  box-shadow: inset 1px 0 0 #bcd9f7, inset -1px 0 0 #bcd9f7;
+}
+.scenario-matrix td.is-active .scenario-cell-val {
+  font-weight: 700;
+}
+.scenario-cell-val {
+  display: block;
+  color: #181818;
+}
+/* Editable (goal-seek) outcome value — looks like text, dotted underline hint */
+.scenario-cell-val--editable {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: right;
+  cursor: pointer;
+  text-decoration: underline dotted #b6c6dd;
+  text-underline-offset: 3px;
+}
+.scenario-cell-val--editable:hover {
+  color: #0176d3;
+  text-decoration-color: #0176d3;
+}
+/* Inline editor for a KPI target */
+.scenario-cell-input {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: right;
+  font: inherit;
+  color: #181818;
+  border: 1px solid #0176d3;
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+}
+.scenario-cell-delta {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+.scenario-cell-delta.pos {
+  color: #04844b;
+}
+.scenario-cell-delta.neg {
+  color: #c23934;
+}
+.scenario-cell-delta.neutral {
+  color: #969492;
+}
+
+/* Section subheader rows ("Drivers" / "Outcomes") inside the comparison table */
+.scenario-matrix-section-row td,
+.scenario-matrix-section-row th {
+  padding: 9px 12px 3px !important;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #706e6b !important;
+  background: #fafbfd !important;
+  border-bottom: 1px solid #e5e5e5;
+  text-align: left !important;
+}
+
+/* Driver dropdown rows */
+.scenario-matrix-driver-row td,
+.scenario-matrix-driver-row th {
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+
+/* Screen-reader-only text: conveys delta direction/favorability that is
+   otherwise shown with color + arrow glyphs (WCAG 1.4.1 — not color alone). */
+.scenario-sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+.scenario-matrix-select {
+  width: 100%;
+  max-width: 172px;
+  height: 26px;
+  border: 1px solid #d8d8d8;
+  border-radius: 4px;
+  background: #fff;
+  color: #181818;
+  font-size: 11px;
+  padding: 0 6px;
+  cursor: pointer;
+}
+.scenario-matrix-select:disabled {
+  background: #f7f7f7;
+  color: #969492;
+  cursor: default;
+}
+
+/* Remove control for custom scenario columns */
+.scenario-matrix-colremove {
+  margin-left: 4px;
+  color: #969492;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.scenario-matrix-colremove:hover {
+  color: #c23934;
+}
+
+/* ---- Global assumptions ---- */
+.scenario-assumptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 24px;
+}
+.scenario-assumption-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+}
+.scenario-assumption-label {
+  font-size: 12px;
+  color: #514f4d;
+  font-weight: 600;
+}
+.scenario-assumption-value {
+  font-size: 12px;
+  color: #0176d3;
+  font-weight: 700;
+}
+.scenario-assumption input[type='range'] {
+  width: 100%;
+  accent-color: #0176d3;
+  cursor: pointer;
+}
+
+/* ---- Charts ---- */
+.scenario-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 16px;
+}
+.scenario-chart-card {
+  border: 1px solid #e6e6e6;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff;
+}
+.scenario-chart-title {
+  display: block;
+  font-family: 'Tableau Book', 'Benton Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #333333;
+  margin-bottom: 8px;
+}
+.scenario-chart-note {
+  font-weight: 400;
+  color: #969492;
+}
+.scenario-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 8px;
+}
+.scenario-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Tableau Book', 'Benton Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 11px;
+  color: #555555;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+/* Tableau legends use small squares, not dots */
+.scenario-chart-legend .scenario-dot {
+  border-radius: 2px;
+}
+.scenario-legend-item:hover {
+  background: #f4f6f9;
+}
+.scenario-legend-item.is-active {
+  border-color: #c9d5e3;
+  background: #f3f8fe;
+  color: #181818;
+  font-weight: 700;
+}
+
+/* ==========================================================================
+   COMPARE WORKSPACE — KPI table (left) + charts (right), side by side
+   ========================================================================== */
+.scenario-compare {
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+}
+.scenario-compare-left {
+  flex: 1 1 66%;
+  min-width: 0; /* let the matrix scroll container shrink so overflow-x kicks in */
+  /* Width of the sticky KPI label column — shared by the table and the cards
+     spacer so each card lines up exactly above its scenario column. */
+  --sc-kpi-w: 168px;
+  border-top: 1px solid #eef1f6;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+}
+.scenario-compare-right {
+  flex: 1 1 34%;
+  min-width: 0;
+  border-top: 1px solid #eef1f6;
+  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+/* Thin divider between the two columns */
+.scenario-compare-right {
+  border-left: 1px solid #eef1f6;
+  padding-left: 16px;
+  margin-left: -1px;
+}
+/* Taller chart canvases so the trends/bubbles read clearly (kit default is 150px) */
+.scenario-compare-right .cs-chart-wrap {
+  height: 230px;
+}
+
+/* Columns are display-only now — focus is driven by the scenario cards above. */
+.scenario-matrix-kpi {
+  cursor: default;
+}
+
+/* ---- Selectable scenario cards (one per column) ---- */
+/* Rendered as a segmented strip above the table: a leading spacer matches the
+   KPI label column, then each card flexes equally so it sits exactly above its
+   scenario column. */
+.scenario-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.scenario-cards-spacer {
+  flex: 0 0 var(--sc-kpi-w, 168px);
+}
+.scenario-select-card {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 10px 9px 13px;
+  border: 1px solid #c9c9c9 !important;
+  background: #fff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.scenario-select-card {
+  border-radius: 8px;
+}
+.scenario-select-card:hover {
+  border-color: #0176d3 !important;
+  background: #fafbfd;
+  z-index: 1;
+}
+.scenario-select-card.is-active {
+  border-color: #0176d3 !important;
+  background: #f3f8fe;
+  z-index: 2;
+}
+/* Left color accent bar keyed to the scenario color */
+.scenario-select-card-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+.scenario-select-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.scenario-select-card-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: #181818;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scenario-select-card-head .scenario-matrix-colremove {
+  margin-left: auto;
+}
+.scenario-select-card-sub {
+  font-size: 10px;
+  color: #969492;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scenario-select-card-metric {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #181818;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.scenario-select-card-delta {
+  font-size: 10px;
+  font-weight: 700;
+}
+.scenario-select-card-delta.pos {
+  color: #2e844a;
+}
+.scenario-select-card-delta.neg {
+  color: #ba0517;
+}
+
+/* ---- Footer actions ---- */
+.scenario-band--footer {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px;
+  margin: 0 -12px -12px;
+  background: #fafbfd;
+  border-top: 1px solid #e5e5e5;
+}
+.scenario-footer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #181818;
+}
+.scenario-footer-sub {
+  color: #706e6b;
+  font-size: 12px;
+}
+.scenario-footer-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+.scenario-btn {
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.scenario-btn--neutral {
+  background: #fff;
+  border-color: #d8d8d8;
+  color: #0176d3;
+}
+.scenario-btn--neutral:hover:not(:disabled) {
+  background: #f4f6f9;
+}
+.scenario-btn--brand {
+  background: #0176d3;
+  color: #fff;
+}
+.scenario-btn--brand:hover:not(:disabled) {
+  background: #014486;
+}
+.scenario-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Hide levers text on narrow widths so the rail never wraps */
+@media (max-width: 1100px) {
+  .scenario-lever-label {
+    display: none;
+  }
+  .scenario-rail-levers {
+    gap: 10px;
+  }
+}
+
+/* Stack the compare workspace on narrow viewports so neither section is cramped */
+@media (max-width: 1000px) {
+  .scenario-compare {
+    flex-direction: column;
+  }
+  .scenario-compare-left,
+  .scenario-compare-right {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .scenario-compare-right {
+    border-left: none;
+    padding-left: 0;
+    margin-left: 0;
+  }
+}

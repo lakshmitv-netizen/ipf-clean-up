@@ -1,0 +1,81 @@
+/*
+ * Command Center — Chart Styles (CSS)
+ * ------------------------------------------------------------------
+ * Styling for the chart CARD, TITLE, CANVAS wrapper, and LEGEND that
+ * frame the charts. The tooltip/popover itself is drawn on the canvas
+ * by Chart.js (styled in chart-styles.js), so it needs no CSS.
+ *
+ * All classes are prefixed `cs-` to avoid clashing with a host project.
+ */
+
+:root {
+  /* SLDS 2 tokens used by the charts */
+  --cs-accent: #066AFE;
+  --cs-success: #0B827C;
+  --cs-warning: #8C4B02;
+  --cs-error: #B60554;          /* dashed reference line */
+  --cs-on-surface-1: #5C5C5C;   /* axis / weak text */
+  --cs-on-surface-2: #2E2E2E;   /* body text */
+  --cs-on-surface-3: #03234D;   /* strong text / titles */
+  --cs-border-1: #C9C9C9;
+  --cs-surface-1: #FFFFFF;
+  --cs-surface-2: #F3F3F3;
+  --cs-radius-2: 8px;
+  --cs-shadow-1: 0 1px 2px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.06);
+  --cs-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+}
+
+/* Card that frames a chart */
+.cs-chart-card {
+  background: var(--cs-surface-1);
+  border: 1px solid var(--cs-border-1);
+  border-radius: var(--cs-radius-2);
+  box-shadow: var(--cs-shadow-1);
+  padding: 16px;
+  font-family: var(--cs-font);
+}
+
+.cs-chart-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cs-on-surface-3);
+}
+
+.cs-chart-sub {
+  font-size: 11px;
+  color: var(--cs-on-surface-1);
+  margin-top: 2px;
+}
+
+/* Canvas wrapper — required so the responsive canvas has a fixed height */
+.cs-chart-wrap {
+  position: relative;
+  height: 150px;
+  margin-top: 12px;
+}
+
+/* Legend */
+.cs-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+.cs-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--cs-on-surface-1);
+}
+.cs-legend-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+.cs-legend-dash {
+  display: inline-block;
+  width: 14px;
+  border-top: 2px dashed var(--cs-error);
+}

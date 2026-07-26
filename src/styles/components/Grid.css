@@ -2,7 +2,10 @@
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  padding: var(--spacing-2) 0 0 0;
+  /* Reserve the collapsed scenario-drawer strip height at the bottom so the persistent
+     drawer never overlays grid content — including the sticky edit/save footer, which must
+     stay visible alongside the drawer strip. Keep in sync with SNAP_PX.collapsed (66px). */
+  padding: var(--spacing-2) 0 var(--scenario-strip-height, 66px) 0;
   background-color: var(--color-surface-white);
   overflow: hidden;
   min-height: 0; /* Important for flex children to respect container bounds */
@@ -404,6 +407,165 @@
 
 .refresh-button:hover .refresh-icon {
   color: var(--slds-g-color-accent-1) !important;
+}
+
+/* ---- Data freshness pill + hover popover ---- */
+.data-status {
+  position: relative;
+  display: inline-flex;
+}
+.data-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.data-status-pill--fresh,
+.data-status-pill--stale {
+  color: #514f4d !important;
+  background: #f3f3f3 !important;
+  border-color: #dddbda !important;
+}
+.data-status-label {
+  color: #514f4d;
+}
+.data-status-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 700;
+}
+.data-status-value--fresh {
+  color: #2e844a !important;
+}
+.data-status-value--stale {
+  color: #a86403 !important;
+}
+.data-status-value--fresh .data-status-dot {
+  background: #2e844a !important;
+}
+.data-status-check {
+  width: 13px;
+  height: 13px;
+  color: #2e844a;
+  flex: 0 0 auto;
+}
+.data-status-pill--stale {
+  color: #a86403;
+  background: #fef3e6;
+  border-color: #f4d3a1;
+}
+.data-status-pill--stale .data-status-dot {
+  background: #dd7a01;
+}
+.data-status-pill:hover {
+  filter: brightness(0.98);
+}
+.data-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.data-status-dot--lg {
+  width: 10px;
+  height: 10px;
+  margin-top: 3px;
+}
+
+.data-status-popover {
+  position: fixed;
+  z-index: 100000;
+  width: 320px;
+  padding: 14px;
+  background: #fff;
+  border: 1px solid var(--slds-g-color-border-base-1, #c9c9c9);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  text-align: left;
+  cursor: default;
+}
+/* Transparent bridge so the popover stays open while crossing the 8px gap */
+.data-status-popover::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+.data-status-popover-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.data-status-popover-headtext {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.data-status-refresh {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.data-status-popover-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #181818;
+}
+.data-status-popover-sub {
+  font-size: 11px;
+  color: #706e6b;
+  margin-top: 1px;
+}
+.data-status-popover-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #706e6b;
+  margin-bottom: 8px;
+}
+.data-status-feed {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.data-status-feed-item {
+  border-left: 2px solid #d8e6f5;
+  padding-left: 10px;
+}
+.data-status-feed-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.data-status-feed-source {
+  font-size: 12px;
+  font-weight: 600;
+  color: #181818;
+}
+.data-status-feed-when {
+  font-size: 11px;
+  color: #969492;
+  white-space: nowrap;
+}
+.data-status-feed-detail {
+  font-size: 11px;
+  color: #514f4d;
+  margin-top: 1px;
+  line-height: 1.35;
 }
 
 .grid-toolbar {
@@ -898,6 +1060,160 @@
   background: var(--slds-g-color-neutral-base-95);
   z-index: 1002;
 }
+
+/* "Show chart area on top" (Table Settings → Layout): a row of empty "add chart"
+   placeholders above the grid. */
+.grid-chart-area {
+  flex: 0 0 auto;
+  margin: 8px 12px 4px;
+  display: flex;
+  gap: 8px;
+}
+.grid-chart-area-add {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 12px;
+  /* Subtler: grey dotted outline, no fill, muted grey text. */
+  border: 1px dotted var(--slds-g-color-neutral-base-80, #b0b0b0);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-on-surface-1, #a0a0a0);
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+.grid-chart-area-add:hover {
+  border-color: var(--slds-g-color-accent-1, #0176d3);
+  color: var(--slds-g-color-accent-1, #0176d3);
+}
+.grid-chart-area-plus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 400;
+}
+.grid-chart-area-text {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* A configured chart card in the chart area (placeholder preview until real charts render). */
+.grid-chart-area-card {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--slds-g-color-neutral-base-90, #e5e5e5);
+  border-radius: 8px;
+  background: var(--color-surface-white, #fff);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+.grid-chart-area-card:hover {
+  border-color: var(--slds-g-color-accent-1, #0176d3);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+.grid-chart-area-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.grid-chart-area-card-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-on-surface-3, #181818);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.grid-chart-area-card-type {
+  flex-shrink: 0;
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--slds-g-color-accent-1, #0176d3);
+  background: var(--slds-g-color-surface-container-2, #eef4fb);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.grid-chart-area-card-ph {
+  flex: 1;
+  border-radius: 6px;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--slds-g-color-surface-container-1, #f6f8fa),
+    var(--slds-g-color-surface-container-1, #f6f8fa) 8px,
+    var(--color-surface-white, #fff) 8px,
+    var(--color-surface-white, #fff) 16px
+  );
+}
+
+/* Live mini chart inside a chart-area card. */
+.grid-chart-area-card-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-height: 0;
+  overflow: hidden;
+}
+.mini-chart {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.mini-chart--empty {
+  justify-content: center;
+  color: var(--color-on-surface-1, #706e6b);
+  font-size: 11px;
+}
+.mini-chart--trend { flex-direction: column; align-items: stretch; gap: 2px; }
+.mini-chart--trend svg { display: block; width: 100%; }
+.mini-chart-total {
+  font-size: 10px;
+  color: var(--color-on-surface-1, #706e6b);
+  align-self: flex-end;
+}
+.mini-chart--donut { align-items: center; }
+.mini-chart--donut svg { flex-shrink: 0; }
+.mini-chart-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.mini-chart-legend-item {
+  display: grid;
+  grid-template-columns: 8px 1fr auto;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--color-on-surface-2, #514f4d);
+}
+.mini-chart-legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+.mini-chart-legend-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-chart-legend-pct { font-variant-numeric: tabular-nums; color: var(--color-on-surface-1, #706e6b); }
 
 .grid-container-wrapper {
   display: flex;
@@ -2899,8 +3215,47 @@ td[data-cell-read="true"] .cell-value-left-icon,
   min-height: 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   gap: 4px;
+  position: relative;
+}
+
+/* Dot + label grouped together and centered in the cell. */
+.sub-col-header-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* Float the sort/filter icons to the right edge so the dot + label can center
+   within the cell without the icons shifting them off-center. */
+.sub-col-header-content .col-header-icons {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 0;
+}
+
+/* Keep the label snug against its dot (not stretched). */
+.sub-col-header-content .col-header-label {
+  flex: 0 1 auto;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Colored dot in a sub-column header that maps to its Charts-panel trend line. */
+.sub-col-line-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+  order: -1; /* keep the dot immediately before the label */
+  margin-right: 2px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--slds-g-color-neutral-base-10) 15%, transparent);
 }
 
 /* ── Stronger border for last sub-column in each main column group ── */

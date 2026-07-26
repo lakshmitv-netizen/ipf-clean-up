@@ -113,15 +113,25 @@ function childCountFor(parentId: string): number {
  * how leaf/parent costs are derived elsewhere in this dataset.
  */
 function disaggregate(parent: ValueBag, n: number, seedBase: string): ValueBag[] {
-  const weights = Array.from({ length: n }, (_, i) => 0.6 + seededRandom(`${seedBase}-w${i}`) * 0.9);
-  const wsum = weights.reduce((a, b) => a + b, 0);
+  // Each child has a stable baseline weight (keeps a rough size ordering across the year)…
+  const baseWeights = Array.from({ length: n }, (_, i) => 0.6 + seededRandom(`${seedBase}-w${i}`) * 0.9);
   const childMonths: Record<string, number>[] = Array.from({ length: n }, () => ({}));
 
-  MONTH_KEYS.forEach((mk) => {
+  MONTH_KEYS.forEach((mk, mi) => {
     const total = Math.max(0, Math.round((parent[mk as keyof ValueBag] as number) || 0));
+    // …but the split is re-weighted every month so the share of each child (and hence the
+    // pie composition) visibly shifts month to month. A per-child seasonal phase plus a
+    // random monthly kick gives noticeable but non-chaotic movement.
+    const monthWeights = baseWeights.map((bw, i) => {
+      const phase = seededRandom(`${seedBase}-phase${i}`) * Math.PI * 2;
+      const seasonal = 1 + Math.sin((mi / 12) * Math.PI * 2 + phase) * 0.55; // ~0.45–1.55
+      const kick = 0.55 + seededRandom(`${seedBase}-w${i}-${mk}`) * 0.95; // ~0.55–1.5
+      return Math.max(0.05, bw * seasonal * kick);
+    });
+    const wsum = monthWeights.reduce((a, b) => a + b, 0);
     let allocated = 0;
     for (let i = 0; i < n - 1; i++) {
-      const v = Math.max(0, Math.round((total * weights[i]) / wsum));
+      const v = Math.max(0, Math.round((total * monthWeights[i]) / wsum));
       childMonths[i][mk] = v;
       allocated += v;
     }

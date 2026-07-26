@@ -231,6 +231,21 @@ const CAT_SEASON: Record<string, number[]> = {
   elc: [0.90, 0.88, 0.85, 0.92, 0.95, 1.00, 1.18, 1.32, 1.42, 1.45, 1.38, 1.35],
 };
 
+// Per-account (plant) seasonal profiles — each peaks in a different part of the year so the
+// leading plant *rotates* month to month. Applied to every measure's leaf values (which roll
+// up into the account totals), so the measure's "share of children" pie shows a clear,
+// readable seasonal pattern instead of near-constant slices.
+// mich: winter peak · ohio: late-spring · texas: summer · cal: autumn · geo: spring · ill: bimodal
+const ACCOUNT_SEASON: Record<string, number[]> = {
+  mich:  [1.55, 1.46, 1.26, 1.00, 0.82, 0.70, 0.66, 0.74, 0.90, 1.12, 1.36, 1.52],
+  ohio:  [0.78, 0.88, 1.04, 1.26, 1.44, 1.50, 1.40, 1.24, 1.06, 0.90, 0.80, 0.74],
+  texas: [0.70, 0.76, 0.88, 1.02, 1.22, 1.42, 1.52, 1.48, 1.30, 1.08, 0.86, 0.72],
+  cal:   [1.12, 1.00, 0.88, 0.80, 0.78, 0.86, 0.98, 1.14, 1.32, 1.46, 1.44, 1.28],
+  geo:   [0.82, 0.96, 1.16, 1.38, 1.48, 1.34, 1.12, 0.96, 0.84, 0.80, 0.90, 1.08],
+  ill:   [1.34, 1.30, 1.10, 0.90, 0.80, 0.82, 0.96, 1.16, 1.34, 1.18, 0.92, 0.98],
+};
+const FLAT_SEASON = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+
 // Per-product monthly boost seeds: each product gets a phase-shifted sine-like pattern
 // so within a category, the "top product" rotates month-by-month.
 // Values are multiplied with the base product fraction.
@@ -341,6 +356,8 @@ const createManufacturingHierarchy = (
     const accId  = `account-${accSlug}-${measureId}`;
     const accVal = r(b * accScale);
     const accCost = r(b * (ACC_COST[accSlug] ?? 1.0));
+    // Seasonal rhythm for this plant — rotates which plant leads the "share of children" pie.
+    const accSeason = ACCOUNT_SEASON[accSlug] ?? FLAT_SEASON;
 
     const categoryRows: GridRow[] = CATEGORIES.map(([catSlug, catName, catFrac, products]) => {
       const catId      = `category-${accSlug}-${catSlug}-${measureId}`;
@@ -355,7 +372,7 @@ const createManufacturingHierarchy = (
         const season = isSaRev ? (CAT_SEASON[catSlug]?.[idx] ?? 1.0) : 1.0;
         // Small per-account jitter so categories of different accounts aren't identical
         const jitter = 1 + (seededRandom(`${catId}-${mk}-j`) - 0.5) * 0.10;
-        catMonths[mk] = r(catBaseVal * season * jitter);
+        catMonths[mk] = r(catBaseVal * season * accSeason[idx] * jitter);
       });
 
       // Build per-month product values: each product has its own seasonal rhythm
@@ -371,7 +388,9 @@ const createManufacturingHierarchy = (
           // Per-product sinusoidal rhythm causes rank rotation within the category
           const pFactor = isSaRev ? prodMonthFactor(`${prodId}`, idx) : 1.0;
           const jitter  = 1 + (seededRandom(`${prodId}-${mk}-j`) - 0.5) * 0.08;
-          prodMonths[mk] = r(prodBaseVal * season * pFactor * jitter);
+          // Account seasonal rhythm rolls up into the plant total, so the plant shares in
+          // the measure-level pie rotate through the year.
+          prodMonths[mk] = r(prodBaseVal * season * pFactor * accSeason[idx] * jitter);
         });
         return {
           id: prodId, name: prodName, parentId: catId,

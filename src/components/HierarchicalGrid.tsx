@@ -27,6 +27,7 @@ import type { PlanningGridCellMapsSnapshot } from '../contexts/PlanningGridSessi
 import { SearchHighlight } from './SearchHighlight';
 import ColumnFilterPopover, { ColumnFilter } from './ColumnFilterPopover';
 import { buildWeekHeaders, deriveWeekValues, weekOverlapsRange } from '../utils/weekColumns';
+import { BASE_LINE_COLOR, getSubColumnLineColorMap } from '../utils/subColumnColors';
 import { getConfigTimeFrame, getPlanPeriodScope } from '../data/planConfigGridData';
 import '../styles/components/Grid.css';
 
@@ -312,6 +313,8 @@ interface HierarchicalGridProps {
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
   onClearAllFilters?: (handler: () => void) => void; // Callback to register clear all filters handler
   onSettingsClick?: () => void; // Callback to open settings panel
+  onShowCharts?: (row: GridRowType) => void; // Open the Charts panel focused on a row
+  onCellEdited?: (rowId: string, periodKey: string) => void; // Fired when a cell value is edited (row + time period)
   initialFocusedCell?: { rowId: string; monthKey: string } | null; // Initial focused cell when switching layouts
   onFocusedCellChange?: (focus: { rowId: string; monthKey: string } | null) => void; // Callback when focused cell changes
   searchTerm?: string; // Search term for filtering rows and columns
@@ -367,6 +370,7 @@ interface HierarchicalGridProps {
   onMeasureGroupContextChange?: (measureId: string, groupContext: string) => void; // Callback to change per-measure group context
   sharedMeasureIds?: string[]; // IDs of measures that exist in multiple groups
   onScrollToMeasureReady?: (handler: (measureId: string) => void) => void; // Callback to expose function to scroll to a measure
+  onDrillToRowReady?: (handler: (rowId: string, opts?: { scroll?: boolean }) => void) => void; // Exposes a function to expand ancestors + the row and (optionally) scroll to it (drill from charts)
   newlyAddedMeasureIds?: string[]; // IDs of newly added measures for animation effect
   frozenColumns?: Array<{ id: string; name: string }>; // Array of frozen columns to display
   showAdditionalFrozenColumns?: boolean; // Whether to show additional frozen columns
@@ -443,6 +447,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onClearAllFilters,
   onCellFocusWithHistory,
   onSettingsClick,
+  onShowCharts,
+  onCellEdited,
   initialFocusedCell,
   onFocusedCellChange,
   searchTerm = '',
@@ -487,6 +493,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onMeasureGroupContextChange,
   sharedMeasureIds = [],
   onScrollToMeasureReady,
+  onDrillToRowReady,
   newlyAddedMeasureIds = [],
   frozenColumns = [],
   showAdditionalFrozenColumns = false,
@@ -525,6 +532,15 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   useEffect(() => {
     onEditHistoryRef.current = onEditHistory;
   }, [onEditHistory]);
+
+  // Store onCellEdited in a ref so handleCellChange can notify without dep churn.
+  const onCellEditedRef = useRef(onCellEdited);
+  useEffect(() => {
+    onCellEditedRef.current = onCellEdited;
+  }, [onCellEdited]);
+
+  // Color per charted sub-column, matching the Charts panel trend lines, for header dots.
+  const subColLineColors = useMemo(() => getSubColumnLineColorMap(subColumns), [subColumns]);
   
   // Note: Debug logging for onEditHistory removed
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -2583,7 +2599,13 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
 
     const delta = newValue - oldValue;
     const cellKey = `${rowId}-${monthKey}`;
-    
+
+    // Notify the parent so it can surface this row's charts with the updated value,
+    // scoped to the edited time period (so the pie/donut snaps to that month).
+    if (delta !== 0) {
+      onCellEditedRef.current?.(rowId, monthKey as string);
+    }
+
     // Check if note exists and is not empty
     const hasNote = note && note.trim() !== '';
 
@@ -4036,6 +4058,51 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     }
   }, [onScrollToMeasureReady, getAllVisibleRows, getVisibleTimeKeys]);
 
+  // Expose a "drill to row" function: expand every ancestor and the row itself (so its
+  // children — the drilled-into section — become visible), then scroll it into view.
+  // Used when a pie-chart slice / breadcrumb is clicked in the Charts panel.
+  useEffect(() => {
+    if (!onDrillToRowReady) return;
+    onDrillToRowReady((rowId: string, opts?: { scroll?: boolean }) => {
+      const findPath = (rows: GridRowType[], id: string, trail: string[]): string[] | null => {
+        for (const r of rows) {
+          const next = [...trail, r.id];
+          if (r.id === id) return next;
+          if (r.children && r.children.length > 0) {
+            const found = findPath(r.children, id, next);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+      const path = findPath(gridData, rowId, []);
+      if (!path) return;
+
+      setExpandedRows((prev) => {
+        const nextSet = new Set(prev);
+        path.forEach((id) => nextSet.add(id));
+        return nextSet;
+      });
+
+      // Chart clicks pass { scroll: false } — expand/reveal the row but don't move the grid.
+      if (opts?.scroll === false) return;
+
+      const firstKey = getVisibleTimeKeys()[0];
+      if (!firstKey) return;
+      let tries = 0;
+      const tryScroll = () => {
+        const el = cellRefs.current.get(`${rowId}-${firstKey}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else if (tries < 8) {
+          tries += 1;
+          setTimeout(tryScroll, 50);
+        }
+      };
+      setTimeout(tryScroll, 60);
+    });
+  }, [onDrillToRowReady, gridData, getVisibleTimeKeys]);
+
   // Auto-expand rows that match search (only when searchTerm changes, not gridData)
   useEffect(() => {
     if (!searchTerm || searchTerm.trim() === '') {
@@ -5125,7 +5192,10 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                         style={{ minWidth: `${dynamicWidth}px`, width: `${dynamicWidth}px` }}
                       >
                         <div className="col-header-content sub-col-header-content">
-                          <span className="col-header-label">Actual</span>
+                          <span className="sub-col-header-main">
+                            <span className="sub-col-line-dot" style={{ backgroundColor: BASE_LINE_COLOR }} aria-hidden="true" />
+                            <span className="col-header-label">Actual</span>
+                          </span>
                           <div className="col-header-icons">
                             <button
                               type="button"
@@ -5165,7 +5235,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                             style={{ minWidth: `${subColWidth}px`, width: `${subColWidth}px` }}
                           >
                             <div className="col-header-content sub-col-header-content">
-                              <span className="col-header-label">{sc.name}</span>
+                              <span className="sub-col-header-main">
+                                {subColLineColors.has(sc.id) && (
+                                  <span className="sub-col-line-dot" style={{ backgroundColor: subColLineColors.get(sc.id) }} aria-hidden="true" />
+                                )}
+                                <span className="col-header-label">{sc.name}</span>
+                              </span>
                               <div className="col-header-icons">
                                 <button
                                   type="button"
@@ -5301,6 +5376,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     frozenColWidth={totalFrozenWidth}
                     data={gridData}
                     onApplyQuickFilter={handleApplyQuickFilter}
+                    onShowCharts={onShowCharts}
                     quickFilter={quickFilters.get(measure.id) || null}
                     getQuickFilter={(rowId: string) => quickFilters.get(rowId) || null}
                     approvalRequests={approvalRequests}
@@ -5405,6 +5481,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     frozenColWidth={totalFrozenWidth}
                   data={gridData}
                   onApplyQuickFilter={handleApplyQuickFilter}
+                  onShowCharts={onShowCharts}
                   quickFilter={quickFilters.get(measure.id) || null}
                   getQuickFilter={(rowId: string) => quickFilters.get(rowId) || null}
                   approvalRequests={approvalRequests}

@@ -42,6 +42,9 @@ interface SettingsPanelProps {
   onShowAdditionalFrozenColumnsChange?: (show: boolean) => void;
   showSubColumns?: boolean;
   onShowSubColumnsChange?: (show: boolean) => void;
+  showChartArea?: boolean;
+  onShowChartAreaChange?: (show: boolean) => void;
+  onConfigureCharts?: () => void;
   showQuickAccessToolbar?: boolean;
   onShowQuickAccessToolbarChange?: (show: boolean) => void;
   onConfigureQuickAccess?: () => void;
@@ -159,6 +162,9 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
   onShowAdditionalFrozenColumnsChange,
   showSubColumns: propShowSubColumns = false,
   onShowSubColumnsChange,
+  showChartArea = false,
+  onShowChartAreaChange,
+  onConfigureCharts,
   showQuickAccessToolbar: propShowQuickAccessToolbar,
   onShowQuickAccessToolbarChange,
   onConfigureQuickAccess,
@@ -795,6 +801,22 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
               <div className="settings-section" style={{ order: 2 }}>
                 <div className="settings-section-header settings-section-header-layout">
                   <p className="settings-section-title">Layout</p>
+                </div>
+
+                {/* Show chart area on top */}
+                <div className="settings-field">
+                  <div className="settings-checkbox-row">
+                    <label
+                      className="settings-standalone-checkbox-label"
+                      onClick={() => onShowChartAreaChange?.(!showChartArea)}
+                    >
+                      <div className={`settings-checkbox-wrapper settings-checkbox-wrapper-standalone ${showChartArea ? 'checked' : ''}`}>
+                        {showChartArea && <svg className="settings-checkbox-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <span className="settings-checkbox-text">Show chart area on top</span>
+                    </label>
+                    <button type="button" className="settings-link-button" onClick={(e) => { e.stopPropagation(); onConfigureCharts?.(); }}>Configure</button>
+                  </div>
                 </div>
 
                 {/* Show row information */}
