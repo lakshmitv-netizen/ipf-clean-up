@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Grid Cell States — Design System Reference</title>
+<style>
+  :root{
+    --ink:#181818; --muted:#5c5c5c; --line:#e3e6ea; --line2:#eef1f4;
+    --brand:#0250d9; --bg-soft:#f7f9fb;
+    --risk:#ba0517; --risk-bg:#feeceb; --risk-border:#f5c4c0;
+    --green:#2e844a; --green-bg:#ebf7ee;
+    --orange:#ff5d2d; --blue:#2E76E1;
+  }
+  *{ box-sizing:border-box; }
+  html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    margin:0; color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:12px; line-height:1.5;
+  }
+  .page{ padding:44px 52px; }
+  .page-break{ page-break-before:always; }
+
+  /* Cover */
+  .cover{
+    height:960px; display:flex; flex-direction:column; justify-content:center;
+    background:linear-gradient(150deg,#0a2540 0%,#0250d9 100%); color:#fff; padding:0 60px;
+  }
+  .cover .eyebrow{ text-transform:uppercase; letter-spacing:3px; font-size:12px; opacity:.8; }
+  .cover h1{ font-size:52px; line-height:1.08; margin:14px 0 8px; font-weight:700; letter-spacing:-1px; }
+  .cover .sub{ font-size:17px; opacity:.9; max-width:560px; font-weight:400; }
+  .cover .meta{ margin-top:48px; font-size:12px; opacity:.75; line-height:1.9; }
+  .cover .chipset{ margin-top:30px; display:flex; flex-wrap:wrap; gap:8px; }
+  .cover .chip{ background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); padding:5px 12px; border-radius:20px; font-size:11px; }
+
+  h2{ font-size:22px; margin:0 0 4px; letter-spacing:-.4px; }
+  .sec-num{ color:var(--brand); font-weight:700; }
+  .sec-rule{ height:3px; width:52px; background:var(--brand); border-radius:2px; margin:8px 0 22px; }
+  h3{ font-size:14px; margin:26px 0 10px; padding-bottom:5px; border-bottom:1px solid var(--line); }
+  h4{ font-size:12.5px; margin:16px 0 6px; color:var(--ink); }
+  p.lead{ color:var(--muted); max-width:660px; margin:0 0 8px; }
+  code{ font-family:"SF Mono",Menlo,Consolas,monospace; font-size:10.5px; background:var(--bg-soft); border:1px solid var(--line2); padding:1px 5px; border-radius:4px; color:#a3306e; white-space:nowrap; }
+  .fileref{ color:var(--muted); font-size:10px; font-family:"SF Mono",Menlo,Consolas,monospace; }
+
+  table{ width:100%; border-collapse:collapse; margin:10px 0 6px; font-size:11px; }
+  th{ text-align:left; background:var(--bg-soft); color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.4px; font-size:9.5px; padding:7px 9px; border-bottom:2px solid var(--line); }
+  td{ padding:8px 9px; border-bottom:1px solid var(--line2); vertical-align:top; }
+  tr:nth-child(even) td{ background:#fbfcfd; }
+
+  /* cell state visual demo */
+  .demo-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; margin:12px 0; }
+  .demo-card{ border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .demo-card .cap{ background:var(--bg-soft); padding:7px 11px; font-weight:600; font-size:11px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .demo-card .cap .tag{ font-size:9px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+  .demo-card .body{ padding:14px; display:flex; align-items:center; justify-content:center; min-height:64px; background:#fff; }
+  .demo-card .note{ padding:0 11px 10px; font-size:10px; color:var(--muted); }
+
+  /* the fake cell */
+  .cell{ position:relative; width:118px; height:34px; border:1px solid #d6dbe0; display:flex; align-items:center; justify-content:flex-end; padding:0 10px 0 26px; font-variant-numeric:tabular-nums; font-size:13px; background:#fff; }
+  .cell .lefticon{ position:absolute; left:6px; top:50%; transform:translateY(-50%); display:flex; }
+  .cell.edited{ background:#fdf4d8; box-shadow:inset 4px 0 0 #dd7a01; border-left:none; }
+  .cell.edited .val{ font-weight:600; color:#dd7a01; }
+  .cell.impacted{ background:#fbf6e3; box-shadow:inset 4px 0 0 #f9e3a8; }
+  .cell.impacted .val{ font-weight:600; color:#3b3b3b; }
+  .cell.saved-inc .val{ font-weight:600; color:#c95415; }
+  .cell.saved-dec .val{ font-weight:600; color:#1b5dbd; }
+  .cell.selected{ border:2px solid #0250d9; }
+  .cell.focused{ background:rgba(24,24,24,.03); outline:2px solid #d6dbe0; }
+  .cell.hovered{ background:rgba(24,24,24,.02); }
+  .cell.risk{ background:var(--risk-bg); box-shadow:inset 4px 0 0 var(--risk); border-color:var(--risk-border); padding-left:32px; }
+  .cell.risk .val{ color:var(--risk); font-weight:600; }
+  .cell.resolved{ background:var(--green-bg); border:1px solid var(--green); }
+  .cell.resolved .val{ color:var(--green); font-weight:600; }
+  .cell.readonly{ background:repeating-linear-gradient(-45deg,#f4f6f8,#f4f6f8 3px,#e9edf1 3px,#e9edf1 5px); color:#8a8f96; cursor:default; }
+  .cell.cf{ background:#FFEBEB; }
+  .cell.locked .val{ color:#5c5c5c; }
+  .cell .delta{ position:absolute; left:26px; font-size:10px; color:#5c5c5c; font-weight:400; }
+  .cell.risk .delta{ left:32px; }
+  .cell .input{ width:100%; height:26px; border:1px solid var(--brand); border-radius:2px; box-shadow:0 0 0 2px rgba(6,106,254,.1); text-align:right; padding:0 6px; font-size:13px; }
+  .cell .dogear{ position:absolute; top:0; right:0; width:0; height:0; border-top:10px solid #dd7a01; border-left:10px solid transparent; }
+
+  /* swatches */
+  .swatches{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:12px 0; }
+  .sw{ border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .sw .chip{ height:52px; }
+  .sw .lbl{ padding:6px 8px; font-size:10px; }
+  .sw .lbl b{ display:block; font-size:11px; margin-bottom:1px; }
+  .sw .lbl code{ font-size:9.5px; background:none; border:none; padding:0; color:var(--muted); }
+
+  .icon-row{ display:flex; align-items:center; gap:8px; }
+  .badge{ display:inline-flex; align-items:center; gap:4px; padding:2px 9px; border-radius:20px; font-size:10px; font-weight:600; }
+  .glyph-circle{ width:20px; height:20px; border-radius:50%; color:#fff; font-size:9px; font-weight:700; letter-spacing:.3px; display:inline-flex; align-items:center; justify-content:center; }
+
+  .callout{ background:var(--bg-soft); border-left:3px solid var(--brand); padding:10px 14px; border-radius:0 6px 6px 0; margin:12px 0; font-size:11px; color:var(--muted); }
+  .toc{ columns:2; column-gap:40px; margin-top:16px; }
+  .toc a{ display:flex; justify-content:space-between; text-decoration:none; color:var(--ink); padding:6px 0; border-bottom:1px solid var(--line2); font-size:12px; break-inside:avoid; }
+  .toc a .n{ color:var(--brand); font-weight:700; margin-right:10px; }
+  .foot{ position:running(footer); }
+  .kv{ font-size:11px; }
+  .kv td:first-child{ color:var(--muted); width:38%; }
+  .precedence{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:10px 0; font-size:11px; }
+  .precedence .step{ background:#fff; border:1px solid var(--line); border-radius:6px; padding:5px 10px; }
+  .precedence .arr{ color:var(--muted); }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<section class="cover">
+  <div class="eyebrow">Manufacturing Cloud · Intelligent Planning &amp; Forecasting</div>
+  <h1>Grid Cell States<br/>Design System</h1>
+  <div class="sub">A complete reference of every cell state, icon, sub-text, color token and type style used across the forecasting grid.</div>
+  <div class="chipset">
+    <span class="chip">16 cell states</span>
+    <span class="chip">Icon library</span>
+    <span class="chip">Sub-text &amp; popovers</span>
+    <span class="chip">Color tokens</span>
+    <span class="chip">Typography</span>
+    <span class="chip">Conditional formatting</span>
+  </div>
+  <div class="meta">
+    Source of truth: <code style="background:rgba(255,255,255,.15);border:none;color:#fff">GridRow.tsx</code> · <code style="background:rgba(255,255,255,.15);border:none;color:#fff">HierarchicalGrid.tsx</code> · <code style="background:rgba(255,255,255,.15);border:none;color:#fff">Grid.css</code><br/>
+    Generated 2 September 2026 · Repo: Steelthread4
+  </div>
+</section>
+
+<!-- TOC -->
+<section class="page page-break">
+  <h2><span class="sec-num">·</span> Contents</h2>
+  <div class="sec-rule"></div>
+  <div class="toc">
+    <a href="#s1"><span><span class="n">1</span>Cell States</span><span>03</span></a>
+    <a href="#s2"><span><span class="n">2</span>Icon Library</span><span>05</span></a>
+    <a href="#s3"><span><span class="n">3</span>Sub-texts &amp; Popovers</span><span>07</span></a>
+    <a href="#s4"><span><span class="n">4</span>Color Tokens</span><span>09</span></a>
+    <a href="#s5"><span><span class="n">5</span>Typography</span><span>10</span></a>
+    <a href="#s6"><span><span class="n">6</span>Conditional Formatting</span><span>11</span></a>
+  </div>
+
+  <h3>How a cell decides what to render</h3>
+  <p class="lead">The value-cell render path is <code>renderCellValue(monthKey)</code> in <span class="fileref">GridRow.tsx:2552</span>. States are evaluated in strict precedence — the first match wins:</p>
+  <div class="precedence">
+    <span class="step">Risk</span><span class="arr">→</span>
+    <span class="step">Locked</span><span class="arr">→</span>
+    <span class="step">Read-only</span><span class="arr">→</span>
+    <span class="step">Editing (input)</span><span class="arr">→</span>
+    <span class="step">Directly edited</span><span class="arr">→</span>
+    <span class="step">Impacted</span><span class="arr">→</span>
+    <span class="step">Saved-edited</span><span class="arr">→</span>
+    <span class="step">Normal</span>
+  </div>
+  <div class="callout">Conditional formatting, selection, focus and hover are <b>overlays</b> — they layer on top of whichever base state above is active, rather than replacing it.</div>
+</section>
+
+<!-- 1. CELL STATES -->
+<section class="page page-break" id="s1">
+  <h2><span class="sec-num">1</span> Cell States</h2>
+  <div class="sec-rule"></div>
+  <p class="lead">Sixteen distinct rendering states. Each is shown below as it appears in-grid, with its trigger condition and defining styles.</p>
+
+  <div class="demo-grid">
+    <div class="demo-card">
+      <div class="cap">Normal / default <span class="tag">fall-through</span></div>
+      <div class="body"><div class="cell"><span class="val">642</span></div></div>
+      <div class="note">Right-aligned, <code>tabular-nums</code>, <code>var(--color-dark-text)</code>. <span class="fileref">GridRow.tsx:3856</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Directly edited <span class="tag">staged</span></div>
+      <div class="body"><div class="cell edited"><span class="delta">+12.3%</span><span class="val">720</span><span class="dogear"></span></div></div>
+      <div class="note">Yellow-90 bg, warning inset bar, delta badge, dog-ear note flag. <span class="fileref">:3695</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Impacted <span class="tag">cascaded</span></div>
+      <div class="body"><div class="cell impacted"><span class="delta">+4.0%</span><span class="val">668</span></div></div>
+      <div class="note">Yellow-95 bg, lighter inset; note triangles suppressed. <span class="fileref">:3748</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Saved (increase) <span class="tag">committed</span></div>
+      <div class="body"><div class="cell saved-inc"><span class="lefticon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#c95415" stroke-width="2" stroke-linecap="round"><path d="M7 12.5V2.2M3 6.5L7 2.2L11 6.5"/></svg>
+      </span><span class="val">720</span></div></div>
+      <div class="note">hot-orange-60 text, up arrow. <span class="fileref">:3802</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Saved (decrease) <span class="tag">committed</span></div>
+      <div class="body"><div class="cell saved-dec"><span class="lefticon">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#1b5dbd" stroke-width="2" stroke-linecap="round"><path d="M7 1.5V11.8M3 7.5L7 11.8L11 7.5"/></svg>
+      </span><span class="val">580</span></div></div>
+      <div class="note">brand-base-40 text, down arrow. <span class="fileref">:3804</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Editing (input active) <span class="tag">interactive</span></div>
+      <div class="body"><div class="cell" style="padding:0"><input class="input" value="720" readonly/></div></div>
+      <div class="note">Blue border + focus glow; note dropdown portal below. <span class="fileref">:2697</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Selected <span class="tag">overlay</span></div>
+      <div class="body"><div class="cell selected"><span class="val">642</span></div></div>
+      <div class="note">2px <code>--color-grid-selection-border</code>, transparent bg.</div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Focused / hovered <span class="tag">overlay</span></div>
+      <div class="body"><div class="cell focused"><span class="val">642</span></div></div>
+      <div class="note">3% (focus) / 2% (hover) neutral-base-10 wash; focus outline.</div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Read-only <span class="tag">non-editable</span></div>
+      <div class="body"><div class="cell readonly"><span class="val">642</span></div></div>
+      <div class="note">-45° hatched texture, <code>cursor:default</code>. Last-Year / summary rows. <span class="fileref">:3535</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Locked <span class="tag">frozen</span></div>
+      <div class="body"><div class="cell locked"><span class="lefticon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="1" fill="#8a8f96"/><path d="M9 11V7c0-1.66 1.34-3 3-3s3 1.34 3 3v4" stroke="#8a8f96" stroke-width="2"/></svg>
+      </span><span class="val">642</span></div></div>
+      <div class="note">Lock glyph; popover "Locked at &lt;value&gt;". <span class="fileref">:3532</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Risk — above agreement <span class="tag">Arc 5</span></div>
+      <div class="body"><div class="cell risk"><span class="lefticon">
+        <svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 2 L22 20 H2 Z" fill="#ba0517"/><rect x="11" y="9" width="2" height="6" rx="1" fill="#fff"/><rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff"/></svg>
+      </span><span class="val">762</span></div></div>
+      <div class="note"><code>#feeceb</code> bg, <code>#ba0517</code> inset + text. <span class="fileref">:2555</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Risk resolved <span class="tag">amendment</span></div>
+      <div class="body"><div class="cell resolved"><span class="lefticon">
+        <svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#2e844a"/><path d="M7 12.5 L10.5 16 L17 8.5" stroke="#fff" stroke-width="2.2" fill="none"/></svg>
+      </span><span class="val">762</span></div></div>
+      <div class="note"><code>#ebf7ee</code> bg, <code>#2e844a</code> border + check. <span class="fileref">:2567</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Conditional-format hit <span class="tag">overlay</span></div>
+      <div class="body"><div class="cell cf"><span class="val">6</span></div></div>
+      <div class="note">Default demo rule: order-qty &lt; threshold → <code>#FFEBEB</code> background.</div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Marked-as-read <span class="tag">cleared</span></div>
+      <div class="body"><div class="cell"><span class="val">720</span></div></div>
+      <div class="note">Renders plain — no arrows, delta or note flag. <span class="fileref">:3672</span></div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Loading / skeleton <span class="tag">async</span></div>
+      <div class="body"><div class="cell" style="background:linear-gradient(90deg,#f0f2f4,#e6eaee,#f0f2f4)"><span class="val" style="opacity:.35">···</span></div></div>
+      <div class="note">Overlay <code>rgba(255,255,255,.9)</code> + 40px spinner; newly-added-measure shimmer.</div>
+    </div>
+    <div class="demo-card">
+      <div class="cap">Search-highlighted <span class="tag">overlay</span></div>
+      <div class="body"><div class="cell"><span class="val"><span style="background:#ffe589;border-radius:2px;padding:0 2px">642</span></span></div></div>
+      <div class="note"><code>yellow-80</code> highlight on numeric match. <span class="fileref">:3668</span></div>
+    </div>
+  </div>
+
+  <h3>State triggers &amp; defining styles</h3>
+  <table>
+    <tr><th>State</th><th>Trigger</th><th>Background</th><th>Accent / text</th></tr>
+    <tr><td><b>Normal</b></td><td>fall-through</td><td>#fff</td><td><code>--color-dark-text</code></td></tr>
+    <tr><td><b>Directly edited</b></td><td><code>editedOriginalValue !== undefined</code></td><td><code>yellow-90</code></td><td>inset <code>warning-1</code>; text warning-2 (▲) / accent-blue (▼)</td></tr>
+    <tr><td><b>Impacted</b></td><td><code>impactedOriginalValue</code> &amp;&amp; not edited</td><td><code>yellow-95</code></td><td>inset <code>warning-container-1</code>; text neutral-base-20</td></tr>
+    <tr><td><b>Saved-edited</b></td><td><code>savedIconColor !== undefined</code></td><td>#fff</td><td><code>hot-orange-60</code> ▲ / <code>brand-base-40</code> ▼</td></tr>
+    <tr><td><b>Risk</b></td><td><code>riskCellKeys.has(key) &amp;&amp; !resolved</code></td><td>#feeceb</td><td>inset + text #ba0517</td></tr>
+    <tr><td><b>Risk resolved</b></td><td>risk key &amp;&amp; <code>riskResolved</code></td><td>#ebf7ee</td><td>border + check #2e844a</td></tr>
+    <tr><td><b>Locked</b></td><td><code>lockedCells.has(key)</code></td><td>#fff</td><td>lock glyph neutral-base-50</td></tr>
+    <tr><td><b>Read-only</b></td><td>Last-Year measure / filter-summary</td><td>-45° hatch neutral-base-90</td><td><code>cursor:default</code></td></tr>
+    <tr><td><b>Plan-review lock</b></td><td>grid in review</td><td>hatch neutral-base-95</td><td><code>cursor:not-allowed</code></td></tr>
+    <tr><td><b>Selected</b></td><td>selection set</td><td>transparent</td><td>2px selection border</td></tr>
+    <tr><td><b>Focused</b></td><td><code>:focus</code></td><td>3% neutral-base-10</td><td>2px neutral-base-80 outline</td></tr>
+    <tr><td><b>Hovered</b></td><td><code>:hover</code></td><td>2% neutral-base-10</td><td>—</td></tr>
+  </table>
+  <div class="callout"><b>Editability gate</b> (<span class="fileref">GridRow.tsx:3627</span>): a cell is editable only when <code>onCellChange</code> is set AND it is not locked, not a read-only measure, not an adjustment-group cell, not a filter-summary, not plan-review-locked and not pending-approval-locked.</div>
+</section>
+
+<!-- 2. ICONS -->
+<section class="page page-break" id="s2">
+  <h2><span class="sec-num">2</span> Icon Library</h2>
+  <div class="sec-rule"></div>
+  <p class="lead">Every glyph rendered inside or adjacent to a cell, at true size.</p>
+
+  <h3>Delta &amp; direction glyphs</h3>
+  <table>
+    <tr><th style="width:70px">Icon</th><th>Name</th><th>Spec</th><th>Stroke / fill</th></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#c95415" stroke-width="2" stroke-linecap="round"><path d="M7 12.5V2.2M3 6.5L7 2.2L11 6.5"/></svg></td><td>CellDeltaSignIcon — increase</td><td>14×14, viewBox 0 0 14 14, strokeWidth 2</td><td><code>hot-orange-60</code></td></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="#1b5dbd" stroke-width="2" stroke-linecap="round"><path d="M7 1.5V11.8M3 7.5L7 11.8L11 7.5"/></svg></td><td>CellDeltaSignIcon — decrease</td><td>14×14</td><td><code>palette-blue-40</code></td></tr>
+    <tr><td><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ff5d2d" stroke-width="2.5" stroke-linecap="round"><path d="M12 6v10M12 6l4 4M12 6l-4 4"/></svg></td><td>Legacy saved arrow up</td><td>18×18, viewBox 0 0 24 24, strokeWidth 2.5</td><td><code>#ff5d2d</code></td></tr>
+    <tr><td><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2E76E1" stroke-width="2.5" stroke-linecap="round"><path d="M12 18V8M12 18l4-4M12 18l-4-4"/></svg></td><td>Legacy saved arrow down</td><td>18×18</td><td><code>#2E76E1</code></td></tr>
+  </table>
+
+  <h3>Status &amp; action glyphs</h3>
+  <table>
+    <tr><th style="width:70px">Icon</th><th>Name</th><th>Where</th><th>Detail</th></tr>
+    <tr><td><svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2 L22 20 H2 Z" fill="#ba0517"/><rect x="11" y="9" width="2" height="6" rx="1" fill="#fff"/><rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff"/></svg></td><td>Risk warning triangle</td><td>Risk cell left-slot; popover</td><td>aria "Above committed agreement — view recommendation"</td></tr>
+    <tr><td><svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#2e844a"/><path d="M7 12.5 L10.5 16 L17 8.5" stroke="#fff" stroke-width="2.2" fill="none"/></svg></td><td>Risk-resolved check</td><td>Resolved cell; popover</td><td>circle #2e844a + white check</td></tr>
+    <tr><td><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="9" rx="1" fill="#8a8f96"/><path d="M9 11V7c0-1.66 1.34-3 3-3s3 1.34 3 3v4" stroke="#8a8f96" stroke-width="2"/></svg></td><td>Lock</td><td>Locked-cell left slot</td><td>fill <code>neutral-base-50</code></td></tr>
+    <tr><td><svg width="14" height="14" viewBox="0 0 24 24" fill="#a0a4aa"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg></td><td>Pencil / edit</td><td>Hover/focus/select, right:8px</td><td>fill <code>border-2</code>, opacity .8</td></tr>
+    <tr><td><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#066afe" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></td><td>Cancel (X)</td><td>Edit dropdown</td><td>stroke <code>accent-blue</code></td></tr>
+    <tr><td style="font-size:18px;color:#7526d3;text-align:center">✦</td><td>Sparkle</td><td>Ask-Agentforce, recommendation, popover CTA</td><td>"Ask Agentforce" → "Asked Agentforce"; "✦ View next best action"</td></tr>
+    <tr><td><div class="dogear" style="position:relative;border-top:12px solid #dd7a01;border-left:12px solid transparent"></div></td><td>Note dog-ear</td><td>Edited cell top-right</td><td>10px triangle, <code>warning-2</code></td></tr>
+    <tr><td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#FF6B35"></span></td><td>Filter-applied dot</td><td>Row type icon</td><td>8×8 <code>#FF6B35</code> — "some child rows hidden"</td></tr>
+  </table>
+
+  <h3>Dimension glyphs — colored acronym circles</h3>
+  <p class="lead">Deep-hierarchy levels render a 2-letter circle: <code>border-radius:50%</code>, 9px / 700, white text. <span class="fileref">dimensionSchemes.ts:123</span></p>
+  <div style="display:flex;flex-wrap:wrap;gap:14px;margin:12px 0">
+    <span class="icon-row"><span class="glyph-circle" style="background:#1B5E9B">GA</span><code>#1B5E9B</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#2E7D9A">SA</span><code>#2E7D9A</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#0F9D8C">SG</span><code>#0F9D8C</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#3B7A57">SO</span><code>#3B7A57</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#6A8D2F">SH</span><code>#6A8D2F</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#6A3FB5">CO</span><code>#6A3FB5</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#8E44AD">BU</span><code>#8E44AD</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#B03A78">PF</span><code>#B03A78</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#C0562B">CM</span><code>#C0562B</code></span>
+    <span class="icon-row"><span class="glyph-circle" style="background:#B8860B">PT</span><code>#B8860B</code></span>
+  </div>
+
+  <h3>Frozen-column pills &amp; row-status pills</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0">
+    <span class="badge" style="color:#0b5cab;background:#e8f1fc">◉ Account</span>
+    <span class="badge" style="color:#2e844a;background:#ebf7ee">● Category</span>
+    <span class="badge" style="color:#dd7a01;background:#fdf4d8">● Product</span>
+    <span class="badge" style="color:#2e844a;background:#ebf7ee">★ Excellent</span>
+    <span class="badge" style="color:#0b5cab;background:#e8f1fc">✓ Good</span>
+    <span class="badge" style="color:#dd7a01;background:#fdf4d8">▲ Needs Attention</span>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
+    <span class="badge" style="color:#5c5c5c;background:#f2f3f4">— Not Submitted</span>
+    <span class="badge" style="color:#a86400;background:#fdf4d8">◷ Pending</span>
+    <span class="badge" style="color:#2e844a;background:#ebf7ee">✓ Approved</span>
+    <span class="badge" style="color:#a86400;background:#fdf4d8">✎ Cond. Approved</span>
+    <span class="badge" style="color:#ba0517;background:#feeceb">✕ Rejected</span>
+  </div>
+  <p class="fileref">Row-status config: GridRow.tsx:5407 · Frozen-pill LEVEL_COLOR_MAP: GridRow.tsx:1113 · Condition pills: :1181 · Status dots: :1207</p>
+</section>
+
+<!-- 3. SUB-TEXTS -->
+<section class="page page-break" id="s3">
+  <h2><span class="sec-num">3</span> Sub-texts &amp; Popovers</h2>
+  <div class="sec-rule"></div>
+
+  <h3>Delta badge text</h3>
+  <table class="kv">
+    <tr><td>Grid-264 (current)</td><td><code>`${sign}${deltaPercent.toFixed(2)}%`</code> — no space, e.g. <b>+12.30%</b></td></tr>
+    <tr><td>Legacy</td><td><code>`${sign} ${deltaPercent.toFixed(2)}%`</code> — space after sign, e.g. <b>+ 12.30%</b></td></tr>
+    <tr><td>Formula</td><td><code>((current − original) / original) × 100</code> <span class="fileref">GridRow.tsx:3662</span></td></tr>
+  </table>
+
+  <h3>CellEditInfoPopover</h3>
+  <p class="fileref">CellEditInfoPopover.tsx</p>
+  <table>
+    <tr><th>Element</th><th>Copy / format</th></tr>
+    <tr><td>Timestamp</td><td><code>Intl.DateTimeFormat('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})</code></td></tr>
+    <tr><td>Change text</td><td>"Increased/Decreased from <b>&lt;old&gt;</b> to <b>&lt;new&gt;</b> (+&lt;delta&gt;)"</td></tr>
+    <tr><td>Locked</td><td>"Locked at <b>&lt;value&gt;</b>"</td></tr>
+    <tr><td>Currency</td><td><code>$</code> prefix only for revenue / spend measures (not %, ROI, quantity)</td></tr>
+    <tr><td>Risk banner</td><td>Title "Above committed agreement" · Body "Midwest e-motor ramp ~18% above the committed agreement." · CTA "✦ View next best action"</td></tr>
+    <tr><td>Resolved banner</td><td>Title "Risk resolved" · Body "Midwest e-motor upside now under contract — amendment approved."</td></tr>
+    <tr><td>Impact note</td><td>"Edited <b>&lt;rowName&gt;</b>"</td></tr>
+    <tr><td>Approval summary</td><td>"<b>&lt;approved&gt;/&lt;requested&gt;</b> approved"</td></tr>
+    <tr><td>Disaggregation</td><td>"Disaggregation Rule:" + capitalized value pill</td></tr>
+    <tr><td>Note</td><td>italic, quoted, truncated to 100 chars + "…"</td></tr>
+    <tr><td>Actions</td><td>"See Details" · "View history" · Close (X)</td></tr>
+  </table>
+
+  <h3>CellEditHistoryCard &amp; History Panel</h3>
+  <table>
+    <tr><th>Element</th><th>Values</th></tr>
+    <tr><td>Default user</td><td>"David Chen" (initials "JC", id "john-carter")</td></tr>
+    <tr><td>Approval labels</td><td>Not Submitted · Pending · Approved · Rejected</td></tr>
+    <tr><td>Note toggles</td><td>"See note"/"Hide note" · "see more"/"see less" · "Added a note with value unchanged" · "View all X changes"</td></tr>
+    <tr><td>Relative time</td><td>"Just now" · "Xm ago" · "Xh ago"</td></tr>
+    <tr><td>Bulk actions</td><td>Bulk Edit · Request Approval · Edit Approval Status · Copy · Copy Formula · Copy Trend · Copy conditional formatting rule · Copy Adjustment Notes · Set Disaggregation Mechanism</td></tr>
+    <tr><td>Rule ops</td><td>Increase · Decrease · Set to · Multiply by · Divide by</td></tr>
+    <tr><td>Disaggregation modes</td><td>even · proportional · fixed · custom · do not cascade</td></tr>
+    <tr><td>Tabs</td><td>Cell History / History · Cell Actions / Bulk Action · Details</td></tr>
+    <tr><td>Approver role bg</td><td>Finance <code>#dbeafe</code> · Supply Chain <code>#d1fae5</code> · Sales Ops <code>#fef3c7</code> · other <code>#ede9fe</code></td></tr>
+  </table>
+
+  <h3>Agentforce recommendation copy</h3>
+  <div class="callout">
+    <b>Ask-Agentforce answer</b> (GridRow.tsx:3497): "Based on your curated Data Cloud history and the predicted baseline, I recommend <b>&lt;value&gt;</b> for &lt;row&gt;." + rationale + "✦ Recommended value — <b>&lt;value&gt;</b>". Apply button "Use &lt;value&gt;".<br/><br/>
+    <b>Target agent</b> (HierarchicalGrid.tsx:622): "Target Recommendation Agent — &lt;±N%&gt; vs current — 650K FY26 defensible target from the committed agreement floor, stage-weighted pipeline, and predicted Midwest EV-ramp upside; split proportionally along the Predicted Baseline."<br/><br/>
+    <b>Moirai baseline flavors</b>: "new EV program — low confidence, sparse history." · "EV ramp momentum the model sees building." · "steady legacy chassis — flat all year." · "projected from curated Data Cloud history."
+  </div>
+</section>
+
+<!-- 4. COLORS -->
+<section class="page page-break" id="s4">
+  <h2><span class="sec-num">4</span> Color Tokens</h2>
+  <div class="sec-rule"></div>
+
+  <h3>Semantic hard-coded hex</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#ba0517"></div><div class="lbl"><b>Risk</b><code>#ba0517</code></div></div>
+    <div class="sw"><div class="chip" style="background:#feeceb"></div><div class="lbl"><b>Risk bg</b><code>#feeceb</code></div></div>
+    <div class="sw"><div class="chip" style="background:#f5c4c0"></div><div class="lbl"><b>Risk border</b><code>#f5c4c0</code></div></div>
+    <div class="sw"><div class="chip" style="background:#fbd8d5"></div><div class="lbl"><b>Risk hover</b><code>#fbd8d5</code></div></div>
+    <div class="sw"><div class="chip" style="background:#2e844a"></div><div class="lbl"><b>Resolved</b><code>#2e844a</code></div></div>
+    <div class="sw"><div class="chip" style="background:#ebf7ee"></div><div class="lbl"><b>Resolved bg</b><code>#ebf7ee</code></div></div>
+    <div class="sw"><div class="chip" style="background:#ff5d2d"></div><div class="lbl"><b>Legacy inc</b><code>#ff5d2d</code></div></div>
+    <div class="sw"><div class="chip" style="background:#2E76E1"></div><div class="lbl"><b>Legacy dec</b><code>#2E76E1</code></div></div>
+    <div class="sw"><div class="chip" style="background:#FF6B35"></div><div class="lbl"><b>Filter dot</b><code>#FF6B35</code></div></div>
+    <div class="sw"><div class="chip" style="background:#16325c"></div><div class="lbl"><b>Route tooltip</b><code>#16325c</code></div></div>
+    <div class="sw"><div class="chip" style="background:#0250D9"></div><div class="lbl"><b>Note icon</b><code>#0250D9</code></div></div>
+    <div class="sw"><div class="chip" style="background:#FFEBEB"></div><div class="lbl"><b>CF demo bg</b><code>#FFEBEB</code></div></div>
+  </div>
+
+  <h3>Conditional-format zone defaults</h3>
+  <div class="swatches">
+    <div class="sw"><div class="chip" style="background:#10B981"></div><div class="lbl"><b>Good</b><code>#10B981</code></div></div>
+    <div class="sw"><div class="chip" style="background:#F59E0B"></div><div class="lbl"><b>Watch</b><code>#F59E0B</code></div></div>
+    <div class="sw"><div class="chip" style="background:#EF4444"></div><div class="lbl"><b>Critical</b><code>#EF4444</code></div></div>
+    <div class="sw"><div class="chip" style="background:#9CA3AF"></div><div class="lbl"><b>New zone</b><code>#9CA3AF</code></div></div>
+  </div>
+
+  <h3>SLDS design tokens (by role)</h3>
+  <table>
+    <tr><th>Role</th><th>Token</th></tr>
+    <tr><td>Cell border</td><td><code>--slds-g-color-neutral-base-80</code></td></tr>
+    <tr><td>Value text</td><td><code>--color-dark-text</code></td></tr>
+    <tr><td>Edited bg / accent</td><td><code>--slds-g-color-palette-yellow-90</code> / <code>--slds-g-color-warning-1</code></td></tr>
+    <tr><td>Impacted bg / accent / text</td><td><code>yellow-95</code> / <code>warning-container-1</code> / <code>neutral-base-20</code></td></tr>
+    <tr><td>Saved increase / decrease</td><td><code>palette-hot-orange-60</code> / <code>brand-base-40</code></td></tr>
+    <tr><td>Delta sign inc / dec</td><td><code>palette-hot-orange-60</code> / <code>palette-blue-40</code></td></tr>
+    <tr><td>Delta (Grid-264) inc / dec</td><td><code>warning-2</code> / <code>--color-accent-blue</code></td></tr>
+    <tr><td>Delta badge text</td><td><code>--color-on-surface-3</code></td></tr>
+    <tr><td>Search highlight</td><td><code>palette-yellow-80</code></td></tr>
+    <tr><td>Selection border / focus outline</td><td><code>--color-grid-selection-border</code> / <code>neutral-base-80</code></td></tr>
+    <tr><td>Lock / pencil</td><td><code>neutral-base-50</code> / <code>border-2</code></td></tr>
+    <tr><td>Input border / focus</td><td><code>--color-primary-blue</code> / <code>rgba(6,106,254,.1)</code></td></tr>
+    <tr><td>Approval ring track / progress</td><td><code>neutral-base-90</code> / <code>palette-blue-50</code></td></tr>
+    <tr><td>Popover CTA</td><td><code>--slds-g-color-accent-3, #0176d3</code></td></tr>
+  </table>
+  <div class="callout"><b>CF override vars</b> — <code>.cell-cf-active[data-cf-viz]</code> drives <code>--cf-bg</code>, <code>--cf-gradient</code>, <code>--cf-color</code>, <code>--cf-border</code> per visualization mode (colorScale / background / dataBar / font / border).</div>
+</section>
+
+<!-- 5. TYPOGRAPHY -->
+<section class="page page-break" id="s5">
+  <h2><span class="sec-num">5</span> Typography</h2>
+  <div class="sec-rule"></div>
+  <p class="lead">Base family <code>--slds-g-font-family-base</code> → -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif. All numeric cells use <code>font-variant-numeric: tabular-nums</code>.</p>
+
+  <table>
+    <tr><th>Token / class</th><th>Size</th><th>Weight</th><th>Notes</th></tr>
+    <tr><td><code>.cell-value</code></td><td><code>--font-size-base</code></td><td>regular</td><td>tabular-nums, right-aligned</td></tr>
+    <tr><td><code>.cell-value-edited</code></td><td>base</td><td>600 !important</td><td>line-height 1.1</td></tr>
+    <tr><td><code>.cell-value-saved</code></td><td>base</td><td>600 !important</td><td>inc / dec color</td></tr>
+    <tr><td><code>.cell-value-impacted</code></td><td>base</td><td>600</td><td>neutral-base-20</td></tr>
+    <tr><td><code>.cell-delta-badge</code></td><td>12px</td><td>regular</td><td>line-height 18px, on-surface-3</td></tr>
+    <tr><td>Column headers</td><td>base</td><td>semibold</td><td>neutral-base-20</td></tr>
+    <tr><td>Row name <code>.cell-name</code></td><td>base</td><td>—</td><td>dark-text; dimension rows neutral-base-40</td></tr>
+    <tr><td>Popover username</td><td>14px</td><td>600</td><td>—</td></tr>
+    <tr><td>Popover timestamp</td><td>12px</td><td>—</td><td>neutral-base-40</td></tr>
+    <tr><td>Popover change text</td><td>13px</td><td>—</td><td>—</td></tr>
+    <tr><td>Popover note</td><td>13px</td><td>italic</td><td>neutral-base-50</td></tr>
+    <tr><td>Risk / resolved title</td><td>13px</td><td>700</td><td>banner</td></tr>
+    <tr><td>Risk body</td><td>12px</td><td>—</td><td>line-height 16px</td></tr>
+    <tr><td>Frozen pills</td><td>11px</td><td>600</td><td>—</td></tr>
+    <tr><td>Avatar initials</td><td>10px</td><td>700</td><td>—</td></tr>
+    <tr><td>Deep dimension glyph</td><td>9px</td><td>700</td><td>letter-spacing .3px</td></tr>
+    <tr><td>Route tooltip</td><td>11px</td><td>—</td><td>keys 10px uppercase</td></tr>
+    <tr><td>Risk tooltip title / body</td><td>12.5 / 11.5px</td><td>700 / —</td><td>body line-height 16px</td></tr>
+  </table>
+</section>
+
+<!-- 6. CONDITIONAL FORMATTING -->
+<section class="page page-break" id="s6">
+  <h2><span class="sec-num">6</span> Conditional Formatting</h2>
+  <div class="sec-rule"></div>
+  <p class="fileref">types/conditionalFormatting.ts · components/ConditionalFormattingRuleModal.tsx</p>
+
+  <h3>Enumerations</h3>
+  <table>
+    <tr><th>Type</th><th>Values</th></tr>
+    <tr><td>VisualizationType</td><td>dataBar · divergingBar · bulletGraph · iconSet · colorScale · background · font · border · leftIcon</td></tr>
+    <tr><td>ConditionType</td><td>formula · topN · bottomN · aboveAverage · belowAverage · greaterThan · lessThan · between · equals</td></tr>
+    <tr><td>IndicatorMode</td><td>modifyCells · createColumns</td></tr>
+    <tr><td>EvalBasis</td><td>cellValue · yoy · mom · targetAchievement · variance · pctOfColumnTotal · pctRankByType · costShare · custom</td></tr>
+    <tr><td>iconStyle</td><td>arrows · trafficLights · stars · flags · custom</td></tr>
+    <tr><td>IndicatorZone</td><td>{ threshold, color, label, icon, isCatchAll }</td></tr>
+  </table>
+
+  <h3>Modal defaults &amp; options</h3>
+  <table>
+    <tr><th>Setting</th><th>Value</th></tr>
+    <tr><td>Default zones</td><td>Good <code>#10B981</code> (≥100000) · Watch <code>#F59E0B</code> (≥50000) · Critical <code>#EF4444</code> (catch-all)</td></tr>
+    <tr><td>Add-zone color</td><td><code>#9CA3AF</code></td></tr>
+    <tr><td>Default viz color / weight / barMax</td><td><code>#10B981</code> / bold / 200000</td></tr>
+    <tr><td>Condition labels</td><td>Greater than · Less than · Equals · Between · Top N · Bottom N · Above average · Below average · Custom formula</td></tr>
+    <tr><td>Create-columns viz</td><td>Icon Set · Data Bar · Color Scale</td></tr>
+    <tr><td>Modify-cells viz</td><td>Icon Set · Data Bar · Color Scale · Background Color · Font Style · Border</td></tr>
+    <tr><td>Icon styles</td><td>Traffic Lights (🟢🟡🔴) · Arrows (↑→↓) · Stars (★) · Flags (⚑)</td></tr>
+    <tr><td>Zone glyphs</td><td>traffic 🟢/🔴/🟡 · arrows ↑/↓/→ · stars ★ · flags ⚑ · default ●</td></tr>
+    <tr><td>Badge preview</td><td>■ colorScale · ▬ dataBar · condition text "if VALUE ≥"</td></tr>
+    <tr><td>Formula tokens</td><td>VALUE · AND · OR · NOT · &gt; · &lt; · &gt;= · &lt;= · = · ABS(</td></tr>
+  </table>
+
+  <h3>Active demo rule (df-demo default load)</h3>
+  <div class="callout">Measure <b>Order Quantity</b>, timeKey <code>oct2026</code>, background <code>#FFEBEB</code>, condition <b>lessThan</b> — Products &lt; 9 · Categories &lt; 94 · Accounts Low on Orders &lt; 625. <span class="fileref">ForecastingGridDFDemo.tsx · INITIAL_CONDITIONAL_FORMATTING_RULES</span></div>
+
+  <div style="margin-top:40px;text-align:center;color:#9aa0a6;font-size:10px">
+    Grid Cell States Design System · Manufacturing Cloud IPF prototype · Generated from source 2 Sep 2026
+  </div>
+</section>
+
+</body>
+</html>
