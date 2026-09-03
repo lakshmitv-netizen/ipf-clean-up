@@ -7,6 +7,7 @@ import { PlanningGridSessionProvider } from './contexts/PlanningGridSessionConte
 import { AgentforceProvider } from './contexts/AgentforceContext';
 import Header from './components/Header';
 import ForecastingGrid from './components/ForecastingGrid';
+import ForecastingGridDFDemo from './components/ForecastingGridDFDemo';
 import PlanningForecastingPage from './pages/PlanningForecastingPage';
 import PlanningForecastingListPage from './pages/PlanningForecastingListPage';
 import SetupSalesforceGoPage from './pages/SetupSalesforceGoPage';
@@ -28,6 +29,18 @@ const GridPage: React.FC = () => (
     <div className="main-content">
       <ErrorBoundary>
         <ForecastingGrid />
+      </ErrorBoundary>
+    </div>
+  </div>
+);
+
+// DF demo grid: project-local forked grid with pre-seeded conditional formatting.
+const GridPageDFDemo: React.FC = () => (
+  <div className="app">
+    <Header />
+    <div className="main-content">
+      <ErrorBoundary>
+        <ForecastingGridDFDemo />
       </ErrorBoundary>
     </div>
   </div>
@@ -58,6 +71,7 @@ function App() {
             <Route path="/home/grid-264" element={<GridPage />} />
             <Route path="/home/manufacturing-deep" element={<GridPage />} />
             <Route path="/home/manufacturing-acme" element={<GridPage />} />
+            <Route path="/home/df-demo" element={<GridPageDFDemo />} />
             <Route path="/planning-forecasting-list" element={<PlanningForecastingListPage />} />
             <Route path="/planning-forecasting" element={<PlanningForecastingPage />} />
             <Route path="/setup/salesforce-go" element={<SetupSalesforceGoPage />} />
@@ -69,7 +83,7 @@ function App() {
             <Route path="/setup/dimensions-and-hierarchies" element={<DimensionsAndHierarchiesPage />} />
             <Route path="/grid" element={<GridPage />} />
             <Route path="/presentation" element={<PresentationPage />} />
-            <Route path="/" element={<Navigate to="/presentation" replace />} />
+            <Route path="/" element={<Navigate to="/planning-forecasting-list" replace />} />
           </Routes>
         </Router>
         </AgentforceProvider>

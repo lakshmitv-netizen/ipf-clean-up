@@ -581,7 +581,7 @@
 .charts-varband-legend li { display: inline-flex; align-items: center; gap: 6px; }
 .charts-varband-key { display: inline-block; width: 16px; height: 0; flex: 0 0 auto; }
 .charts-varband-key--actual { border-top: 2.4px solid var(--slds-g-color-brand-base-50, #0176d3); }
-.charts-varband-key--ref { border-top: 2px dashed #5867e8; }
+.charts-varband-key--ref { border-top: 2px solid #5867e8; }
 .charts-varband-key--band { height: 10px; border-radius: 2px; background: rgba(88, 103, 232, 0.18); }
 .charts-varband-breach {
   display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;

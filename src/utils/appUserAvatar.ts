@@ -8,7 +8,7 @@ const ROLE_SUBMIT_TO_BACKGROUND: Record<string, string> = {
   'Product Management': '#ede9fe',
 };
 
-/** Pastel for app users who are not on the approver roster (e.g. John Carter) */
+/** Pastel for app users who are not on the approver roster (e.g. David Chen) */
 const DEFAULT_APP_USER_BACKGROUND = '#e0e7ff';
 
 export function getAppUserInitialsStyle(displayName: string): {

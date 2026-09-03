@@ -567,13 +567,19 @@ interface ScenarioDrawerProps {
   onApplyToGrid?: (mult: ScenarioMultipliers) => void;
   /** Called when a scenario is promoted to the plan (mock hook). */
   onPromote?: (scenarioName: string) => void;
+  /**
+   * Scenarios injected from outside (e.g. the Agentforce panel's "model the levers" flow). When this
+   * array reference changes, any scenario whose id isn't already present is appended (with a palette
+   * color), the first is made active, and the drawer expands to at least the KPI-comparison state.
+   */
+  incomingScenarios?: Omit<Scenario, 'color'>[];
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromote }) => {
+const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromote, incomingScenarios }) => {
   // Persistent bottom strip: always mounted, starts collapsed. Users pull it up.
   const [snap, setSnap] = useState<SnapState>('collapsed');
   const [dragHeight, setDragHeight] = useState<number | null>(null);
@@ -589,6 +595,11 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
 
   const [scenarios, setScenarios] = useState<Scenario[]>(INITIAL_SCENARIOS);
   const [activeId, setActiveId] = useState<string>('disruptor');
+  // Which scenarios are shown in the comparison panel (cards, KPI table, charts).
+  // Everything is visible by default; the "Show scenarios" dropdown toggles membership.
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(() => new Set(INITIAL_SCENARIOS.map((s) => s.id)));
+  const [showPickerOpen, setShowPickerOpen] = useState(false);
+  const showPickerRef = useRef<HTMLDivElement>(null);
   /** Signature (scenario + drivers) that was last pushed to the grid, so we can show "applied". */
   const [appliedSig, setAppliedSig] = useState<string | null>(null);
   const [assumptions] = useState<Assumptions>({
@@ -677,6 +688,91 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
     setActiveId((cur) => (cur === id ? 'baseline' : cur));
   }, []);
 
+  // Only the checked scenarios render in the comparison panel; baseline/KPIs still
+  // compute off the full set so deltas stay correct even when a column is hidden.
+  const visibleScenarios = useMemo(
+    () => scenarios.filter((s) => visibleIds.has(s.id)),
+    [scenarios, visibleIds],
+  );
+
+  const toggleVisible = useCallback((id: string) => {
+    setVisibleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        if (next.size <= 1) return prev; // keep at least one scenario shown
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, []);
+
+  // Ids we've already reconciled once — lets us tell a *genuinely new* scenario (auto-show)
+  // apart from one the user has intentionally hidden (leave hidden).
+  const seenIdsRef = useRef<Set<string>>(new Set(INITIAL_SCENARIOS.map((s) => s.id)));
+
+  // Newly-added scenarios (custom) start visible; ids that no longer exist are pruned so the
+  // checklist and count stay in sync. Scenarios the user hid stay hidden across re-renders.
+  useEffect(() => {
+    const ids = new Set(scenarios.map((s) => s.id));
+    const freshIds = scenarios.filter((s) => !seenIdsRef.current.has(s.id)).map((s) => s.id);
+    setVisibleIds((prev) => {
+      const next = new Set<string>();
+      for (const id of prev) if (ids.has(id)) next.add(id);
+      let changed = next.size !== prev.size;
+      for (const id of freshIds) { if (!next.has(id)) { next.add(id); changed = true; } }
+      return changed ? next : prev;
+    });
+    for (const id of Array.from(seenIdsRef.current)) if (!ids.has(id)) seenIdsRef.current.delete(id);
+    for (const s of scenarios) seenIdsRef.current.add(s.id);
+  }, [scenarios]);
+
+  // If the focused scenario gets hidden, move focus to the first visible one.
+  useEffect(() => {
+    if (visibleIds.has(activeId)) return;
+    const first = scenarios.find((s) => visibleIds.has(s.id));
+    if (first) setActiveId(first.id);
+  }, [visibleIds, activeId, scenarios]);
+
+  // Close the "Show scenarios" dropdown on outside click / Escape.
+  useEffect(() => {
+    if (!showPickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (showPickerRef.current && !showPickerRef.current.contains(e.target as Node)) setShowPickerOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowPickerOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [showPickerOpen]);
+
+  // ---- ingest scenarios injected from outside (Agentforce "model the levers") ----
+  const consumedIncomingRef = useRef<Omit<Scenario, 'color'>[] | null>(null);
+  useEffect(() => {
+    if (!incomingScenarios || incomingScenarios.length === 0) return;
+    // Only act when the parent hands us a *new* batch (state array reference change).
+    if (consumedIncomingRef.current === incomingScenarios) return;
+    consumedIncomingRef.current = incomingScenarios;
+    setScenarios((prev) => {
+      const existing = new Set(prev.map((s) => s.id));
+      const customCount = prev.filter((s) => !s.isBaseline).length;
+      const additions = incomingScenarios
+        .filter((s) => !existing.has(s.id))
+        .map((s, i) => ({ ...s, color: NEW_SCENARIO_COLORS[(customCount + i) % NEW_SCENARIO_COLORS.length] }));
+      return additions.length > 0 ? [...prev, ...additions] : prev;
+    });
+    // Arriving from the agent: show only baseline + the injected scenarios. The kit scenarios
+    // stay in the catalog and can be re-enabled from the "Show scenarios" dropdown.
+    const baselineIds = scenarios.filter((s) => s.isBaseline).map((s) => s.id);
+    setVisibleIds(new Set([...baselineIds, ...incomingScenarios.map((s) => s.id)]));
+    setActiveId(incomingScenarios[0].id);
+    setSnap((s) => (atLeast(s, 'half') ? s : 'half'));
+  }, [incomingScenarios]);
+
   // ---- drag to resize ----
   const onResizeStart = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
@@ -739,7 +835,7 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
       ro?.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, [snap, showWorkspace, showFull, scenarios.length]);
+  }, [snap, showWorkspace, showFull, scenarios.length, visibleScenarios.length]);
 
   // Keep the KPI table's active column in view when the selection changes
   // (e.g. the user clicked a line/bubble on the right-hand charts).
@@ -776,7 +872,7 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
               onChange={(e) => setActiveId(e.target.value)}
               aria-label="Active scenario"
             >
-              {scenarios.map((s) => (
+              {visibleScenarios.map((s) => (
                 <option key={s.id} value={s.id}>{s.name}</option>
               ))}
             </select>
@@ -834,14 +930,53 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                 <div className="scenario-band-head">
                   <span className="scenario-band-title">Scenario Comparison</span>
                   <span className="scenario-band-sub">Δ vs Baseline · pick a card to focus</span>
-                  <button type="button" className="scenario-add-btn" onClick={addScenario}>+ Add Scenario</button>
+                  <div className="scenario-showpicker" ref={showPickerRef}>
+                    <button
+                      type="button"
+                      className="scenario-add-btn"
+                      aria-haspopup="true"
+                      aria-expanded={showPickerOpen}
+                      onClick={() => setShowPickerOpen((o) => !o)}
+                    >
+                      Show scenarios ({visibleScenarios.length})
+                      <Chevron dir={showPickerOpen ? 'up' : 'down'} />
+                    </button>
+                    {showPickerOpen && (
+                      <div className="scenario-showpicker-menu" role="menu">
+                        <div className="scenario-showpicker-head">Show in comparison</div>
+                        {scenarios.map((s) => {
+                          const checked = visibleIds.has(s.id);
+                          const lockLast = checked && visibleScenarios.length <= 1;
+                          return (
+                            <label key={s.id} className="scenario-showpicker-item">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                disabled={lockLast}
+                                onChange={() => toggleVisible(s.id)}
+                              />
+                              <span className="scenario-dot" style={{ backgroundColor: s.color }} aria-hidden="true" />
+                              <span className="scenario-showpicker-name">{s.name}</span>
+                            </label>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className="scenario-showpicker-add"
+                          onClick={() => { addScenario(); }}
+                        >
+                          + New scenario
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {/* Selectable scenario cards — one per column, width-matched to the
                     table columns via a leading spacer equal to the KPI label column. */}
                 <div className="scenario-cards" role="tablist" aria-label="Select a scenario to focus">
                   <span className="scenario-cards-spacer" aria-hidden="true" />
-                  {scenarios.map((s) => {
+                  {visibleScenarios.map((s) => {
                     const isActive = s.id === activeId;
                     const rev = kpisById[s.id].saRevenue;
                     const pct = !s.isBaseline && baselineKpis.saRevenue
@@ -893,7 +1028,7 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                     <thead>
                       <tr>
                         <th className="scenario-matrix-kpi" scope="col">KPI</th>
-                        {scenarios.map((s) => (
+                        {visibleScenarios.map((s) => (
                           <th
                             key={s.id}
                             scope="col"
@@ -914,12 +1049,12 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                     <tbody>
                       {/* Drivers — one row per business-semantic dropdown, per scenario column */}
                       <tr className="scenario-matrix-section-row">
-                        <th className="scenario-matrix-kpi" scope="colgroup" colSpan={scenarios.length + 1}>Drivers</th>
+                        <th className="scenario-matrix-kpi" scope="colgroup" colSpan={visibleScenarios.length + 1}>Drivers</th>
                       </tr>
                       {STRATEGY_ROWS.map((row) => (
                         <tr key={row.key} className="scenario-matrix-driver-row">
                           <th className="scenario-matrix-kpi" scope="row">{row.label}</th>
-                          {scenarios.map((s) => (
+                          {visibleScenarios.map((s) => (
                             <td key={s.id} className={s.id === activeId ? 'is-active' : ''}>
                               <select
                                 className="scenario-matrix-select"
@@ -940,12 +1075,12 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
 
                       {/* Outcomes — computed KPIs */}
                       <tr className="scenario-matrix-section-row">
-                        <th className="scenario-matrix-kpi" scope="colgroup" colSpan={scenarios.length + 1}>Outcomes</th>
+                        <th className="scenario-matrix-kpi" scope="colgroup" colSpan={visibleScenarios.length + 1}>Outcomes</th>
                       </tr>
                       {KPI_ROWS.map((row) => (
                         <tr key={row.key}>
                           <th className="scenario-matrix-kpi" scope="row">{row.label}</th>
-                          {scenarios.map((s) => {
+                          {visibleScenarios.map((s) => {
                             const val = kpisById[s.id][row.key];
                             const baseVal = baselineKpis[row.key];
                             const showDelta = !s.isBaseline;
@@ -1030,9 +1165,9 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                 </div>
                 <div className="scenario-chart-card">
                   <span className="scenario-chart-title">Sales Agreement Revenue Comparison</span>
-                  <RevenueCompareChart scenarios={scenarios} assumptions={assumptions} activeId={activeId} onSelect={setActiveId} />
+                  <RevenueCompareChart scenarios={visibleScenarios} assumptions={assumptions} activeId={activeId} onSelect={setActiveId} />
                   <div className="scenario-chart-legend">
-                    {scenarios.map((s) => (
+                    {visibleScenarios.map((s) => (
                       <button
                         key={s.id}
                         type="button"
@@ -1047,11 +1182,11 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                 </div>
                 <div className="scenario-chart-card">
                   <span className="scenario-chart-title">Qty vs Margin Trade-off <span className="scenario-chart-note">(bubble = concession cost)</span></span>
-                  <TradeoffChart scenarios={scenarios} kpisById={kpisById} activeId={activeId} onSelect={setActiveId} />
+                  <TradeoffChart scenarios={visibleScenarios} kpisById={kpisById} activeId={activeId} onSelect={setActiveId} />
                 </div>
                 <div className="scenario-chart-card">
                   <span className="scenario-chart-title">Target Revenue Attainment <span className="scenario-chart-note">(dashed line = 100% target)</span></span>
-                  <TargetAttainmentChart scenarios={scenarios} kpisById={kpisById} activeId={activeId} onSelect={setActiveId} />
+                  <TargetAttainmentChart scenarios={visibleScenarios} kpisById={kpisById} activeId={activeId} onSelect={setActiveId} />
                 </div>
               </section>
             </div>

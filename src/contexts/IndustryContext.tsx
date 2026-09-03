@@ -9,6 +9,7 @@ export type IndustryType =
   | 'grid-264'
   | 'manufacturing-deep'
   | 'manufacturing-acme'
+  | 'df-demo'
   | `cfg:${string}`;
 
 /** Route for the main forecasting grid for the given industry (defaults to manufacturing). */
@@ -18,6 +19,8 @@ export function getGridPathForIndustry(industry: IndustryType | null): string {
   if (industry === 'grid-264') return '/home/grid-264';
   if (industry === 'manufacturing-deep') return '/home/manufacturing-deep';
   if (industry === 'manufacturing-acme') return '/home/manufacturing-acme';
+  // DF demo: routes to the project-local forked grid (ForecastingGridDFDemo).
+  if (industry === 'df-demo') return '/home/df-demo';
   return '/home/manufacturing';
 }
 
@@ -44,6 +47,9 @@ const getIndustryFromPath = (path: string): IndustryType | null => {
   }
   if (path === '/home/manufacturing-acme') {
     return 'manufacturing-acme';
+  }
+  if (path === '/home/df-demo') {
+    return 'df-demo';
   }
   if (path === '/grid') {
     const activeConfigId = getActiveConfigId();

@@ -103,13 +103,17 @@ function buildCreatedPlanReply(): AgentReply {
   };
 }
 
-/** Starter prompts tailored to the Planning & Forecasting list screen. */
+/** Starter prompts tailored to a Key Account Manager on the Planning & Forecasting list.
+ *  Leads with the net-new FY26 plan for the key account, then a from-last-year option
+ *  for another account, then purpose-driven plans (different measure combinations —
+ *  revenue forecasting, profit/margin monitoring), then a review/triage job. Labels
+ *  with a create/build/set-up intent route into the agent's scripted plan-creation flow. */
 const STARTERS: { id: string; label: string; action?: 'create' }[] = [
-  { id: 'create', label: 'Create a new plan', action: 'create' },
+  { id: 'create', label: 'Build the FY26 Plan for Acme Partners', action: 'create' },
+  { id: 'clone-ly', label: 'Build Globex FY26 from last year' },
+  { id: 'revenue', label: 'Set up a revenue forecast plan' },
+  { id: 'profit', label: 'Start a profit & margin monitoring plan' },
   { id: 'draft', label: 'Which of my plans are still in draft?' },
-  { id: 'clone', label: 'Clone last year’s plan into a new one' },
-  { id: 'summary', label: 'Summarize my recent forecast plans' },
-  { id: 'next', label: 'What should I work on next?' },
 ];
 
 /** Render lightweight `**bold**` markup as <strong>; everything else stays plain text. */

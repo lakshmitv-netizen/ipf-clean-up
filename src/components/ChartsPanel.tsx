@@ -852,7 +852,11 @@ const WaterfallChart: React.FC<{
   endValue: number;
   onStepHover?: (i: number, e: React.MouseEvent) => void;
   onLeave?: () => void;
-}> = ({ width, startLabel, startValue, steps, endLabel, endValue, onStepHover, onLeave }) => {
+  /** Called with the step index (0-based, into `steps`) when a floating step bar is clicked. */
+  onStepClick?: (stepIndex: number) => void;
+  /** Step index (0-based, into `steps`) currently selected — rendered with emphasis. */
+  selectedStep?: number | null;
+}> = ({ width, startLabel, startValue, steps, endLabel, endValue, onStepHover, onLeave, onStepClick, selectedStep }) => {
   const W = width;
   const H = 210;
   const padL = 6;
@@ -896,11 +900,18 @@ const WaterfallChart: React.FC<{
         const yBot = yOf(Math.min(c.from, c.to));
         const h = Math.max(yBot - yTop, 1.5);
         const color = c.anchor ? COL_TOTAL : c.up ? COL_UP : COL_DOWN;
+        const stepIndex = c.anchor ? -1 : i - 1; // floating steps map to steps[i-1]
+        const isStep = !c.anchor && i > 0 && i < n - 1;
+        const isSelected = isStep && selectedStep === stepIndex;
+        const clickable = isStep && !!onStepClick;
         return (
           <g key={`${c.label}-${i}`}>
             {/* connector line from previous column's running level */}
             {i > 0 && !c.anchor && (
               <line x1={cx - slot / 2 - barW / 2 + barW} y1={yOf(c.from)} x2={cx - barW / 2} y2={yOf(c.from)} stroke="#c9c9c9" strokeWidth="1" strokeDasharray="2 2" />
+            )}
+            {isSelected && (
+              <rect x={cx - slot / 2 + 1} y={padT - 2} width={slot - 2} height={innerH + 6} fill={color} opacity="0.08" rx="3" />
             )}
             <rect
               x={cx - barW / 2}
@@ -909,10 +920,13 @@ const WaterfallChart: React.FC<{
               height={h}
               fill={color}
               rx="1.5"
-              opacity={c.anchor ? 1 : 0.92}
-              style={{ cursor: onStepHover ? 'pointer' : 'default' }}
+              opacity={c.anchor ? 1 : isSelected ? 1 : 0.92}
+              stroke={isSelected ? color : 'none'}
+              strokeWidth={isSelected ? 1.5 : 0}
+              style={{ cursor: clickable ? 'pointer' : onStepHover ? 'pointer' : 'default' }}
               onMouseMove={(e) => onStepHover?.(i, e)}
               onMouseLeave={onLeave}
+              onClick={clickable ? () => onStepClick?.(stepIndex) : undefined}
             >
               <title>{`${c.label}: ${c.anchor ? fmt(c.to) : `${c.delta >= 0 ? '+' : ''}${fmt(c.delta)}`}`}</title>
             </rect>
@@ -1051,12 +1065,17 @@ const TornadoChart: React.FC<{
  * above this row's own typical width, so we surface the genuinely uncertain months, not all of them. */
 function computeConfidence(values: number[]): { band: number[]; lowIndices: number[] } {
   const n = values.length;
-  const band = values.map((_, i) => {
+  // A baseline uncertainty that is always present (so the cone is visible across the WHOLE year, not
+  // just the volatile stretch). Scaled to the row's typical magnitude so it reads proportionally.
+  const nonZeroVals = values.filter((v) => v > 0);
+  const avgVal = nonZeroVals.length ? nonZeroVals.reduce((a, b) => a + b, 0) / nonZeroVals.length : 0;
+  const band = values.map((v, i) => {
     const prev = i > 0 ? Math.abs(values[i] - values[i - 1]) : 0;
     const next = i < n - 1 ? Math.abs(values[i + 1] - values[i]) : 0;
     const local = i === 0 ? next : i === n - 1 ? prev : (prev + next) / 2;
-    const horizon = 1 + i * 0.03; // far-out months a touch less certain
-    return local * 1.4 * horizon;
+    const horizon = 1 + i * 0.05; // far-out months are progressively less certain
+    const base = Math.max(Math.abs(v), avgVal) * 0.05; // always-visible baseline cone (~±5%)
+    return (base + local * 1.4) * horizon; // baseline everywhere, flaring where the trend moves sharply
   });
   const rel = values.map((v, i) => (v > 0 ? band[i] / v : 0));
   const nonZero = rel.filter((r) => r > 0);
@@ -1196,8 +1215,8 @@ const VarianceBandChart: React.FC<{
       <polygon points={`${areaTop} ${areaBot}`} fill={REF} opacity="0.12" />
       <polyline points={upper.map((v, i) => `${x(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')} fill="none" stroke={REF} strokeWidth="1" strokeDasharray="2 3" opacity="0.5" />
       <polyline points={lower.map((v, i) => `${x(i).toFixed(1)},${yOf(v).toFixed(1)}`).join(' ')} fill="none" stroke={REF} strokeWidth="1" strokeDasharray="2 3" opacity="0.5" />
-      {/* Reference (Plan/Target) line. */}
-      <polyline points={refLine} fill="none" stroke={REF} strokeWidth="1.6" strokeDasharray="5 3" strokeLinejoin="round" />
+      {/* Comparison (Plan/Target) line. */}
+      <polyline points={refLine} fill="none" stroke={REF} strokeWidth="1.6" strokeLinejoin="round" />
       {/* Actual line. */}
       <polyline points={actLine} fill="none" stroke={BASE_LINE_COLOR} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       {actual.map((v, i) => {
@@ -1841,8 +1860,10 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
   );
 
   const compareSeries = compareView === 'indexed' ? compareIndexedSeries : compareBaseSeries;
-  // Absolute/bars: rows differ in scale → scale each independently. Indexed shares one 100-base scale.
-  const compareNormalizePerSeries = compareView !== 'indexed';
+  // Within a single measure (same unit) the rows share ONE absolute scale, so real magnitude and
+  // flat-vs-rising trends are visible (e.g. Midwest ramping above a flat Southwest). Across measures
+  // (magnitudes/units can differ) fall back to per-series scaling so no line gets flattened.
+  const compareNormalizePerSeries = compareSpansMeasures;
 
   // Confidence for the focused row's monthly trend — drives the low-confidence badge + red dots.
   const bandConfidence = useMemo(
@@ -1859,6 +1880,8 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
   const [wfTo, setWfTo] = useState<ValueKey>('dec2026');
   // Waterfall bridge mode: period-to-period, or Actual-vs-Plan variance.
   const wfMode: 'period' | 'plan' = 'period';
+  // Waterfall: the month step selected on the bridge (null = auto-pick the biggest mover).
+  const [wfSelMonth, setWfSelMonth] = useState<string | null>(null);
   // Variance tab: which sub-column is the reference (Plan/Target/…) and the allowed tolerance (±%).
   const [varRefSubId, setVarRefSubId] = useState<string | null>(null);
   const [varTolerance, setVarTolerance] = useState<number>(5);
@@ -2062,6 +2085,75 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
     return { startValue, endValue, steps, startLabel: periodShort(wfFrom), endLabel: periodShort(wfTo) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row, children, wfFrom, wfTo, wfMode, planSubCol, planValue]);
+
+  // Month key for each floating step in period mode (aligns 1:1 with `waterfall.steps`).
+  const wfStepMonths = useMemo<string[]>(() => {
+    const fromIdx = MONTHS.findIndex((m) => m.key === wfFrom);
+    const toIdx = MONTHS.findIndex((m) => m.key === wfTo);
+    if (fromIdx >= 0 && toIdx > fromIdx) {
+      const out: string[] = [];
+      for (let i = fromIdx + 1; i <= toIdx; i++) out.push(MONTHS[i].key);
+      return out;
+    }
+    return [];
+  }, [wfFrom, wfTo]);
+
+  // The waterfall highlights the same month the trend chart / "Share of children" is
+  // focused on: when the user picks a month in the trend chart (periodKey), the waterfall
+  // bridge moves its selected step to match. Falls back to the biggest mover only when the
+  // focused period isn't a month within the bridge range (e.g. Year/quarter) and nothing
+  // is already selected — so a manual click on a waterfall step is still preserved.
+  const prevPeriodKeyRef = useRef<ValueKey | null>(periodKey);
+  useEffect(() => {
+    if (wfMode !== 'period' || !waterfall || 'unavailable' in waterfall) return;
+    if (wfStepMonths.length === 0) return;
+
+    // Trend-chart period just changed to a month inside the bridge → follow it.
+    const periodChanged = periodKey !== prevPeriodKeyRef.current;
+    prevPeriodKeyRef.current = periodKey;
+    if (periodChanged && periodKey && wfStepMonths.includes(periodKey)) {
+      setWfSelMonth(periodKey);
+      return;
+    }
+
+    // Otherwise keep any still-valid manual selection.
+    if (wfSelMonth && wfStepMonths.includes(wfSelMonth)) return;
+    // On first render (or after the range changes) prefer the focused month if it's in range.
+    if (periodKey && wfStepMonths.includes(periodKey)) {
+      setWfSelMonth(periodKey);
+      return;
+    }
+    // Final fallback: the biggest mover so the breakdown is never empty.
+    let best = 0;
+    let bestAbs = -1;
+    waterfall.steps.forEach((s, i) => {
+      const a = Math.abs(s.delta);
+      if (a > bestAbs) { bestAbs = a; best = i; }
+    });
+    setWfSelMonth(wfStepMonths[best] ?? null);
+  }, [waterfall, wfStepMonths, wfSelMonth, wfMode, periodKey]);
+
+  // Per-child decomposition of the selected month's change (this month − previous month).
+  const wfChildBreakdown = useMemo(() => {
+    if (!row || !wfSelMonth || children.length === 0) return null;
+    const mIdx = MONTHS.findIndex((m) => m.key === wfSelMonth);
+    if (mIdx <= 0) return null;
+    const prevKey = MONTHS[mIdx - 1].key;
+    const items = children
+      .map((c) => ({ id: c.id, name: c.name, cur: val(c, wfSelMonth), prev: val(c, prevKey), delta: val(c, wfSelMonth) - val(c, prevKey) }))
+      .filter((it) => Math.abs(it.delta) > 0.5)
+      .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
+    if (items.length === 0) return null;
+    const maxAbs = Math.max(...items.map((i) => Math.abs(i.delta)), 1);
+    return {
+      items,
+      maxAbs,
+      monthLabel: MONTHS[mIdx].label,
+      prevLabel: MONTHS[mIdx - 1].label,
+      total: items.reduce((s, i) => s + i.delta, 0),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row, children, wfSelMonth]);
 
   // Variance references: built-in Plan/Target (derived per-cell), any active Plan/Target-like
   // sub-columns, plus every other measure (the equivalent node under that measure is the reference).
@@ -2473,9 +2565,11 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   <p className="charts-scale-note">
                     {compareView === 'indexed'
                       ? 'Growth view: each row starts at 100 in its first month, so you compare growth regardless of size. Hover a point for exact values.'
-                      : compareView === 'absolute'
-                        ? 'Each line is scaled to its own range (rows can differ in size/units). Hover a point for exact values.'
-                        : 'Grouped bars per month; each row scaled to its own range. Hover a bar for exact values.'}
+                      : compareNormalizePerSeries
+                        ? 'Rows span different measures, so each line is scaled to its own range. Hover a point for exact values.'
+                        : compareView === 'absolute'
+                          ? 'All rows share one scale, so real magnitude and flat-vs-rising trends are directly comparable. Hover a point for exact values.'
+                          : 'Grouped bars per month on one shared scale. Hover a bar for exact values.'}
                   </p>
                 </div>
 
@@ -2670,25 +2764,6 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   )}
                 </span>
               </div>
-              {onToggleCompare && (
-                <button
-                  type="button"
-                  className="charts-compare-add-btn"
-                  title={
-                    focusedPeers.length > 1
-                      ? `Compare ${row.name} with its ${focusedPeers.length - 1} peer${focusedPeers.length - 1 > 1 ? 's' : ''}`
-                      : `Add ${row.name} to a comparison`
-                  }
-                  onClick={compareWithPeers}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M3 3v18h18" />
-                    <rect x="7" y="11" width="3" height="7" />
-                    <rect x="14" y="7" width="3" height="11" />
-                  </svg>
-                  <span>{focusedPeers.length > 1 ? 'Compare peers' : 'Compare'}</span>
-                </button>
-              )}
             </div>
 
             {commentary.length > 0 && (
@@ -2946,14 +3021,17 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
             <section className="charts-section charts-analysis">
               <div className="charts-section-head">
                 <div className="charts-section-titlerow">
-                  <h4 className="charts-section-title">Analysis</h4>
+                  <h4 className="charts-section-title" title={row ? `${row.name}${measureName ? ` · ${measureName}` : ''}` : undefined}>
+                    {row
+                      ? `Analysis of ${row.name}${measureName ? ` · ${measureName}` : ''}`
+                      : 'Analysis'}
+                  </h4>
                 </div>
               </div>
               <div className="charts-analysis-tabs" role="tablist" aria-label="Analysis type">
                 {([
                   { k: 'waterfall', label: 'Waterfall' },
                   { k: 'variance', label: 'Variance' },
-                  { k: 'band', label: 'Confidence band', warn: bandConfidence.lowIndices.length > 0 },
                 ] as const).map((opt) => (
                   <button
                     key={opt.k}
@@ -2964,20 +3042,6 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                     onClick={() => setAnalysisTab(opt.k)}
                   >
                     {opt.label}
-                    {'warn' in opt && opt.warn && (
-                      <svg
-                        className="charts-tab-warn"
-                        width="13"
-                        height="13"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        aria-label="Low confidence in some months"
-                      >
-                        <path d="M12 3l9 16H3l9-16z" fill="#fef1ee" stroke="#ba0517" strokeWidth="1.6" strokeLinejoin="round" />
-                        <path d="M12 9v4.5" stroke="#ba0517" strokeWidth="1.8" strokeLinecap="round" />
-                        <circle cx="12" cy="16.6" r="1.05" fill="#ba0517" />
-                      </svg>
-                    )}
                   </button>
                 ))}
               </div>
@@ -3008,10 +3072,75 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                         steps={waterfall.steps}
                         endLabel={waterfall.endLabel}
                         endValue={waterfall.endValue}
+                        selectedStep={wfSelMonth ? wfStepMonths.indexOf(wfSelMonth) : null}
+                        onStepClick={(i) => setWfSelMonth(wfStepMonths[i] ?? null)}
                       />
                       <p className="charts-scale-note">
-                        Bridge from the start period to the end period, decomposed by each month’s change along the way.
+                        Bridge from the start period to the end period, decomposed by each month’s change along the way. Click a bar to see which children drove that month.
                       </p>
+
+                      {/* Per-child breakdown of the selected month's change. */}
+                      <section className="charts-section charts-vdiv-section">
+                        <div className="charts-section-head">
+                          <h4 className="charts-section-title">
+                            {wfChildBreakdown
+                              ? `What drove ${wfChildBreakdown.monthLabel} (vs ${wfChildBreakdown.prevLabel})`
+                              : 'Children breakdown'}
+                          </h4>
+                        </div>
+                        {wfChildBreakdown ? (
+                          <>
+                            <ul className="charts-vdiv-list">
+                              {wfChildBreakdown.items.map((c) => {
+                                const pos = c.delta >= 0;
+                                const w = (Math.abs(c.delta) / wfChildBreakdown.maxAbs) * 50;
+                                const pct = c.prev !== 0 ? (c.delta / Math.abs(c.prev)) * 100 : null;
+                                return (
+                                  <li
+                                    key={c.id}
+                                    className={`charts-vdiv-row${onDrill ? ' is-clickable' : ''}`}
+                                    role={onDrill ? 'button' : undefined}
+                                    tabIndex={onDrill ? 0 : undefined}
+                                    title={onDrill ? `Open ${c.name} charts` : undefined}
+                                    onClick={onDrill ? () => onDrill(c.id) : undefined}
+                                    onKeyDown={onDrill ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(c.id); } } : undefined}
+                                    onMouseMove={(e) =>
+                                      showTip(e, `${c.name} · ${wfChildBreakdown.monthLabel}`, [
+                                        { label: wfChildBreakdown.prevLabel, val: fmt(c.prev), color: '#8a8a8a' },
+                                        { label: wfChildBreakdown.monthLabel, val: fmt(c.cur), color: BASE_LINE_COLOR },
+                                        { label: 'Change', val: `${pos ? '+' : '−'}${fmt(Math.abs(c.delta))}${pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%)` : ''}` },
+                                      ])
+                                    }
+                                    onMouseLeave={hideTip}
+                                  >
+                                    <span className="charts-vdiv-name" title={c.name}>{c.name}</span>
+                                    <span className="charts-vdiv-track">
+                                      <span className="charts-vdiv-center" />
+                                      <span
+                                        className={`charts-vdiv-bar${pos ? ' is-pos' : ' is-neg'}`}
+                                        style={pos ? { left: '50%', width: `${w}%` } : { left: `${50 - w}%`, width: `${w}%` }}
+                                      />
+                                    </span>
+                                    <span className={`charts-vdiv-val${pos ? ' is-pos' : ' is-neg'}`}>
+                                      {pos ? '+' : '−'}{fmt(Math.abs(c.delta))}
+                                      {pct !== null && <span className="charts-vdiv-pct"> ({pct >= 0 ? '+' : ''}{pct.toFixed(0)}%)</span>}
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                            <p className="charts-scale-note">
+                              Each bar is a child's change from {wfChildBreakdown.prevLabel} to {wfChildBreakdown.monthLabel}. Right/green = grew, left/red = declined.
+                            </p>
+                          </>
+                        ) : (
+                          <p className="charts-note">
+                            {children.length === 0
+                              ? 'Leaf row — no children to break the change down by.'
+                              : 'Select a month bar above to see its child breakdown.'}
+                          </p>
+                        )}
+                      </section>
                     </>
                   ) : null}
                 </div>
@@ -3021,7 +3150,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                 <div className="charts-analysis-body">
                   {varianceBand && 'needsRef' in varianceBand ? (
                     <p className="charts-note">
-                      Pick a reference to check variance against. Turn on a <b>Plan / Target / Budget</b> sub-column
+                      Pick a row to compare against. Turn on a <b>Plan / Target / Budget</b> sub-column
                       via <b>Show subcolumns</b>, then choose it here.
                     </p>
                   ) : varianceBand ? (
@@ -3029,7 +3158,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                       {/* Reference (Plan/Target) + allowed tolerance selectors. */}
                       <div className="charts-analysis-controls">
                         <div className="charts-period">
-                          <label className="charts-period-label">Reference</label>
+                          <label className="charts-period-label">Compare against</label>
                           <select
                             className="charts-period-select"
                             value={varRefSubId ?? ''}
@@ -3088,7 +3217,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                             const r = varianceBand.reference[i];
                             const dpct = r ? ((a - r) / r) * 100 : 0;
                             showTip(e, `${MONTHS[i].label} 2026`, [
-                              { label: 'Actual', val: fmt(a), color: BASE_LINE_COLOR },
+                              { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmt(a), color: BASE_LINE_COLOR },
                               { label: varianceBand.refName, val: fmt(r), color: '#5867e8' },
                               { label: 'Variance', val: `${dpct >= 0 ? '+' : ''}${dpct.toFixed(1)}%` },
                             ]);
@@ -3099,7 +3228,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
 
                       {/* Legend + list of breaching months. */}
                       <ul className="charts-varband-legend">
-                        <li><span className="charts-varband-key charts-varband-key--actual" /> Actual</li>
+                        <li><span className="charts-varband-key charts-varband-key--actual" /> {measureName ? `Actual ${measureName}` : 'Actual'}</li>
                         <li><span className="charts-varband-key charts-varband-key--ref" /> {varianceBand.refName}</li>
                         <li><span className="charts-varband-key charts-varband-key--band" /> ±{varTolerance}% band</li>
                       </ul>
@@ -3131,7 +3260,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                                     onKeyDown={onDrill ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(c.id); } } : undefined}
                                     onMouseMove={(e) =>
                                       showTip(e, `${c.name} · ${varChildVariance.monthLabel} 2026`, [
-                                        { label: 'Actual', val: fmt(c.actual), color: BASE_LINE_COLOR },
+                                        { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmt(c.actual), color: BASE_LINE_COLOR },
                                         { label: varianceBand.refName, val: fmt(c.ref), color: '#5867e8' },
                                         { label: 'Variance', val: `${pos ? '+' : '−'}${fmt(Math.abs(c.variance))}${c.pct !== null ? ` (${c.pct >= 0 ? '+' : ''}${c.pct.toFixed(0)}%)` : ''}` },
                                       ])
@@ -3155,7 +3284,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                               })}
                             </ul>
                             <p className="charts-scale-note">
-                              Each bar is a child's Actual − {varianceBand.refName} for {varChildVariance.monthLabel}. Right/green = above reference, left/red = below.
+                              Each bar is a child's Actual − {varianceBand.refName} for {varChildVariance.monthLabel}. Right/green = above {varianceBand.refName}, left/red = below.
                             </p>
                           </>
                         ) : (

@@ -479,6 +479,12 @@ export const getMockData = (industry: IndustryType | null): MeasureData[] => {
     ensureWeekValues(acmeHierarchyData);
     return acmeHierarchyData;
   }
+  if (industry === 'df-demo') {
+    // Project-local demo dataset — isolated clone of the manufacturing tree with the
+    // Georgia Plant Sales Agreement Quantity boosted in Sep/Oct (see dfDemoData below).
+    ensureWeekValues(dfDemoData);
+    return dfDemoData;
+  }
   // manufacturing, grid-264 ("264 Updated Grid"), and null → main project manufacturing tree
   ensureWeekValues(manufacturingData);
   return manufacturingData;
@@ -556,4 +562,237 @@ const manufacturingData: MeasureData[] = withForecastAsSum([
     children: createManufacturingHierarchy('measure-forecast-rev', 100000, 50000, 10000),
   },
 ]);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DF demo (project-local): isolated clone of the manufacturing dataset.
+// Two Georgia Plant tweaks, both scoped to this dataset only (the shared
+// manufacturing grid is completely untouched):
+//   1. Sales Agreement Quantity — Sep/Oct boosted well above Order Quantity so the
+//      Charts "Variance" tab shows the agreement line pulling away above actual in
+//      those two months while the rest of the year stays in line.
+//   2. Order Quantity — the Sep→Oct change is reshaped so Electrical Systems is the
+//      clear key driver (most negative) in the waterfall's "What drove Oct" panel,
+//      with the other categories flat-to-slightly-positive. Oct total stays 588.
+// ─────────────────────────────────────────────────────────────────────────────
+const DF_MONTH_KEYS = [
+  'jan2026', 'feb2026', 'mar2026', 'apr2026', 'may2026', 'jun2026',
+  'jul2026', 'aug2026', 'sep2026', 'oct2026', 'nov2026', 'dec2026',
+];
+
+// Recompute quarter/half/year aggregates on a values bag from its 12 months.
+const dfRederiveAggregates = (v: Record<string, number>): void => {
+  const m = (k: string) => Number(v[k] ?? 0);
+  const q1 = m('jan2026') + m('feb2026') + m('mar2026');
+  const q2 = m('apr2026') + m('may2026') + m('jun2026');
+  const q3 = m('jul2026') + m('aug2026') + m('sep2026');
+  const q4 = m('oct2026') + m('nov2026') + m('dec2026');
+  v.q1 = q1; v.q2 = q2; v.q3 = q3; v.q4 = q4;
+  v.h1 = q1 + q2; v.h2 = q3 + q4; v.year = q1 + q2 + q3 + q4;
+};
+
+// Bottom-up recompute: leaves keep their (boosted) months; every parent's months
+// become the sum of its children, then aggregates are rederived from those months.
+const dfRecomputeSubtree = (row: GridRow): void => {
+  if (row.children && row.children.length) {
+    row.children.forEach(dfRecomputeSubtree);
+    DF_MONTH_KEYS.forEach((mk) => {
+      (row.values as Record<string, number>)[mk] =
+        row.children!.reduce((s, c) => s + Number((c.values as Record<string, number>)[mk] ?? 0), 0);
+    });
+  }
+  dfRederiveAggregates(row.values as Record<string, number>);
+};
+
+// Sum a month value across a row's leaf descendants (mirrors the chart's rollup).
+const dfLeafSum = (row: GridRow, mk: string): number => {
+  if (row.children && row.children.length) {
+    return row.children.reduce((s, c) => s + dfLeafSum(c, mk), 0);
+  }
+  return Number((row.values as Record<string, number>)[mk] ?? 0);
+};
+
+// Scale a single month across every leaf under `row` by `factor`.
+const dfScaleLeafMonth = (row: GridRow, mk: string, factor: number): void => {
+  if (row.children && row.children.length) {
+    row.children.forEach((c) => dfScaleLeafMonth(c, mk, factor));
+  } else {
+    const v = row.values as Record<string, number>;
+    v[mk] = r(Number(v[mk] ?? 0) * factor);
+  }
+};
+
+// Recompute a measure's total row (months + aggregates) from its account children.
+const dfRollupMeasureTotal = (measure: MeasureData): void => {
+  DF_MONTH_KEYS.forEach((mk) => {
+    (measure.values as Record<string, number>)[mk] =
+      (measure.children ?? []).reduce(
+        (s, a) => s + Number((a.values as Record<string, number>)[mk] ?? 0), 0);
+  });
+  dfRederiveAggregates(measure.values as Record<string, number>);
+};
+
+const dfDemoData: MeasureData[] = (() => {
+  const clone: MeasureData[] = JSON.parse(JSON.stringify(manufacturingData));
+
+  // ── 1. Sales Agreement Quantity: boost Georgia Sep/Oct above Order Quantity. ──
+  const saMeasure = clone.find((mm) => mm.id === 'measure-sa-qty');
+  const saGeorgia = saMeasure?.children?.find((a) => a.id === 'account-geo-measure-sa-qty');
+  if (saMeasure && saGeorgia) {
+    const boostLeaves = (row: GridRow): void => {
+      if (row.children && row.children.length) {
+        row.children.forEach(boostLeaves);
+      } else {
+        const v = row.values as Record<string, number>;
+        v.sep2026 = r(Number(v.sep2026 ?? 0) * 1.6);
+        v.oct2026 = r(Number(v.oct2026 ?? 0) * 2.15);
+      }
+    };
+    boostLeaves(saGeorgia);
+    dfRecomputeSubtree(saGeorgia);
+    dfRollupMeasureTotal(saMeasure);
+  }
+
+  // ── 1b. Electrical Systems / Georgia — reshape Sales Agreement Quantity so the ──
+  // category's Charts "Variance" tab (Actual = Order Quantity vs reference = Sales
+  // Agreement Quantity) tells one clean story: the agreement tracks just above order
+  // Jan→May (both inside the ±5% band, order a little less), then flattens/plateaus at
+  // ~186–188 while Order Quantity keeps sliding — so the two lines pull apart after May
+  // and the gap is widest in October (agreement ~188 vs order 77). Overrides step-1's
+  // Sep/Oct boost for the Electrical Systems leaves only; other categories untouched.
+  // Electrical Systems carries the whole Georgia agreement-vs-order story: SA tracks just above
+  // order early (Jan→May, both inside the ±5% band) then holds a flat plateau (~190) while Order
+  // Quantity slides. The gap therefore widens because *order falls*, not because agreement spikes
+  // — so the Sales Agreement line has NO October peak, it just stays elevated while actual drops.
+  // The gap grows steadily Aug→Sep→Oct (largest in Oct: SA 191 vs Order 77), making Electrical
+  // Systems by far the biggest negative in the "Children variance" breakdown for those months.
+  const SA_ELC_GEO_TARGETS: Record<string, number> = {
+    jan2026: 103, feb2026: 122, mar2026: 148, apr2026: 175, may2026: 188, jun2026: 190,
+    jul2026: 191, aug2026: 191, sep2026: 190, oct2026: 191, nov2026: 191, dec2026: 192,
+  };
+  // Per-product SA share (elc product order in CATEGORIES). Skewed on purpose: the
+  // sensors, control module, auxiliary harness and the small 2.0 kW starter carry the
+  // larger *agreement*, so when their orders fall short they read as the biggest
+  // negatives in the "Children variance" breakdown (paired with the Order Quantity
+  // split in step 3). Order:
+  //   alt120 alt150 str20 str35 wmain waux ecu  o2up o2dn
+  const SA_ELC_GEO_PRODUCT_FRACS = [0.09, 0.09, 0.11, 0.09, 0.10, 0.11, 0.12, 0.14, 0.15];
+  const saElcGeo = saGeorgia?.children?.find(
+    (c) => c.id === 'category-geo-elc-measure-sa-qty');
+  if (saMeasure && saGeorgia && saElcGeo?.children) {
+    const saKids = saElcGeo.children;
+    DF_MONTH_KEYS.forEach((mk) => {
+      const target = SA_ELC_GEO_TARGETS[mk] ?? 0;
+      let assigned = 0;
+      saKids.forEach((prod, i) => {
+        const frac = SA_ELC_GEO_PRODUCT_FRACS[i] ?? 1 / saKids.length;
+        const v = r(target * frac);
+        (prod.values as Record<string, number>)[mk] = v;
+        assigned += v;
+      });
+      // Absorb the rounding residual into the first product so the category total is exact.
+      (saKids[0].values as Record<string, number>)[mk] += target - assigned;
+    });
+    saKids.forEach((p) => dfRederiveAggregates(p.values as Record<string, number>));
+    dfRecomputeSubtree(saGeorgia);
+    dfRollupMeasureTotal(saMeasure);
+  }
+
+  // ── 2. Order Quantity: reshape Georgia's Sep→Oct so Electrical Systems is the ──
+  // clear key driver (largest drop) in the "What drove Oct" breakdown, keeping the
+  // other categories flat-to-slightly-positive. Sep is left as-is; Oct is scaled per
+  // category to hit these targets (Oct total stays ~588 to preserve the share pie).
+  const ORDER_OCT_TARGETS: Record<string, number> = {
+    trn: 198, // Transmission Assembly  (Sep 196 → +2, slightly up)
+    chx: 151, // Chassis Components     (Sep 150 → +1, flat/slightly up)
+    eng: 162, // Engine Components      (Sep 168 → -6, mildly down)
+    elc: 77,  // Electrical Systems     (Sep 103 → -26, the key negative driver)
+  };
+  const orderMeasure = clone.find((mm) => mm.id === 'measure-order-qty');
+  const orderGeorgia = orderMeasure?.children?.find((a) => a.id === 'account-geo-measure-order-qty');
+  if (orderMeasure && orderGeorgia) {
+    (orderGeorgia.children ?? []).forEach((cat) => {
+      const slug = Object.keys(ORDER_OCT_TARGETS).find((s) =>
+        cat.id === `category-geo-${s}-measure-order-qty`);
+      if (!slug) return;
+      const currentOct = dfLeafSum(cat, 'oct2026');
+      if (currentOct > 0) {
+        dfScaleLeafMonth(cat, 'oct2026', ORDER_OCT_TARGETS[slug] / currentOct);
+      }
+    });
+    dfRecomputeSubtree(orderGeorgia);
+    dfRollupMeasureTotal(orderMeasure);
+  }
+
+  // ── 3. Electrical Systems / Georgia — redistribute Order Quantity across products ──
+  // so the Charts "Children variance" breakdown ranks the sensors, control module,
+  // the auxiliary harness and the small 2.0 kW starter as the biggest shortfalls vs
+  // agreement, while the alternators / 3.5 kW starter / main harness hold up (some
+  // even land above reference). Each month's category total is preserved (the parent
+  // Actual line is untouched) — only the product split moves. Product order:
+  //   alt120 alt150 str20 str35 wmain waux ecu  o2up o2dn
+  const ORDER_ELC_GEO_PRODUCT_FRACS = [0.16, 0.15, 0.08, 0.14, 0.14, 0.08, 0.08, 0.09, 0.08];
+  const orderElcGeo = orderGeorgia?.children?.find(
+    (c) => c.id === 'category-geo-elc-measure-order-qty');
+  if (orderMeasure && orderGeorgia && orderElcGeo?.children) {
+    const orderKids = orderElcGeo.children;
+    DF_MONTH_KEYS.forEach((mk) => {
+      const total = orderKids.reduce(
+        (s, p) => s + Number((p.values as Record<string, number>)[mk] ?? 0), 0);
+      let assigned = 0;
+      orderKids.forEach((prod, i) => {
+        const frac = ORDER_ELC_GEO_PRODUCT_FRACS[i] ?? 1 / orderKids.length;
+        const v = r(total * frac);
+        (prod.values as Record<string, number>)[mk] = v;
+        assigned += v;
+      });
+      // Absorb the rounding residual into the first product so the category total is exact.
+      (orderKids[0].values as Record<string, number>)[mk] += total - assigned;
+    });
+    // Override Sep + Oct with explicit product splits so the Charts waterfall
+    // "What drove Oct (vs Sep)" ranks the sensors / ECU / auxiliary harness / 2.0 kW
+    // starter as the biggest month-over-month declines (these are also the < 9 red
+    // cells in Oct), while the two alternators actually GROW Sep→Oct (+2 / +1) — a
+    // couple of green movers against the decline — and the 3.5 kW starter / main
+    // harness barely move. Category totals stay exactly 103 (Sep) and 77 (Oct), so the
+    // parent line and the < 9 red-cell set are both untouched.
+    //                          alt120 alt150 str20 str35 wmain waux ecu o2up o2dn
+    const ORDER_ELC_GEO_SEP = [   12,    12,   10,   11,   11,  10,  12,  12,  13]; // = 103
+    const ORDER_ELC_GEO_OCT = [   14,    13,    6,   10,   10,   6,   6,   6,   6]; // =  77
+    orderKids.forEach((prod, i) => {
+      (prod.values as Record<string, number>).sep2026 = ORDER_ELC_GEO_SEP[i] ?? 0;
+      (prod.values as Record<string, number>).oct2026 = ORDER_ELC_GEO_OCT[i] ?? 0;
+    });
+    orderKids.forEach((p) => dfRederiveAggregates(p.values as Record<string, number>));
+    dfRecomputeSubtree(orderGeorgia);
+    dfRollupMeasureTotal(orderMeasure);
+  }
+
+  // ── 4. Transmission / Engine / Chassis (Georgia) — set Sales Agreement Quantity to sit ──
+  // just above Order Quantity every month (a small, constant ~3% gap, same shape as order).
+  // This lifts the account-level agreement line consistently above the order line all year
+  // (in-band Jan→Jun, order slipping below the band later) while keeping these three
+  // categories' own variance tiny — so Electrical Systems (step 1b) remains the clear, single
+  // driver of the widening gap in the Charts "Variance" child breakdown. Runs after steps 2–3
+  // so it reads the *final* order values. Uses each category's existing product split (scaled).
+  const BIG3_SA_FACTOR = 1.03;
+  const BIG3_SLUGS = ['trn', 'eng', 'chx'];
+  if (orderMeasure && saMeasure && orderGeorgia && saGeorgia) {
+    BIG3_SLUGS.forEach((slug) => {
+      const oc = orderGeorgia.children?.find(
+        (c) => c.id === `category-geo-${slug}-measure-order-qty`);
+      const sc = saGeorgia.children?.find(
+        (c) => c.id === `category-geo-${slug}-measure-sa-qty`);
+      if (!oc || !sc) return;
+      DF_MONTH_KEYS.forEach((mk) => {
+        const target = r(dfLeafSum(oc, mk) * BIG3_SA_FACTOR);
+        const current = dfLeafSum(sc, mk);
+        dfScaleLeafMonth(sc, mk, current > 0 ? target / current : 0);
+      });
+    });
+    dfRecomputeSubtree(saGeorgia);
+    dfRollupMeasureTotal(saMeasure);
+  }
+
+  return clone;
+})();
 

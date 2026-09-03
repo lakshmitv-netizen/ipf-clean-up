@@ -113,7 +113,7 @@
   background: #fff;
   border: 1px solid #c9d5e3;
   border-radius: 6px;
-  padding: 2px 6px 2px 8px;
+  padding: 2px 6px 2px 14px;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .scenario-rail-active:hover {
@@ -308,10 +308,16 @@
   font-size: 11px;
   color: #706e6b;
 }
-.scenario-add-btn {
+.scenario-showpicker {
   margin-left: auto;
+  position: relative;
+}
+.scenario-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   height: 26px;
-  padding: 0 12px;
+  padding: 0 10px;
   border: 1px solid #0176d3 !important;
   border-radius: 6px;
   background: #fff !important;
@@ -323,6 +329,66 @@
 .scenario-add-btn:hover {
   background: #eef4ff !important;
 }
+.scenario-add-btn svg { width: 12px; height: 12px; }
+
+/* ---- Show-scenarios dropdown ---- */
+.scenario-showpicker-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 40;
+  min-width: 220px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+.scenario-showpicker-head {
+  padding: 6px 8px 4px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #706e6b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.scenario-showpicker-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  color: #181818;
+  cursor: pointer;
+}
+.scenario-showpicker-item:hover { background: #f4f6f9; }
+.scenario-showpicker-item input { margin: 0; cursor: pointer; }
+.scenario-showpicker-item input:disabled { cursor: not-allowed; }
+.scenario-showpicker-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scenario-showpicker-add {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 7px 8px;
+  border: 0 !important;
+  border-top: 1px solid #eef1f4 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: #0176d3 !important;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.scenario-showpicker-add:hover { background: #f4f6f9 !important; }
 
 /* ---- Scenario cards ---- */
 .scenario-cards {

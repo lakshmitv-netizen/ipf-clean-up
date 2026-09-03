@@ -267,40 +267,35 @@ export const propagateDownward = (
   parentRollupMode?: ParentTotalsRollupMode,
   propagateIntoNoMatchRows?: boolean,
 ): { rowId: string; monthKey: MonthKey; newValue: number }[] => {
+  // Resolve the starting node ONCE, then walk node references directly. The old
+  // implementation called findRowById/getChildren for every descendant, each of
+  // which flattens the entire grid — O(N²) over the subtree, which froze the tab
+  // when a high-level row (e.g. a top account) was edited on a deep hierarchy.
+  const startRow = findRowById(rowId, data);
+  if (!startRow) return [];
+
   const updates: { rowId: string; monthKey: MonthKey; newValue: number }[] = [];
-  const children = childrenForParentRollup(getChildren(rowId, data), parentRollupMode, propagateIntoNoMatchRows);
-  
-  if (children.length === 0) return updates;
-  
-  const distribution = distributeProportionally(delta, children, monthKey, lockedCells);
-  
-  for (const [childId, childDelta] of distribution.entries()) {
-    const child = findRowById(childId, data);
-    if (!child) continue;
-    
-    // Double-check: skip if this child is locked (shouldn't happen due to filter, but safety check)
-    const cellKey = `${childId}-${monthKey}`;
-    if (lockedCells?.has(cellKey)) {
-      continue;
+
+  const recurse = (node: GridRow, nodeDelta: number) => {
+    const children = childrenForParentRollup(node.children || [], parentRollupMode, propagateIntoNoMatchRows);
+    if (children.length === 0) return;
+
+    // distributeProportionally excludes locked children and redistributes their
+    // share among the rest; it returns a map keyed by child id.
+    const distribution = distributeProportionally(nodeDelta, children, monthKey, lockedCells);
+
+    for (const child of children) {
+      const childDelta = distribution.get(child.id);
+      if (childDelta === undefined) continue; // locked child — skipped by distribution
+      const cellKey = `${child.id}-${monthKey}`;
+      if (lockedCells?.has(cellKey)) continue;
+
+      updates.push({ rowId: child.id, monthKey, newValue: child.values[monthKey] + childDelta });
+      recurse(child, childDelta);
     }
-    
-    const currentValue = child.values[monthKey];
-    const newValue = currentValue + childDelta;
-    updates.push({ rowId: childId, monthKey, newValue });
-    
-    // Recursively propagate to grandchildren (pass lockedCells and rollup mode down)
-    const grandchildUpdates = propagateDownward(
-      childId,
-      monthKey,
-      childDelta,
-      data,
-      lockedCells,
-      parentRollupMode,
-      propagateIntoNoMatchRows,
-    );
-    updates.push(...grandchildUpdates);
-  }
-  
+  };
+
+  recurse(startRow, delta);
   return updates;
 };
 

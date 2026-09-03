@@ -4,7 +4,13 @@ import { FocusGridParams } from './AlertsPanel';
 import {
   runAgentQuery,
   STARTER_PROMPTS,
+  ARC3_STARTER,
+  hasPredictedBaseline,
   AgentResponse,
+  AgentChart,
+  AgentActionCard,
+  AgentSlackMessage,
+  AgentScenario,
 } from '../utils/agentforceEngine';
 import '../styles/components/AgentforcePanel.css';
 
@@ -37,15 +43,38 @@ interface ChatTurn {
   pending?: boolean;
 }
 
-/** Render lightweight `**bold**` markup as <strong>; everything else stays plain text. */
+/**
+ * Render lightweight inline markup:
+ *  - `**bold**` → <strong>
+ *  - `[[warn:Low confidence]]` → amber warning chip with a ⚠ icon
+ * Everything else stays plain text.
+ */
 function renderRich(text: string): React.ReactNode[] {
-  return text.split(/(\*\*[^*]+\*\*)/g).map((part, i) =>
-    /^\*\*[^*]+\*\*$/.test(part) ? (
-      <strong key={i}>{part.slice(2, -2)}</strong>
-    ) : (
-      <React.Fragment key={i}>{part}</React.Fragment>
-    ),
-  );
+  return text.split(/(\*\*[^*]+\*\*|\[\[warn:[^\]]+\]\])/g).map((part, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(part)) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    const warn = part.match(/^\[\[warn:([^\]]+)\]\]$/);
+    if (warn) {
+      return (
+        <span key={i} className="agent-warn-chip">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M12 3.2 1.8 20.4h20.4L12 3.2Z"
+              fill="#fef3d0"
+              stroke="#e5a000"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+            <line x1="12" y1="10" x2="12" y2="14.5" stroke="#e5a000" strokeWidth="1.8" strokeLinecap="round" />
+            <circle cx="12" cy="17.4" r="1.15" fill="#e5a000" />
+          </svg>
+          {warn[1]}
+        </span>
+      );
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
 }
 
 /** Split a "1. Name — value (period)" ranked bullet into its display parts. */
@@ -70,6 +99,192 @@ function parseRankedBullet(bullet: string): { rank: string; name: string; value:
   return { rank, name, value, period };
 }
 
+/** Compact multi-line trend chart the agent embeds inline in a reply (shared absolute scale). */
+const AgentTrendChart: React.FC<{ chart: AgentChart }> = ({ chart }) => {
+  const W = 320;
+  const H = 148;
+  const padL = 34;
+  const padR = 10;
+  const padT = 10;
+  const padB = 22;
+  const n = chart.months.length;
+  // A confidence band fans out over the horizon: ±band scaled from ~35% to 100% Jan→Dec.
+  const halfWidth = (s: AgentChart['series'][number], i: number) =>
+    s.band ? s.band * (0.35 + 0.65 * (n > 1 ? i / (n - 1) : 1)) : 0;
+  // Include band extremes in the scale so the shaded area always fits.
+  const all = chart.series.flatMap((s) =>
+    s.band
+      ? s.values.flatMap((v, i) => [v, v * (1 + halfWidth(s, i)), v * (1 - halfWidth(s, i))])
+      : s.values,
+  );
+  const rawMin = Math.min(...all);
+  const rawMax = Math.max(...all);
+  const min = rawMin * 0.94;
+  const max = rawMax * 1.06;
+  const denom = max - min || 1;
+  const x = (i: number) => padL + (n > 1 ? (i / (n - 1)) * (W - padL - padR) : 0);
+  const y = (v: number) => H - padB - ((v - min) / denom) * (H - padT - padB);
+  const fmtK = (v: number) => (Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}K` : `${Math.round(v)}`);
+
+  return (
+    <div className="agent-chart">
+      {chart.title && <div className="agent-chart-title">{chart.title}</div>}
+      <svg className="agent-chart-svg" viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={chart.title || 'Trend chart'}>
+        {[0, 1, 2].map((g) => {
+          const gy = padT + g * ((H - padT - padB) / 2);
+          const val = max - (g / 2) * (max - min);
+          return (
+            <g key={g}>
+              <line x1={padL} y1={gy} x2={W - padR} y2={gy} stroke="#eef1f4" strokeWidth={1} />
+              <text x={padL - 5} y={gy + 3} textAnchor="end" fontSize={8} fill="#98a3ad">{fmtK(val)}</text>
+            </g>
+          );
+        })}
+        {chart.months.map((m, i) =>
+          i % 2 === 0 ? (
+            <text key={m + i} x={x(i)} y={H - 7} textAnchor="middle" fontSize={8} fill="#98a3ad">{m}</text>
+          ) : null,
+        )}
+        {/* Confidence bands first, so the lines sit on top. */}
+        {chart.series.map((s) =>
+          s.band ? (
+            <polygon
+              key={`band-${s.name}`}
+              points={[
+                ...s.values.map((v, i) => `${x(i).toFixed(1)},${y(v * (1 + halfWidth(s, i))).toFixed(1)}`),
+                ...s.values.map((v, i) => `${x(i).toFixed(1)},${y(v * (1 - halfWidth(s, i))).toFixed(1)}`).reverse(),
+              ].join(' ')}
+              fill={s.color}
+              fillOpacity={0.14}
+              stroke="none"
+            />
+          ) : null,
+        )}
+        {chart.series.map((s) => {
+          const pts = s.values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+          return (
+            <g key={s.name}>
+              <polyline points={pts} fill="none" stroke={s.color} strokeWidth={2.25} strokeLinecap="round" strokeLinejoin="round" />
+              {s.values.map((v, i) => (
+                <circle key={i} cx={x(i)} cy={y(v)} r={1.9} fill={s.color} />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+      <div className="agent-chart-legend">
+        {chart.series.map((s) => (
+          <span key={s.name} className="agent-chart-legend-item">
+            <span className="agent-chart-legend-dot" style={{ backgroundColor: s.color }} />
+            {s.name}
+          </span>
+        ))}
+      </div>
+      {chart.note && <div className="agent-chart-note">{chart.note}</div>}
+    </div>
+  );
+};
+
+/** A structured record/action card the agent surfaces (e.g. a drafted Sales Agreement amendment). */
+const AgentActionCardView: React.FC<{ card: AgentActionCard }> = ({ card }) => (
+  <div className="agent-action-card">
+    <div className="agent-action-card-head">
+      <span className="agent-action-card-doc" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <path d="M14 2v6h6" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="13" y2="17" />
+        </svg>
+      </span>
+      <div className="agent-action-card-heading">
+        {card.eyebrow && <div className="agent-action-card-eyebrow">{card.eyebrow}</div>}
+        <div className="agent-action-card-title">{card.title}</div>
+        {card.subtitle && <div className="agent-action-card-subtitle">{card.subtitle}</div>}
+      </div>
+    </div>
+    <div className="agent-action-card-fields">
+      {card.fields.map((f) => (
+        <div key={f.label} className="agent-action-card-field">
+          <span className="agent-action-card-field-label">{f.label}</span>
+          <span className={`agent-action-card-field-value${f.strong ? ' is-strong' : ''}`}>{f.value}</span>
+        </div>
+      ))}
+    </div>
+    {card.status && (
+      <div className={`agent-action-card-status agent-action-card-status--${card.status.tone}`}>
+        {card.status.tone === 'success' ? (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+        )}
+        {card.status.label}
+      </div>
+    )}
+    {card.footnote && <div className="agent-action-card-foot">{card.footnote}</div>}
+  </div>
+);
+
+/** A Slack message the agent drafts (preview) or posts (in-channel screen) — Arc 5. */
+const AgentSlackView: React.FC<{ msg: AgentSlackMessage }> = ({ msg }) => (
+  <div className={`agent-slack${msg.posted ? ' agent-slack--posted' : ' agent-slack--draft'}`}>
+    <div className="agent-slack-topbar">
+      <span className="agent-slack-logo" aria-hidden>
+        <svg width="14" height="14" viewBox="0 0 24 24">
+          <path fill="#36C5F0" d="M9 3a2 2 0 1 0 0 4h2V5a2 2 0 0 0-2-2z" />
+          <path fill="#2EB67D" d="M21 9a2 2 0 1 0-4 0v2h2a2 2 0 0 0 2-2z" />
+          <path fill="#ECB22E" d="M15 21a2 2 0 1 0 0-4h-2v2a2 2 0 0 0 2 2z" />
+          <path fill="#E01E5A" d="M3 15a2 2 0 1 0 4 0v-2H5a2 2 0 0 0-2 2z" />
+          <path fill="#36C5F0" d="M7 9a2 2 0 0 1 2-2h2a2 2 0 0 1 0 4H9a2 2 0 0 1-2-2z" opacity="0" />
+        </svg>
+      </span>
+      <span className="agent-slack-channel"># {msg.channel}</span>
+      <span className={`agent-slack-tag${msg.posted ? ' agent-slack-tag--posted' : ' agent-slack-tag--draft'}`}>
+        {msg.posted ? 'Posted' : 'Draft'}
+      </span>
+    </div>
+    <div className="agent-slack-msg">
+      <div className="agent-slack-avatar" aria-hidden>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="#fff">
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+        </svg>
+      </div>
+      <div className="agent-slack-msg-body">
+        <div className="agent-slack-msg-head">
+          <span className="agent-slack-author">{msg.author}</span>
+          <span className="agent-slack-app">APP</span>
+          <span className="agent-slack-time">{msg.time}</span>
+        </div>
+        <div className="agent-slack-headline">{renderRich(msg.headline)}</div>
+        <ul className="agent-slack-lines">
+          {msg.lines.map((l, i) => (
+            <li key={i}>{renderRich(l.replace(/\*([^*]+)\*/g, '**$1**'))}</li>
+          ))}
+        </ul>
+        {msg.footer && <div className="agent-slack-footer">{msg.footer}</div>}
+        {msg.posted && (
+          <button
+            type="button"
+            className="agent-slack-view"
+            onClick={() => {
+              // Open via script (no noopener) so the standalone Slack screen keeps a
+              // handle to this tab and can hand control back here once Rita approves.
+              window.open(msg.viewUrl || 'https://slack.com', '_blank');
+            }}
+          >
+            View in Slack
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+          </button>
+        )}
+      </div>
+    </div>
+  </div>
+);
+
 interface AgentforcePanelProps {
   isOpen: boolean;
   onClose: () => void;
@@ -82,6 +297,28 @@ interface AgentforcePanelProps {
   onShowConditionalFormatting: () => void;
   /** Open the Sort panel to reveal the ranking sort the agent applied. */
   onShowSort: () => void;
+  /** When set (and the panel is open), auto-send this prompt once to kick off a scripted flow. */
+  autoStartPrompt?: string | null;
+  /** Called once the auto-start prompt has been consumed, so the parent can clear it. */
+  onAutoStartConsumed?: () => void;
+  /**
+   * When set (and the panel is open), seed a one-off Q&A directly — the user's question and the
+   * agent's pre-computed answer — instead of routing through the intent engine. Used by the cell
+   * edit popover's "Ask Agentforce" CTA to surface a per-cell recommendation in the panel.
+   */
+  autoStartQA?: {
+    question: string;
+    answer: string;
+    bullets: string[];
+    /** Optional recommended action surfaced as a chip that applies the value to the cell. */
+    apply?: { label: string; run: () => void };
+  } | null;
+  /** Called once the seeded Q&A has been consumed, so the parent can clear it. */
+  onAutoStartQAConsumed?: () => void;
+  /** Reveal a measure row on the grid (Arc 3 projects ✦ Predicted Baseline). Returns the reveal duration in ms. */
+  onRevealMeasure?: (measureId: string) => number;
+  /** Inject agent-proposed scenarios into the bottom Scenario Planning drawer for comparison. */
+  onCreateScenarios?: (scenarios: AgentScenario[]) => void;
 }
 
 const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
@@ -92,12 +329,24 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
   onEditFilters,
   onShowConditionalFormatting,
   onShowSort,
+  autoStartPrompt = null,
+  onAutoStartConsumed,
+  autoStartQA = null,
+  onAutoStartQAConsumed,
+  onRevealMeasure,
+  onCreateScenarios,
 }) => {
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [input, setInput] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const idRef = useRef(0);
   const pendingTimerRef = useRef<number | null>(null);
+  // Latest `ask` fn (defined after the early return); the auto-start effect calls through this ref.
+  const askRef = useRef<((q: string) => void) | null>(null);
+  const autoStartedRef = useRef<string | null>(null);
+  const autoStartedQARef = useRef<string | null>(null);
+  // Pending "apply this recommendation" action from a seeded cell Q&A — surfaced as a recommendation chip.
+  const applyActionRef = useRef<{ label: string; run: () => void } | null>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -111,6 +360,69 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
       if (pendingTimerRef.current !== null) window.clearTimeout(pendingTimerRef.current);
     };
   }, []);
+
+  // Auto-start a scripted flow (e.g. Arc 5) when opened from an alert CTA. Runs once per prompt,
+  // and only into a fresh conversation so it doesn't interrupt an existing chat.
+  useEffect(() => {
+    // Reset the guard when the prompt clears, so the same flow can be re-triggered later.
+    if (!autoStartPrompt) {
+      autoStartedRef.current = null;
+      return;
+    }
+    if (!isOpen) return;
+    if (autoStartedRef.current === autoStartPrompt) return;
+    autoStartedRef.current = autoStartPrompt;
+    // Fresh start so the scripted beat leads the conversation.
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+    // Reset turns and ask in the same tick — setTurns([]) composes with ask's functional
+    // update, so the first question appears immediately (no self-cleaning defer timer).
+    setTurns([]);
+    askRef.current?.(autoStartPrompt);
+    onAutoStartConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, autoStartPrompt]);
+
+  // Seed a one-off Q&A (cell "Ask Agentforce"): append the question + a brief "thinking" state,
+  // then resolve to the pre-computed answer. Appends to the current chat rather than resetting it.
+  useEffect(() => {
+    if (!autoStartQA) {
+      autoStartedQARef.current = null;
+      return;
+    }
+    if (!isOpen) return;
+    const key = `${autoStartQA.question}|${autoStartQA.answer}`;
+    if (autoStartedQARef.current === key) return;
+    autoStartedQARef.current = key;
+    if (pendingTimerRef.current !== null) {
+      window.clearTimeout(pendingTimerRef.current);
+      pendingTimerRef.current = null;
+    }
+    const seq = ++idRef.current;
+    const pendingId = `a-${seq}`;
+    applyActionRef.current = autoStartQA.apply ?? null;
+    const response: AgentResponse = {
+      answer: autoStartQA.answer,
+      bullets: autoStartQA.bullets,
+      filterPreview: [],
+      focusParams: {},
+      filterLogic: '',
+      followUps: autoStartQA.apply ? [autoStartQA.apply.label] : [],
+    };
+    setTurns((prev) => [
+      ...prev,
+      { id: `u-${seq}`, role: 'user', text: autoStartQA.question },
+      { id: pendingId, role: 'agent', pending: true },
+    ]);
+    onAutoStartQAConsumed?.();
+    pendingTimerRef.current = window.setTimeout(() => {
+      pendingTimerRef.current = null;
+      setTurns((prev) => prev.map((t) => (t.id === pendingId ? { ...t, pending: false, response } : t)));
+    }, 900);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, autoStartQA]);
 
   if (!isOpen) return null;
 
@@ -128,28 +440,79 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
     // Don't stack requests while the agent is still "thinking".
     if (pendingTimerRef.current !== null) return;
     const seq = ++idRef.current;
+    // Compute the grounded reply up-front (pure) so we can coordinate any grid
+    // reveal (e.g. Arc 3 projecting ✦ Predicted Baseline) with the reply landing.
+    const response = runAgentQuery(q, data);
     const userTurn: ChatTurn = { id: `u-${seq}`, role: 'user', text: q };
     const pendingId = `a-${seq}`;
     const pendingTurn: ChatTurn = { id: pendingId, role: 'agent', pending: true };
     setTurns((prev) => [...prev, userTurn, pendingTurn]);
     setInput('');
-    // Simulate the agent "thinking" before revealing the grounded reply + grid view.
+    // If the reply reveals a measure, kick off the grid's loading→reveal now and
+    // hold the reply until the row lands (so the ✦ row and the reply appear together).
+    let think = 1200;
+    if (response.revealMeasureId && onRevealMeasure) {
+      const revealMs = onRevealMeasure(response.revealMeasureId);
+      if (revealMs && revealMs > 0) think = revealMs;
+    }
     pendingTimerRef.current = window.setTimeout(() => {
       pendingTimerRef.current = null;
-      const response = runAgentQuery(q, data);
       setTurns((prev) =>
         prev.map((t) => (t.id === pendingId ? { ...t, pending: false, response } : t)),
       );
       // The filtered view is shown on the grid by default (no toggle needed).
       onShowOnGrid(response.focusParams);
-    }, 1200);
+      // Scenarios are NOT auto-opened — the reply shows a CTA the user clicks to open the drawer.
+    }, think);
+  };
+  // Expose the latest `ask` to the auto-start effect (registered before this declaration).
+  askRef.current = ask;
+
+  // Recommendation chips normally re-query the agent; the seeded cell "Use <value>" action instead
+  // writes the recommended value into the grid cell and confirms it inline.
+  const handleRecommendation = (q: string) => {
+    const apply = applyActionRef.current;
+    if (apply && q === apply.label) {
+      applyActionRef.current = null;
+      apply.run();
+      const seq = ++idRef.current;
+      const value = q.replace(/^Use\s+/, '');
+      setTurns((prev) => [
+        ...prev,
+        { id: `u-${seq}`, role: 'user', text: q },
+        {
+          id: `a-${seq}`,
+          role: 'agent',
+          response: {
+            answer:
+              `Done — I've entered **${value}** into the cell. It's staged as an unsaved edit, so you can review the ripple across the plan and save when you're ready.`,
+            bullets: [],
+            filterPreview: [],
+            focusParams: {},
+            filterLogic: '',
+            followUps: [],
+          },
+        },
+      ]);
+      return;
+    }
+    ask(q);
   };
 
   const handleEdit = (params: FocusGridParams, filterLogic?: string) => {
     onEditFilters(params, filterLogic);
   };
 
+  // CTA inside a scenario reply: open the bottom Scenario Planning drawer and close this panel.
+  // Pass a fresh array so the drawer's incoming-scenarios effect re-fires even on a repeat click.
+  const handleCompareScenarios = (scenarios: AgentScenario[]) => {
+    onCreateScenarios?.([...scenarios]);
+    onClose();
+  };
+
   const hasConversation = turns.length > 0;
+  // Surface the Arc-3 "Predict the baseline" starter first, but only on grids that carry the measure.
+  const starterPrompts = hasPredictedBaseline(data) ? [ARC3_STARTER, ...STARTER_PROMPTS] : STARTER_PROMPTS;
   // The sticky Recommendations bar always reflects the most recent agent reply.
   const latestRecommendations =
     [...turns].reverse().find((t) => t.role === 'agent' && t.response)?.response?.followUps ?? [];
@@ -206,7 +569,7 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
               products and periods that need attention. What can I help you with?
             </div>
             <div className="agentforce-suggestions">
-              {STARTER_PROMPTS.map((p) => (
+              {starterPrompts.map((p) => (
                 <button key={p.id} className="agentforce-suggestion" onClick={() => ask(p.label)}>
                   <span className="agentforce-suggestion-text">{p.label}</span>
                   <svg className="agentforce-suggestion-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -233,6 +596,7 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
               onEditFilters={() => handleEdit(turn.response!.focusParams, turn.response!.filterLogic)}
               onShowConditionalFormatting={onShowConditionalFormatting}
               onShowSort={onShowSort}
+              onCompareScenarios={handleCompareScenarios}
             />
           )
         )}
@@ -240,7 +604,7 @@ const AgentforcePanel: React.FC<AgentforcePanelProps> = ({
 
       {/* Composer (Recommendations stay pinned just above the input) */}
       <div className="agentforce-footer">
-        <AgentforceRecommendations items={latestRecommendations} onSelect={ask} />
+        <AgentforceRecommendations items={latestRecommendations} onSelect={handleRecommendation} />
         <form
           className="agentforce-composer"
           onSubmit={(e) => {
@@ -315,7 +679,8 @@ const AgentReplyCard: React.FC<{
   onEditFilters: () => void;
   onShowConditionalFormatting: () => void;
   onShowSort: () => void;
-}> = ({ response, onEditFilters, onShowConditionalFormatting, onShowSort }) => {
+  onCompareScenarios: (scenarios: AgentScenario[]) => void;
+}> = ({ response, onEditFilters, onShowConditionalFormatting, onShowSort, onCompareScenarios }) => {
   const bullets = response.bullets ?? [];
   // When every bullet is a "1. Name — value (period)" ranked row, render a clean numbered list.
   const parsedRanked = bullets.map(parseRankedBullet);
@@ -390,6 +755,25 @@ const AgentReplyCard: React.FC<{
               ))}
             </ul>
           )
+        )}
+
+        {response.chart && <AgentTrendChart chart={response.chart} />}
+
+        {response.actionCard && <AgentActionCardView card={response.actionCard} />}
+
+        {response.slackMessage && <AgentSlackView msg={response.slackMessage} />}
+
+        {response.scenarios && response.scenarios.length > 0 && (
+          <div className="agentforce-scenario-cta">
+            <button
+              type="button"
+              className="agentforce-scenario-cta-link"
+              onClick={() => onCompareScenarios(response.scenarios!)}
+              title="Open Scenario Planning to compare these levers side by side"
+            >
+              Compare scenarios
+            </button>
+          </div>
         )}
 
         {(filterCount > 0 || cfCount > 0 || sortCount > 0) && (

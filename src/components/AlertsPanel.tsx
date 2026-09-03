@@ -150,7 +150,356 @@ function formatTimeKey(tk: string): string {
   );
 }
 
+/** Question an approval card hands to Agentforce when the user wants the background. */
+function approvalAgentPrompt(requester?: string, measureSummary?: string): string {
+  const on = measureSummary ? ` on ${measureSummary}` : '';
+  const from = requester ? ` from ${requester}` : '';
+  return `Brief me on the approval waiting on me${from}${on} — what changed and should I approve it?`;
+}
+
 type TabType = 'all' | 'alerts' | 'tasks';
+
+type OverviewTone = 'neutral' | 'positive' | 'warning' | 'critical';
+
+/** One line of the value breakdown under an Overview row (e.g. each of the bottom 3). */
+interface OverviewBreakdownRow {
+  name: string;
+  value: string;
+  delta?: string;
+  trend?: 'up' | 'down' | 'flat';
+}
+
+interface OverviewItem {
+  id: string;
+  label: string;
+  detail: string;
+  /** One-sentence read of what the number means, so the row answers "so what?". */
+  insight: string;
+  /** The numbers behind the headline — which rows, what they are worth, how far off. */
+  breakdown?: OverviewBreakdownRow[];
+  meta?: string;
+  tone?: OverviewTone;
+  /** Next-best-action label. Clicking hands `agentPrompt` to the Agentforce panel. */
+  cta: string;
+  /** Question the Agentforce panel opens with for this row. */
+  agentPrompt: string;
+  focusParams?: FocusGridParams;
+}
+
+interface OverviewSection {
+  id: string;
+  title: string;
+  items: OverviewItem[];
+}
+
+const OVERVIEW_SECTIONS: OverviewSection[] = [
+  {
+    id: 'look-first',
+    title: 'Where to focus',
+    items: [
+      {
+        id: 'look-bottom3',
+        label: 'Bottom 3 categories by Q2 revenue',
+        detail: 'Michigan + Ohio · Chassis, Interior, Electronics',
+        insight: 'These three carry 78% of the Q2 shortfall — the fastest place to recover plan.',
+        breakdown: [
+          { name: '1. Chassis', value: '$4.1M vs $5.2M', delta: '−$1.1M', trend: 'down' },
+          { name: '2. Interior', value: '$2.8M vs $3.5M', delta: '−$0.7M', trend: 'down' },
+          { name: '3. Electronics', value: '$3.6M vs $4.1M', delta: '−$0.5M', trend: 'down' },
+        ],
+        meta: '−$2.3M',
+        tone: 'critical',
+        cta: 'Analyse root cause',
+        agentPrompt: 'Which 3 categories are furthest behind on Q2 revenue, and why?',
+        focusParams: {
+          startPeriod: 'apr2026',
+          endPeriod: 'jun2026',
+          bottomNColumnFilter: {
+            n: 3,
+            dimension: 'category',
+            measureId: 'measure-revenue',
+            columnKey: 'q2',
+            operator: 'bottomN',
+          },
+          expandLevel: 'categories',
+          sort: { dimension: 'category', measureId: 'measure-revenue', direction: 'asc' },
+        },
+      },
+      {
+        id: 'look-movers',
+        label: 'Top movers this week',
+        detail: 'Chassis Components +18% · Interior −9%',
+        insight: 'Both swings came from manual edits rather than actuals — worth a sanity check before lock.',
+        breakdown: [
+          { name: 'Chassis Components', value: '$4.4M → $5.2M', delta: '+18.2%', trend: 'up' },
+          { name: 'Interior Systems', value: '$3.1M → $2.8M', delta: '−9.4%', trend: 'down' },
+          { name: 'Powertrain', value: '$4.2M → $4.4M', delta: '+4.1%', trend: 'up' },
+        ],
+        cta: 'Explain these swings',
+        agentPrompt: 'What moved most this week on the plan, and was it actuals or manual edits?',
+        focusParams: {
+          searchTerm: 'Chassis',
+          startPeriod: 'mar2026',
+          endPeriod: 'may2026',
+          bottomNColumnFilter: {
+            n: 5,
+            dimension: 'category',
+            measureId: 'measure-revenue',
+            columnKey: 'mar2026',
+            operator: 'topN',
+          },
+        },
+      },
+      {
+        id: 'look-variance',
+        label: 'Highest variance vs plan',
+        detail: 'Forecasted vs Sales Agreement Quantity · Powertrain · Michigan Plant',
+        insight: 'Widest single gap in the plan, and it has grown each of the last three cycles.',
+        breakdown: [
+          { name: 'Apr · forecast vs agreed', value: '6,950 vs 7,900', delta: '−12.0%', trend: 'down' },
+          { name: 'May · forecast vs agreed', value: '6,820 vs 7,930', delta: '−14.0%', trend: 'down' },
+          { name: 'Jun · forecast vs agreed', value: '6,700 vs 7,975', delta: '−16.0%', trend: 'down' },
+        ],
+        meta: '−14%',
+        tone: 'critical',
+        cta: 'View next best action',
+        agentPrompt: 'Why is Powertrain Forecasted Quantity on Michigan Plant 14% under the Sales Agreement for Apr–Jun, and what is the next best action?',
+        focusParams: {
+          searchTerm: 'Powertrain',
+          accounts: ['Michigan Plant'],
+          measures: ['Forecasted Quantity (No.s)', 'Sales Agreement Quantity (No.s)'],
+          startPeriod: 'apr2026',
+          endPeriod: 'jun2026',
+        },
+      },
+    ],
+  },
+  {
+    id: 'stand',
+    title: 'Where do I stand?',
+    items: [
+      {
+        id: 'stand-fy26',
+        label: 'FY26 Revenue vs Plan',
+        detail: '$18.4M of $19.6M · 94%',
+        insight: 'Tracking 6% light for the year. Three quarters of the gap sits in H2 Chassis and Interior.',
+        breakdown: [
+          { name: 'Q1 · actual vs plan', value: '$4.8M vs $4.7M', delta: '+2.1%', trend: 'up' },
+          { name: 'Q2 · actual vs plan', value: '$4.2M vs $4.9M', delta: '−14.3%', trend: 'down' },
+          { name: 'H2 · forecast vs plan', value: '$9.4M vs $10.0M', delta: '−6.0%', trend: 'down' },
+        ],
+        meta: '−$1.2M',
+        tone: 'warning',
+        cta: 'Analyse the gap',
+        agentPrompt: 'Why is FY26 revenue $1.2M behind plan, and where is the gap concentrated?',
+        focusParams: {
+          measures: ['Revenue'],
+          startPeriod: 'jan2026',
+          endPeriod: 'dec2026',
+          timeGranularities: ['year', 'quarter'],
+        },
+      },
+      {
+        id: 'stand-q2-sa',
+        label: 'Q2 vs Sales Agreement',
+        detail: 'Michigan Plant · Quantity',
+        insight: 'Committed volume is under-served for a second quarter — 41K units short of the signed agreement.',
+        breakdown: [
+          { name: 'Apr · forecast vs agreed', value: '152K vs 164K', delta: '−7.3%', trend: 'down' },
+          { name: 'May · forecast vs agreed', value: '148K vs 162K', delta: '−8.6%', trend: 'down' },
+          { name: 'Jun · forecast vs agreed', value: '158K vs 173K', delta: '−8.7%', trend: 'down' },
+        ],
+        meta: '−8.2%',
+        tone: 'critical',
+        cta: 'Diagnose the shortfall',
+        agentPrompt: 'Why is Michigan Plant Q2 quantity 8.2% under the committed sales agreement?',
+        focusParams: {
+          searchTerm: 'Michigan',
+          measures: ['Sales Agreement Quantity'],
+          startPeriod: 'apr2026',
+          endPeriod: 'jun2026',
+        },
+      },
+      {
+        id: 'stand-opp',
+        label: 'Opportunity Quantity vs Target',
+        detail: 'MagnaDrive · All plants',
+        insight: 'Ahead of target on pipeline volume, carried by Texas and California. No action needed yet.',
+        breakdown: [
+          { name: 'Texas Plant', value: '96.4K', delta: '+5.1%', trend: 'up' },
+          { name: 'California Plant', value: '78.2K', delta: '+3.4%', trend: 'up' },
+          { name: 'Michigan Plant', value: '112.6K', delta: '−1.2%', trend: 'down' },
+        ],
+        meta: '+2.1%',
+        tone: 'positive',
+        cta: 'View top contributors',
+        agentPrompt: 'Which accounts are driving Opportunity Quantity above target?',
+        focusParams: {
+          measures: ['Opportunity Quantity'],
+          startPeriod: 'jan2026',
+          endPeriod: 'jun2026',
+        },
+      },
+    ],
+  },
+  {
+    id: 'changed',
+    title: 'What changed since I last looked?',
+    items: [
+      {
+        id: 'chg-priya',
+        label: 'Priya Nair raised SA Quantity · Mar',
+        detail: 'Michigan Plant · Chassis Components · +12%',
+        insight: '4 cells edited, note left: “OEM confirmed the March pull-in.” Rolled up to the plant total.',
+        breakdown: [
+          { name: 'Chassis Components · Mar', value: '21.4K → 24.0K', delta: '+12.1%', trend: 'up' },
+          { name: 'Chassis Product 1 · Mar', value: '11.2K → 12.5K', delta: '+11.6%', trend: 'up' },
+          { name: 'Michigan Plant total', value: '84.1K → 86.7K', delta: '+3.1%', trend: 'up' },
+        ],
+        meta: '2h ago',
+        tone: 'neutral',
+        cta: 'Summarise the edits',
+        agentPrompt: 'Summarise the March Chassis Components edits on Michigan Plant and their impact.',
+        focusParams: {
+          searchTerm: 'Chassis',
+          accounts: ['Michigan Plant'],
+          startPeriod: 'mar2026',
+          endPeriod: 'mar2026',
+        },
+      },
+      {
+        id: 'chg-jordan',
+        label: 'Jordan Blake locked Chassis · Feb',
+        detail: 'Ohio Plant · Revenue forecast locked',
+        insight: 'February is now read-only for this branch. Later edits will need an unlock request.',
+        breakdown: [
+          { name: 'Feb Revenue locked at', value: '$1.42M', delta: 'Final', trend: 'flat' },
+          { name: 'Cells locked', value: '36', delta: 'Read-only', trend: 'flat' },
+          { name: 'Unlock requests', value: '0', delta: 'None', trend: 'flat' },
+        ],
+        meta: 'Yesterday',
+        tone: 'neutral',
+        cta: 'Review what changed',
+        agentPrompt: 'What changed on Ohio Plant Chassis before February was locked?',
+        focusParams: {
+          searchTerm: 'Chassis',
+          accounts: ['Ohio Plant'],
+          startPeriod: 'feb2026',
+          endPeriod: 'feb2026',
+        },
+      },
+      {
+        id: 'chg-recalc',
+        label: 'Roll-up recalculated after Ohio edit',
+        detail: 'Opportunity Revenue · Plant → Account',
+        insight: '18 impacted cells above the edited row. MagnaDrive account total moved by $340K.',
+        breakdown: [
+          { name: 'Ohio Plant', value: '$2.14M → $2.48M', delta: '+$340K', trend: 'up' },
+          { name: 'MagnaDrive account', value: '$10.02M → $10.36M', delta: '+3.4%', trend: 'up' },
+          { name: 'Impacted cells', value: '18', delta: 'Recalc', trend: 'flat' },
+        ],
+        meta: '4h ago',
+        tone: 'neutral',
+        cta: 'Trace the impact',
+        agentPrompt: 'Which totals moved when the Ohio Plant Opportunity Revenue edit rolled up?',
+        focusParams: {
+          measures: ['Opportunity Revenue'],
+          accounts: ['Ohio Plant'],
+          startPeriod: 'jan2026',
+          endPeriod: 'jun2026',
+        },
+      },
+    ],
+  },
+  {
+    id: 'needs-me',
+    title: 'What needs me?',
+    items: [
+      {
+        id: 'need-approve',
+        label: 'Approve Q1 Forecast',
+        detail: 'Sales Agreement Quantity · Jan–Mar · from Priya Nair',
+        insight: 'Past the 5-day SLA. Q1 cannot be locked until you approve or reject the submitted change.',
+        breakdown: [
+          { name: 'Jan · submitted', value: '8,250 → 8,690', delta: '+5.3%', trend: 'up' },
+          { name: 'Feb · submitted', value: '8,269 → 8,700', delta: '+5.2%', trend: 'up' },
+          { name: 'Mar · submitted', value: '8,154 → 8,600', delta: '+5.5%', trend: 'up' },
+        ],
+        meta: '7 days overdue',
+        tone: 'critical',
+        cta: 'View next best action',
+        agentPrompt: 'Brief me on the Q1 Sales Agreement Quantity approval waiting on me — what is the next best action?',
+        focusParams: {
+          searchTerm: 'Sales Agreement',
+          startPeriod: 'jan2026',
+          endPeriod: 'mar2026',
+        },
+      },
+      {
+        id: 'need-q2',
+        label: 'Q2 at risk — 3 categories behind plan',
+        detail: 'Michigan + Ohio · $2.3M gap',
+        insight: 'Closing the gap needs roughly +6% on Chassis or a reallocation from Texas before Mar 19.',
+        breakdown: [
+          { name: 'Chassis · Q2', value: '$4.1M vs $5.2M', delta: '−$1.1M', trend: 'down' },
+          { name: 'Interior · Q2', value: '$2.8M vs $3.5M', delta: '−$0.7M', trend: 'down' },
+          { name: 'Electronics · Q2', value: '$3.6M vs $4.1M', delta: '−$0.5M', trend: 'down' },
+        ],
+        meta: 'Due in 2 days',
+        tone: 'warning',
+        cta: 'Recommend a recovery',
+        agentPrompt: 'How do I close the $2.3M Q2 gap across Michigan and Ohio?',
+        focusParams: {
+          startPeriod: 'apr2026',
+          endPeriod: 'jun2026',
+          bottomNCategories: { n: 3, measureId: 'measure-revenue', columnKey: 'q2' },
+          expandLevel: 'categories',
+        },
+      },
+      {
+        id: 'need-blanks',
+        label: '2 blank Mar cells on Georgia Plant',
+        detail: 'Opportunity Quantity · Powertrain, Interior',
+        insight: 'Blanks roll up as zero, so the plant total reads $210K lighter than it should.',
+        breakdown: [
+          { name: 'Powertrain · Mar', value: '— blank', delta: '≈6,400', trend: 'flat' },
+          { name: 'Interior · Mar', value: '— blank', delta: '≈4,900', trend: 'flat' },
+          { name: 'Understated total', value: '$210K', delta: 'Rolls as 0', trend: 'down' },
+        ],
+        meta: 'Blanks',
+        tone: 'warning',
+        cta: 'Suggest values',
+        agentPrompt: 'What should the blank March Opportunity Quantity cells on Georgia Plant be?',
+        focusParams: {
+          searchTerm: 'Georgia',
+          measures: ['Opportunity Quantity'],
+          startPeriod: 'mar2026',
+          endPeriod: 'mar2026',
+        },
+      },
+      {
+        id: 'need-note',
+        label: 'Unresolved note on Transmission · Apr',
+        detail: '“Confirm OEM allocation before lock” · Jordan Blake',
+        insight: 'Open 3 days, blocking the Apr lock. Needs a reply or a resolution from you.',
+        breakdown: [
+          { name: 'Transmission · Apr', value: '12,400', delta: 'Unconfirmed', trend: 'flat' },
+          { name: 'Cells waiting on the note', value: '4', delta: 'Blocked', trend: 'down' },
+          { name: 'Open since', value: 'Mar 14', delta: '3 days', trend: 'flat' },
+        ],
+        meta: 'Note',
+        tone: 'neutral',
+        cta: 'Summarise the note',
+        agentPrompt: 'What does the open Transmission OEM allocation note need before the April lock?',
+        focusParams: {
+          searchTerm: 'Transmission',
+          startPeriod: 'apr2026',
+          endPeriod: 'apr2026',
+        },
+      },
+    ],
+  },
+];
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 interface AlertsPanelProps {
@@ -162,6 +511,8 @@ interface AlertsPanelProps {
   onJumpToCell?: (cellKey: string) => void;
   onViewCellHistory?: (cellKey: string) => void;
   onFocusGrid?: (params: FocusGridParams | null) => void;
+  /** Opens the Agentforce panel seeded with an Overview row's question. */
+  onAskAgentforce?: (prompt: string) => void;
   /** Injected when arriving from a header-bell approval notification — rendered as a
    *  pinned "Review approval request from <requester>" card, auto-focused. */
   reviewApprovalCard?: {
@@ -174,6 +525,15 @@ interface AlertsPanelProps {
     chunks?: Array<{ id: string; label: string; focusParams: FocusGridParams }>;
   } | null;
   onDismissReviewApprovalCard?: () => void;
+  /** Arc 5 — the Next-Best-Action Agent alert, surfaced at the top of Alerts after a save.
+   *  Provides a "View recommendations" CTA that opens the Agentforce panel. */
+  nextBestActionAlert?: {
+    title: string;
+    summary: string;
+    detail?: string;
+    focusParams: FocusGridParams;
+    onViewRecommendations: () => void;
+  } | null;
 }
 
 // ── FocusGrid toggle button ───────────────────────────────────────────────────
@@ -211,8 +571,10 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   onJumpToCell: _onJumpToCell,
   onViewCellHistory,
   onFocusGrid,
+  onAskAgentforce,
   reviewApprovalCard = null,
   onDismissReviewApprovalCard,
+  nextBestActionAlert = null,
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>('all');
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
@@ -226,6 +588,11 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   const [draftShowTasks, setDraftShowTasks] = useState(true);
   const [draftShowApprovals, setDraftShowApprovals] = useState(true);
   const [draftShowNotifications, setDraftShowNotifications] = useState(true);
+  const [expandedOverviewIds, setExpandedOverviewIds] = useState<Set<string>>(
+    () => new Set(OVERVIEW_SECTIONS.map(s => s.id))
+  );
+  // Each item card inside a section discloses its own insight / breakdown / CTA.
+  const [expandedOverviewItemIds, setExpandedOverviewItemIds] = useState<Set<string>>(new Set());
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterPopoverRef = useRef<HTMLDivElement>(null);
 
@@ -238,6 +605,24 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
       setFocusedCardId(cardId);
       onFocusGrid?.(params);
     }
+  };
+
+  const toggleOverviewSection = (id: string) => {
+    setExpandedOverviewIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleOverviewItem = (id: string) => {
+    setExpandedOverviewItemIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   };
 
   // When a review-approval card is injected (arriving from a bell notification),
@@ -319,11 +704,6 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   }, [approvalRequests]);
 
   const dismiss = (id: string) => setDismissedIds(prev => new Set([...prev, id]));
-  const markAllRead = () => {
-    const ids = new Set(dismissedIds);
-    approvalNotifications.forEach(n => ids.add(n.notifId));
-    setDismissedIds(ids);
-  };
 
   // ── Alert / Task partitions ────────────────────────────────────────────────
   const alertDeadlines = deadlineTasks.filter(t => t.category === 'alert');
@@ -332,14 +712,13 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
   // ── Tab badge counts ───────────────────────────────────────────────────────
   // Notifications (approval status updates) surface under Alerts; approvals + the injected
-  // review-approval card are actionable Tasks.
-  const alertsBadge = alertDeadlines.length + unreadNotifCount;
+  // review-approval card are actionable Tasks. Overview is a separate summarisation surface.
+  const alertsBadge = alertDeadlines.length + unreadNotifCount + (nextBestActionAlert ? 1 : 0);
   const tasksBadge = taskDeadlines.length + approvalSlaTasks.length + (reviewApprovalCard ? 1 : 0);
-  const allBadge = alertsBadge + tasksBadge;
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
-  const showAlertsGroup = activeTab === 'all' || activeTab === 'alerts';
-  const showTasksGroup = activeTab === 'all' || activeTab === 'tasks';
+  const showAlertsGroup = activeTab === 'alerts';
+  const showTasksGroup = activeTab === 'tasks';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -377,6 +756,22 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   const anyFocused = focusedCardId !== null;
 
   // Shared renderer for a deadline card (used by both the Alerts and Tasks sections).
+  /** Sparkle link that hands a card's question to the Agentforce panel. */
+  const askAgentBtn = (prompt: string, label = 'Ask Agentforce') =>
+    onAskAgentforce ? (
+      <button
+        type="button"
+        className="alerts-ask-agent-btn"
+        onClick={() => onAskAgentforce(prompt)}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+          <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+        </svg>
+        {label}
+      </button>
+    ) : null;
+
   const renderDeadlineCard = (task: DeadlineTask) => {
     const days = diffDays(task.dueDate, TODAY);
     const urgency = deadlineUrgency(days);
@@ -469,6 +864,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
               onClick={() => handleFocusToggle(task.id, focusParams)}
             />
           )}
+          {askAgentBtn(
+            `Brief me on "${task.title}" — what is driving it and what should I do before the ${formatDate(task.dueDate)} deadline?`
+          )}
         </div>
       </div>
     );
@@ -479,10 +877,10 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
       {/* Header */}
       <div className="alerts-panel-header">
         <div className="alerts-panel-header-left">
-          <svg fill="currentColor" viewBox="0 0 24 24" width="16" height="16" className="alerts-panel-header-icon">
-            <path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/>
+          <svg fill="currentColor" viewBox="0 0 520 520" width="16" height="16" className="alerts-panel-header-icon" aria-hidden>
+            <path d="M181 90c11 1 21 8 24 21l54 220 71-158c5-10 14-16 25-16h4c8 2 16 8 20 16l1 2 37 86h63c11 0 20 9 20 20v14c0 11-9 20-20 20h-80c-11 0-20-6-25-16l-20-47-78 173v1c-6 8-14 14-26 14-4 0-8-1-13-4l-9-8-5-11-52-217-42 97c-4 11-14 17-24 17H40c-11 0-20-8-20-19v-15c0-11 9-20 20-20h47l66-154c5-10 16-17 28-16"/>
           </svg>
-          <span className="alerts-panel-title">Alerts &amp; Tasks</span>
+          <span className="alerts-panel-title">Status</span>
         </div>
         <div className="alerts-panel-header-right">
           <div className="alerts-filter-wrapper">
@@ -558,16 +956,130 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
             className={`alerts-panel-tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === 'all' ? 'All' : tab === 'alerts' ? 'Alerts' : 'Tasks'}
-            {tab === 'all'    && allBadge    > 0 && <span className="alerts-tab-badge alerts-tab-badge--grey">{allBadge}</span>}
+            {tab === 'all' ? 'Overview' : tab === 'alerts' ? 'Alerts' : 'Tasks'}
             {tab === 'alerts' && alertsBadge > 0 && <span className="alerts-tab-badge alerts-tab-badge--red">{alertsBadge}</span>}
-            {tab === 'tasks'  && tasksBadge  > 0 && <span className="alerts-tab-badge alerts-tab-badge--amber">{tasksBadge}</span>}
+            {tab === 'tasks'  && tasksBadge  > 0 && <span className="alerts-tab-badge alerts-tab-badge--blue">{tasksBadge}</span>}
           </button>
         ))}
       </div>
 
       {/* Body */}
       <div className="alerts-panel-body">
+
+        {/* ── OVERVIEW ──────────────────────────────────────────── */}
+        {activeTab === 'all' && (
+          <div className="alerts-overview">
+            {OVERVIEW_SECTIONS.map(section => {
+              const isExpanded = expandedOverviewIds.has(section.id);
+              return (
+                <div key={section.id} className="alerts-overview-card">
+                  <button
+                    type="button"
+                    className="alerts-overview-card-header"
+                    onClick={() => toggleOverviewSection(section.id)}
+                    aria-expanded={isExpanded}
+                  >
+                    <svg
+                      className={`alerts-overview-card-chevron${isExpanded ? ' open' : ''}`}
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      aria-hidden
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                    <span className="alerts-overview-card-title">{section.title}</span>
+                  </button>
+                  {isExpanded && (
+                    <div className="alerts-overview-card-body">
+                      <ul className="alerts-overview-list">
+                        {section.items.map(item => {
+                          const isItemOpen = expandedOverviewItemIds.has(item.id);
+                          return (
+                          <li key={item.id} className={`alerts-overview-item${isItemOpen ? ' alerts-overview-item--open' : ''}`}>
+                            <button
+                              type="button"
+                              className="alerts-overview-item-main"
+                              onClick={() => toggleOverviewItem(item.id)}
+                              aria-expanded={isItemOpen}
+                            >
+                              <svg
+                                className={`alerts-overview-item-chevron${isItemOpen ? ' open' : ''}`}
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                aria-hidden
+                              >
+                                <polyline points="9 18 15 12 9 6" />
+                              </svg>
+                              <div className="alerts-overview-item-text">
+                                <span className="alerts-overview-item-label">{item.label}</span>
+                                <span className="alerts-overview-item-detail">{item.detail}</span>
+                              </div>
+                              {item.meta && (
+                                <span className={`alerts-chip alerts-chip--${
+                                  item.tone === 'critical' ? 'red'
+                                    : item.tone === 'warning' ? 'amber'
+                                      : item.tone === 'positive' ? 'green'
+                                        : 'grey'
+                                }`}>
+                                  {item.meta}
+                                </span>
+                              )}
+                            </button>
+
+                            {isItemOpen && (
+                              <div className="alerts-overview-item-body">
+                                <p className="alerts-overview-item-insight">{item.insight}</p>
+
+                                {item.breakdown && (
+                                  <div className="alerts-overview-breakdown">
+                                    {item.breakdown.map(row => (
+                                      <div key={row.name} className="alerts-overview-breakdown-row">
+                                        <span className="alerts-overview-breakdown-name">{row.name}</span>
+                                        <span className="alerts-overview-breakdown-value">{row.value}</span>
+                                        {row.delta && (
+                                          <span className={`alerts-overview-breakdown-delta alerts-overview-breakdown-delta--${row.trend ?? 'flat'}`}>
+                                            {row.delta}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                <div className="alerts-overview-item-actions">
+                                  <button
+                                    type="button"
+                                    className="alerts-overview-cta"
+                                    onClick={() => onAskAgentforce?.(item.agentPrompt)}
+                                  >
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                                      <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+                                    </svg>
+                                    {item.cta}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* ── Injected review-approval card (from a header-bell notification) ── */}
         {showTasksGroup && reviewApprovalCard && (() => {
@@ -602,13 +1114,14 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                 )}
               </div>
 
-              {onDismissReviewApprovalCard && (
-                <div className="alerts-card-actions">
+              <div className="alerts-card-actions">
+                {onDismissReviewApprovalCard && (
                   <button className="alerts-link-btn" onClick={onDismissReviewApprovalCard}>
                     Dismiss
                   </button>
-                </div>
-              )}
+                )}
+                {askAgentBtn(approvalAgentPrompt(t.requesterName, t.summary))}
+              </div>
 
               {onFocusGrid && hasChunks && (
                 <div className="alerts-chunk-list">
@@ -632,13 +1145,64 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
         })()}
 
         {/* ── ALERTS ────────────────────────────────────────────── */}
-        {showAlertsGroup && showTasks && alertDeadlines.length > 0 && (
+        {showAlertsGroup && (nextBestActionAlert || (showTasks && alertDeadlines.length > 0)) && (
           <>
             <div className="alerts-section-header">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
               Alerts
             </div>
-            {alertDeadlines.map(renderDeadlineCard)}
+
+            {/* Arc 5 · Next-Best-Action Agent — pinned topmost */}
+            {nextBestActionAlert && (() => {
+              const cardId = 'arc5-nba';
+              const isFocused = focusedCardId === cardId;
+              const isDimmed = anyFocused && !isFocused;
+              return (
+                <div
+                  key={cardId}
+                  className={`alerts-card alerts-card--urgent alerts-card--agent${isFocused ? ' alerts-card--focused' : ''}${isDimmed ? ' alerts-card--dimmed' : ''}`}
+                >
+                  <div className="alerts-card-header">
+                    <div className="alerts-card-header-left">
+                      <span className="alerts-agent-spark" aria-hidden>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                          <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+                        </svg>
+                      </span>
+                      <span className="alerts-card-title">{nextBestActionAlert.title}</span>
+                    </div>
+                  </div>
+
+                  <div className="alerts-card-sub">{nextBestActionAlert.summary}</div>
+
+                  <div className="alerts-card-meta">
+                    <span className="alerts-chip alerts-chip--amber">✦ Agentforce has a recommendation</span>
+                  </div>
+
+                  <div className="alerts-card-actions">
+                    {onFocusGrid && (
+                      <FocusToggleBtn
+                        active={isFocused}
+                        disabled={isDimmed}
+                        onClick={() => handleFocusToggle(cardId, nextBestActionAlert.focusParams)}
+                      />
+                    )}
+                    <button
+                      className="alerts-agent-cta"
+                      onClick={nextBestActionAlert.onViewRecommendations}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                      </svg>
+                      View next best action
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {showTasks && alertDeadlines.map(renderDeadlineCard)}
           </>
         )}
 
@@ -695,15 +1259,16 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                     }
                   </div>
 
-                  {onFocusGrid && (
-                    <div className="alerts-card-actions">
+                  <div className="alerts-card-actions">
+                    {onFocusGrid && (
                       <FocusToggleBtn
                         active={isFocused}
                         disabled={isDimmed}
                         onClick={() => handleFocusToggle(t.id, focusParams)}
                       />
-                    </div>
-                  )}
+                    )}
+                    {askAgentBtn(approvalAgentPrompt(t.approval.requesterName, fc?.measureSummary))}
+                  </div>
                 </div>
               );
             })()}
@@ -755,15 +1320,16 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                     }
                   </div>
 
-                  {onFocusGrid && (
-                    <div className="alerts-card-actions">
+                  <div className="alerts-card-actions">
+                    {onFocusGrid && (
                       <FocusToggleBtn
                         active={isFocused}
                         disabled={isDimmed}
                         onClick={() => handleFocusToggle(t.id, focusParams)}
                       />
-                    </div>
-                  )}
+                    )}
+                    {askAgentBtn(approvalAgentPrompt(t.approval.requesterName, fc?.measureSummary))}
+                  </div>
                 </div>
               );
             })}
@@ -824,6 +1390,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                           onClick={() => handleFocusToggle(notifCardId, focusParams)}
                         />
                       )}
+                      {askAgentBtn(
+                        `Explain this update from ${n.userName}: ${(n.note ?? '').slice(0, 120)} — what does it change in my plan?`
+                      )}
                       <button className="alerts-dismiss-btn" onClick={() => dismiss(n.notifId)}>
                         Dismiss
                       </button>
@@ -834,8 +1403,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           </>
         )}
 
-        {/* ── SLA TRACKER ───────────────────────────────────────── */}
-        {activeTab === 'all' && (
+        {/* ── SLA TRACKER (Tasks tab) ───────────────────────────── */}
+        {activeTab === 'tasks' && (
           <>
             <div className="alerts-section-header">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -853,6 +1422,11 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                 <span>{forecastLockSla.filled} of {forecastLockSla.total} cells updated</span>
                 <span>{Math.round((forecastLockSla.filled / forecastLockSla.total) * 100)}%</span>
               </div>
+              <div className="alerts-card-actions">
+                {askAgentBtn(
+                  `Which cells still need updating before the Mar 25 forecast lock, and which ones matter most?`
+                )}
+              </div>
             </div>
             <div className="alerts-sla-card">
               <div className="alerts-sla-card-row">
@@ -865,6 +1439,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
               <div className="alerts-sla-card-row alerts-sla-card-row--meta">
                 <span>{approvalSlaProgress.done} of {approvalSlaProgress.total} approvals resolved</span>
                 <span>{Math.round((approvalSlaProgress.done / approvalSlaProgress.total) * 100)}%</span>
+              </div>
+              <div className="alerts-card-actions">
+                {askAgentBtn('Which approvals are still open against the 5-day SLA, and who is holding them?')}
               </div>
             </div>
           </>
@@ -885,24 +1462,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
             <span>You're all caught up!</span>
           </div>
         )}
-        {activeTab === 'all' && allBadge === 0 && (
-          <div className="alerts-empty">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-            <p>All clear</p>
-            <span>No alerts or tasks right now</span>
-          </div>
-        )}
       </div>
 
-      {/* Footer */}
-      <div className="alerts-panel-footer">
-        <button className="alerts-footer-btn alerts-footer-btn--ghost" onClick={markAllRead}>
-          Mark all read
-        </button>
-        <button className="alerts-footer-btn alerts-footer-btn--ghost" onClick={() => setDismissedIds(new Set(approvalNotifications.map(n => n.notifId)))}>
-          Clear notifications
-        </button>
-      </div>
     </div>
   );
 };

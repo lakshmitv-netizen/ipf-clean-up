@@ -9,6 +9,7 @@ import MeasureToast from '../components/MeasureToast';
 import SearchableMultiSelect from '../components/SearchableMultiSelect';
 import { APP_USERS } from '../contexts/UserContext';
 import { useIndustry, getGridPathForIndustry } from '../contexts/IndustryContext';
+import { usePlanningGridSession } from '../contexts/PlanningGridSessionContext';
 import '../styles/pages/PlanningForecastingListPage.css';
 import '../styles/components/SettingsPanel.css';
 import {
@@ -553,7 +554,8 @@ function buildInitialAccessMatrix(industry: IndustryType | null): Record<string,
 }
 
 const mockRecords: ForecastRecord[] = [
-  { id: 'fy26-acme', name: 'Planning & Forecasting FY26 – Acme Partners', adminTemplate: 'ManufacturingAccountForecast', fiscalYear: '2026', rootRecord: 'Acme Partners', status: 'Draft', gridIndustry: 'manufacturing-acme' },
+  { id: 'df-demo', name: 'DF demo', adminTemplate: 'KAMForecastConfig', fiscalYear: '2026', rootRecord: 'MagnaDrive', status: 'Draft', gridIndustry: 'df-demo' },
+  { id: 'fy25-acme', name: 'Planning & Forecasting FY25 – Acme Partners', adminTemplate: 'ManufacturingAccountForecast', fiscalYear: '2025', rootRecord: 'Acme Partners', status: 'Draft', gridIndustry: 'manufacturing-acme' },
   { id: 'fy26-deep', name: 'Planning & Forecasting FY26 – Deep Hierarchy', adminTemplate: 'DeepHierarchyConfig', fiscalYear: '2026', rootRecord: 'Acme Global', status: 'Draft', gridIndustry: 'manufacturing-deep' },
   { id: 'fy26', name: 'Planning & Forecasting FY26', adminTemplate: 'KAMPlanConfig', fiscalYear: '2026', rootRecord: 'Acme', status: 'Draft' },
   { id: 'fy25', name: 'Planning & Forecasting FY25', adminTemplate: 'KAMForecastConfig', fiscalYear: '2025', rootRecord: 'MagnaDrive', status: 'Draft' },
@@ -618,6 +620,7 @@ const PlanningForecastingListPage: React.FC = () => {
   const location = useLocation();
   const { industry, setIndustry } = useIndustry();
   const { isOpen: isAgentOpen, close: closeAgent } = useAgentforce();
+  const { clearSession } = usePlanningGridSession();
   // The industry context is sticky, so after visiting the deep-hierarchy grid it stays
   // 'manufacturing-deep'. Records without an explicit gridIndustry must never inherit the
   // deep grid — they should fall back to the regular manufacturing grid.
@@ -1453,9 +1456,15 @@ const PlanningForecastingListPage: React.FC = () => {
   // the demo narrative where the agent instantiates and loads the workspace.
   const openAcmePlanWorkspace = useCallback(() => {
     closeAgent();
+    // Fresh plan → open a clean grid. Clear any persisted in-session edits
+    // (unsaved yellow cells + Save bar) left over from a prior grid session.
+    clearSession();
+    // A fresh plan starts before the Arc 3 agent has projected the baseline, so
+    // reset the reveal flag → the ✦ Predicted Baseline row is hidden until asked for.
+    try { sessionStorage.removeItem('cpm_arc3_baseline_revealed'); } catch { /* ignore */ }
     setIndustry('manufacturing-acme');
     navigate(getGridPathForIndustry('manufacturing-acme'));
-  }, [closeAgent, setIndustry, navigate]);
+  }, [closeAgent, clearSession, setIndustry, navigate]);
 
   // Opens the record detail page for the agent-created plan (fired from the
   // blue plan-name link in the record card). The record page renders the plan
@@ -1645,7 +1654,9 @@ const PlanningForecastingListPage: React.FC = () => {
                             ? getGridPathForIndustry(record.gridIndustry ?? baseIndustry)
                             : record.id === 'fy26'
                               ? '/planning-forecasting'
-                              : '#'
+                              : record.id === 'df-demo'
+                                ? getGridPathForIndustry('df-demo')
+                                : '#'
                         }
                         className="list-page-name-link"
                         onClick={() => activatePlanConfig(record)}

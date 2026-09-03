@@ -9,11 +9,11 @@
 // Measures:
 //   Sales Agreement Quantity, Opportunity Quantity, Order Quantity  (base data)
 //   Last Year Order Quantity                                        (prior-year orders)
-//   Forecast Quantity = Sales Agreement + Opportunity               (calculated)
+//   Forecast Quantity = Sales Agreement + Opportunity + Order        (calculated)
 //   Sales Manager Target Quantity                                   (manual input)
 //
 // Values roll up bottom-up so parent totals equal the sum of their children, and
-// Forecast Quantity equals SA + Opportunity at every level. Weekly columns
+// Forecast Quantity equals SA + Opportunity + Order at every level. Weekly columns
 // are added later by getMockData via ensureWeekValues.
 
 import type { MeasureData, GridRow, RowType } from '../types';
@@ -181,7 +181,7 @@ const ACME_ROOT: AcmeNode = {
   children: buildLevel(0, 'acme'),
 };
 
-// Per-leaf-month base quantities. SA + Opp compose Forecast Quantity.
+// Per-leaf-month base quantities. SA + Opp + Order compose Forecast Quantity.
 const SA_BASE = 1500;
 const OPP_BASE = 950;
 const ORDER_BASE = 1300;
@@ -193,10 +193,46 @@ interface LeafEconomics {
   ly: number[];
   forecast: number[];
   smtarget: number[];
+  predicted: number[];
+}
+
+/**
+ * Predicted Baseline ramp profile for a leaf, from its plant/program ancestry — this is what makes
+ * the AI baseline diverge from the committed Forecast in the CPM story:
+ *   • Midwest Assembly bends sharply upward (EV ramp building) — E-Motor Housing steepest & low-confidence.
+ *   • Southwest Stamping stays flat (steady legacy chassis).
+ *   • Other plants get a mild lift.
+ * Returns a Jan→Dec multiplier applied on top of the committed forecast (so it's always floored by it).
+ */
+function rampForLeaf(ancestors: string[]): { mult: (idx: number) => number; lowConfidence: boolean } {
+  const anc = ancestors.join(' | ');
+  const isMidwest = /Midwest Assembly/.test(anc);
+  const isSouthwest = /Southwest Stamping/.test(anc);
+  const isEMotor = /E-Motor Housing/.test(anc);
+  const isFalcon = /Falcon ADAS/.test(anc);
+
+  let start = 1.0;
+  let end = 1.06;
+  let low = false;
+  if (isMidwest) {
+    if (isEMotor) { start = 1.0; end = 1.5; low = true; } // brand-new program, little history → low confidence
+    else if (isFalcon) { start = 1.0; end = 1.32; }
+    else { start = 1.0; end = 1.16; }
+  } else if (isSouthwest) {
+    start = 1.0; end = 1.01; // flat legacy chassis
+  }
+  return {
+    mult: (idx: number) => start + (end - start) * (idx / 11),
+    lowConfidence: low,
+  };
 }
 
 /** Deterministic monthly economics for one SKU leaf. */
-function computeLeafEconomics(key: string, weight: number): LeafEconomics {
+function computeLeafEconomics(
+  key: string,
+  weight: number,
+  ramp: { mult: (idx: number) => number },
+): LeafEconomics {
   const phase = seededRandom(key) * Math.PI * 2;
   const sa: number[] = [];
   const opp: number[] = [];
@@ -212,7 +248,7 @@ function computeLeafEconomics(key: string, weight: number): LeafEconomics {
     const saV = Math.round(SA_BASE * weight * seasonal * jSa);
     const oppV = Math.round(OPP_BASE * weight * seasonal * jOpp);
     const ordV = Math.round(ORDER_BASE * weight * seasonal * jOrd);
-    const fV = saV + oppV; // Forecast Quantity = Sales Agreement + Opportunity
+    const fV = saV + oppV + ordV; // Forecast Quantity = Sales Agreement + Opportunity + Order
     sa.push(saV);
     opp.push(oppV);
     order.push(ordV);
@@ -220,20 +256,32 @@ function computeLeafEconomics(key: string, weight: number): LeafEconomics {
     forecast.push(fV);
     smtarget.push(Math.round(fV * 1.08));
   }
-  return { sa, opp, order, ly, forecast, smtarget };
+  // Predicted Baseline: a smooth, de-seasonalized AI projection off the committed forecast, lifted by
+  // the plant's ramp. Using the forecast average (not the jagged monthly value) makes Midwest bend
+  // cleanly upward and Southwest read flat — the divergence the CPM story calls out. A tiny jitter
+  // keeps the line lifelike; it stays ≥ the committed floor.
+  const avgForecast = forecast.reduce((s, v) => s + v, 0) / forecast.length;
+  const predicted: number[] = [];
+  for (let idx = 0; idx < 12; idx++) {
+    const jPred = 0.99 + seededRandom(`${key}-pred-${idx}`) * 0.02;
+    predicted.push(Math.round(avgForecast * ramp.mult(idx) * jPred));
+  }
+  return { sa, opp, order, ly, forecast, smtarget, predicted };
 }
 
 type MeasureKind = keyof LeafEconomics;
 
-// Precompute economics once per leaf, keyed by a stable path.
+// Precompute economics once per leaf, keyed by a stable path. The ramp profile is derived from the
+// leaf's plant/program ancestry so the Predicted Baseline diverges the way the story describes.
 const ECONOMICS = new Map<string, LeafEconomics>();
-(function populate(node: AcmeNode, path: string) {
+(function populate(node: AcmeNode, path: string, ancestors: string[]) {
+  const nextAncestors = [...ancestors, node.name];
   if (!node.children || node.children.length === 0) {
-    ECONOMICS.set(path, computeLeafEconomics(path, node.weight ?? 1));
+    ECONOMICS.set(path, computeLeafEconomics(path, node.weight ?? 1, rampForLeaf(nextAncestors)));
     return;
   }
-  node.children.forEach((c, i) => populate(c, `${path}-${i}`));
-})(ACME_ROOT, 'acme');
+  node.children.forEach((c, i) => populate(c, `${path}-${i}`, nextAncestors));
+})(ACME_ROOT, 'acme', []);
 
 function buildMeasureNode(
   node: AcmeNode,
@@ -275,6 +323,7 @@ const MEASURE_DEFS: { id: string; name: string; kind: MeasureKind }[] = [
   { id: 'measure-order-qty', name: 'Order Quantity (No.s)', kind: 'order' },
   { id: 'measure-ly-order-qty', name: 'Last Year Order Quantity (No.s)', kind: 'ly' },
   { id: 'measure-forecast-qty', name: 'Forecast Quantity (No.s)', kind: 'forecast' },
+  { id: 'measure-predicted-baseline-qty', name: '✦ Predicted Baseline Quantity (No.s)', kind: 'predicted' },
   { id: 'measure-sm-target-qty', name: 'Sales Manager Target Quantity (No.s)', kind: 'smtarget' },
 ];
 

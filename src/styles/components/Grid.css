@@ -502,6 +502,19 @@
   right: 0;
   height: 8px;
 }
+/* Nubbin pointing up toward the Data Status pill */
+.data-status-popover::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  right: 30px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-top: 1px solid var(--slds-g-color-border-base-1, #c9c9c9);
+  border-left: 1px solid var(--slds-g-color-border-base-1, #c9c9c9);
+  transform: rotate(45deg);
+}
 .data-status-popover-head {
   display: flex;
   align-items: flex-start;
@@ -527,12 +540,71 @@
   margin-top: 1px;
 }
 .data-status-popover-label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: #706e6b;
   margin-bottom: 8px;
+}
+.data-status-agent-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: #181818;
+}
+.data-status-agent-spark {
+  color: #0176d3;
+}
+
+/* Cell edit popover · "Ask Agentforce" — SLDS2 neutral button (secondary action). */
+.agent-ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 26px;
+  padding: 0 8px 0 6px;
+  background-color: var(--slds-g-color-surface-container-1, #fff);
+  border: 1px solid var(--slds-g-color-border-2, #c9c9c9);
+  border-radius: var(--slds-g-radius-border-2, 4px);
+  color: var(--slds-g-color-accent-3, #0176d3);
+  font-family: var(--slds-g-font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.1s ease, border-color 0.1s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.agent-ask-btn:hover {
+  background-color: var(--slds-g-color-surface-container-2, #f3f3f3);
+  border-color: var(--slds-g-color-border-3, #aeaeae);
+}
+.agent-ask-btn:focus-visible {
+  outline: 2px solid var(--slds-g-color-accent-3, #0176d3);
+  outline-offset: 2px;
+}
+.agent-ask-btn:disabled {
+  cursor: default;
+  color: var(--slds-g-color-on-surface-3, #747474);
+  background-color: var(--slds-g-color-surface-container-1, #fff);
+  border-color: var(--slds-g-color-border-2, #c9c9c9);
+}
+.agent-ask-btn__icon {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--slds-g-color-accent-3, #0176d3);
+}
+.agent-ask-btn:disabled .agent-ask-btn__icon {
+  color: var(--slds-g-color-on-surface-3, #747474);
 }
 .data-status-feed {
   list-style: none;
@@ -2496,6 +2568,165 @@ button.chevron-icon {
   overflow: visible;
 }
 
+/* Arc 5: the saved June override that breaches the committed agreement — red cell. */
+.cell-value-cell.risk-cell,
+.grid-row.measure-row .cell-value-cell.risk-cell,
+.grid-row.measure-row:hover .cell-value-cell.risk-cell,
+.cell-value-cell.edited-cell.risk-cell,
+.grid-row.measure-row .cell-value-cell.edited-cell.risk-cell,
+.grid-row.measure-row:hover .cell-value-cell.edited-cell.risk-cell,
+.cell-selected.edited-cell.risk-cell {
+  background: #feeceb !important;
+  box-shadow: inset 4px 0 0 #ba0517 !important;
+  border-top: 1px solid #f5c4c0 !important;
+  border-right: 1px solid #f5c4c0 !important;
+  border-bottom: 1px solid #f5c4c0 !important;
+}
+
+/* Arc 5: risk resolved (amendment approved, pre-save) — light green bg + green border */
+.cell-value-cell.risk-cell-resolved,
+.grid-row.measure-row .cell-value-cell.risk-cell-resolved,
+.grid-row.measure-row:hover .cell-value-cell.risk-cell-resolved,
+.cell-value-cell.edited-cell.risk-cell-resolved,
+.cell-value-cell.impacted-cell.risk-cell-resolved,
+.grid-row.measure-row .cell-value-cell.edited-cell.risk-cell-resolved,
+.grid-row.measure-row:hover .cell-value-cell.edited-cell.risk-cell-resolved,
+.cell-selected.edited-cell.risk-cell-resolved {
+  background: #ebf7ee !important;
+  border: 1px solid #2e844a !important;
+}
+
+/* Arc 5: force every flagged cell's warning / resolved icon into the exact same slot, no matter
+   which render branch places it (edited / impacted / saved compact-disc / plain fallback). Each
+   branch otherwise wraps the icon differently (compact-disc uses left:5px/14px; the plain branch
+   positions relative to the <td> instead of the value wrapper), so the icons drifted apart across
+   the risk lineage. Pin position/size explicitly with !important so nothing can override it. */
+/* The value wrappers (edited / impacted / saved) start AFTER the td's responsive left padding
+   (7–12px), and the icon is positioned relative to those wrappers — while the plain fallback
+   positions relative to the <td>. That padding therefore shifted wrapped-branch icons right,
+   leaving unequal space to the LEFT of the warning icon. Zero the risk cell's left padding so
+   every branch references the same td edge; the icon (8px) + value (32px) offsets below then
+   line up identically for the whole lineage. */
+.cell-value-cell.risk-cell,
+.cell-value-cell.risk-cell-resolved {
+  padding-left: 0 !important;
+}
+
+.cell-value-cell.risk-cell .cell-value-left-icon,
+.cell-value-cell.risk-cell-resolved .cell-value-left-icon {
+  position: absolute !important;
+  left: 8px !important;
+  top: 50% !important;
+  transform: translateY(-50%) !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin: 0 !important;
+}
+
+/* Arc 5: keep the number a uniform distance from the warning icon on every flagged cell.
+   The value is otherwise right-aligned (and the edited cell is bold), so its left edge —
+   the visible gap beside the icon — shifted per branch/weight. Pin it left-aligned at a
+   fixed offset (icon ends at 26px → ~6px gap) so the spacing reads identical across the
+   whole risk lineage. */
+.cell-value-cell.risk-cell .cell-value,
+.cell-value-cell.risk-cell-resolved .cell-value {
+  justify-content: flex-start !important;
+  padding-left: 32px !important;
+  padding-right: 8px !important;
+}
+.cell-value-cell.risk-cell .cell-value-left-section,
+.cell-value-cell.risk-cell-resolved .cell-value-left-section {
+  align-items: flex-start !important;
+  padding-left: 32px !important;
+  padding-right: 8px !important;
+}
+.cell-value-cell.risk-cell .cell-delta-badge,
+.cell-value-cell.risk-cell-resolved .cell-delta-badge {
+  justify-content: flex-start !important;
+  margin-right: 0 !important;
+}
+
+.cell-risk-warning {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 3px;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.cell-risk-warning:hover,
+.cell-risk-warning:focus-visible {
+  outline: none;
+  background: #fbd8d5;
+}
+
+/* Arc 5: risk resolved (amendment approved, pre-save) — green checkmark in the cell's left-icon slot */
+.cell-risk-resolved {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  flex-shrink: 0;
+  cursor: help;
+}
+
+.cell-risk-tooltip {
+  width: 244px;
+  background: #ffffff;
+  border: 1px solid #dddbda;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  padding: 12px 12px 11px;
+  font-family: var(--slds-g-font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+}
+.cell-risk-tooltip-nubbin {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 11px;
+  height: 11px;
+  background: #ffffff;
+  border-left: 1px solid #dddbda;
+  border-top: 1px solid #dddbda;
+}
+.cell-risk-tooltip-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #ba0517;
+  margin-bottom: 5px;
+}
+.cell-risk-tooltip-body {
+  font-size: 11.5px;
+  line-height: 16px;
+  color: #3e3e3c;
+  margin-bottom: 10px;
+}
+.cell-risk-tooltip .cell-risk-tooltip-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: 100%;
+  justify-content: center;
+  background: #ba0517 !important;
+  color: #ffffff !important;
+  border: none !important;
+  border-radius: 6px !important;
+  padding: 7px 10px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  font-family: inherit !important;
+  box-shadow: none !important;
+}
+.cell-risk-tooltip .cell-risk-tooltip-cta:hover {
+  background: #8e0f0b !important;
+}
+
 .cell-value-cell.impacted-cell {
   background: var(--slds-g-color-palette-yellow-95) !important;
   border-top: 1px solid var(--slds-g-color-neutral-base-80) !important;
@@ -3170,6 +3401,20 @@ td[data-cell-read="true"] .cell-value-left-icon,
   border: 2px solid var(--color-surface-white) !important;
   box-shadow: 0 1px 3px color-mix(in srgb, var(--slds-g-color-neutral-base-10) 30%, transparent) !important;
   z-index: 10 !important;
+}
+
+/* Unread red dot on the alerts bell (e.g. new Next-Best-Action agent alert) */
+.alert-bell-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--slds-g-color-error-2, #ea001e);
+  border: 1.5px solid var(--color-surface-white, #fff);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--slds-g-color-error-2, #ea001e) 30%, transparent);
+  pointer-events: none;
 }
 
 /* ── Sub-column header row ── */

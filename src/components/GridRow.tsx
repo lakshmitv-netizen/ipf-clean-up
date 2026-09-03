@@ -206,6 +206,27 @@ interface GridRowProps {
   impactedCells?: Map<string, number>; // key: `${rowId}-${monthKey}`, value: originalValue
   savedEditedCells?: Map<string, string>; // key: `${rowId}-${monthKey}`, value: icon color - cells that were edited and saved (show icon only)
   unsavedNotes?: Map<string, string>; // key: `${rowId}-${monthKey}`, value: note text - notes for dirty cells
+  // Optional per-cell AI suggestion (arc): given a row and month, returns a recommended value + rationale.
+  getCellSuggestion?: (rowId: string, monthKey: string) => { value: number; rationale: string } | null;
+  // Arc 5: after the June target override is saved, the E-Motor Housing lineage in June is flagged
+  // as "above committed agreement" — each cell rendered red with a warning icon + hover tooltip
+  // that launches the agent flow. The set cascades down to the E-Motor Housing origin leaf.
+  riskCellKeys?: Set<string>;
+  // Optional: id of the row whose chart is currently open in the Charts panel. That row gets a
+  // faint translucent-blue background so it's clear which row the chart on the right refers to.
+  chartActiveRowId?: string | null;
+  // Arc 5: once the Slack-approved amendment lands (pre-save), the flagged cell is "resolved" —
+  // the red warning becomes a green checkmark until the save commits it back to a normal cell.
+  riskResolved?: boolean;
+  onViewNextBestAction?: () => void;
+  // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
+  // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
+  onAskAgentforce?: (payload: {
+    question: string;
+    answer: string;
+    bullets: string[];
+    apply?: { label: string; run: () => void };
+  }) => void;
   savedImpactedCells?: Set<string>; // Set of cellKeys that were impacted but are now saved (to prevent showing old notes/popovers)
   columnWidth?: number; // Column width in pixels for time period columns
   searchTerm?: string; // Search term for highlighting
@@ -1229,6 +1250,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   impactedCells,
   savedEditedCells,
   unsavedNotes,
+  getCellSuggestion,
+  riskCellKeys,
+  chartActiveRowId,
+  riskResolved,
+  onViewNextBestAction,
+  onAskAgentforce,
   savedImpactedCells = new Set<string>(),
   columnWidth = 100,
   searchTerm = '',
@@ -1485,6 +1512,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   const [moreAction, setMoreAction] = useState<string>('');
   const [provideApprovalDecision, setProvideApprovalDecision] = useState<'approved' | 'rejected' | 'approvedWithCondition'>('approved');
   const [approvalActionNote, setApprovalActionNote] = useState<string>('');
+  /** Per-cell "Ask Agentforce" flow in the edit popover: idle until asked, then answered (Q&A shown in the side panel). */
+  const [agentAskState, setAgentAskState] = useState<'idle' | 'answered'>('idle');
   /** Cell key while approver opened pencil during plan review and must pick Manager override to edit. */
   const [planReviewPencilSessionCellKey, setPlanReviewPencilSessionCellKey] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1521,6 +1550,9 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   const approvalStatusChangeHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isMouseOverPopoverRef = useRef<boolean>(false);
   const popoverCloseTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Arc 5: the "above committed agreement" risk detail now lives in the merged cell edit-info
+  // popover (a single popover for the flagged cell), so no separate hover tooltip is needed here.
 
   /** Opens `ApprovalStatusChangePopover` anchored to a cell (value column stamp or `<td>`). */
   const openApprovalStatusForCellAnchor = useCallback((cellKeyForPopover: string, anchor: HTMLElement) => {
@@ -1779,6 +1811,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     } else {
       setDropdownPosition(null);
     }
+    // Reset the "Ask Agentforce" flow each time a different cell opens for editing.
+    setAgentAskState('idle');
   }, [editingCell, row.id]);
 
   // Update dropdown position on scroll/resize when editing
@@ -2517,6 +2551,45 @@ const GridRowComponent: React.FC<GridRowProps> = ({
 
   const renderCellValue = (monthKey: keyof GridRowType['values']) => {
     const cellKey = `${row.id}-${monthKey}`;
+    // Arc 5: the saved June override that breaches the committed agreement.
+    const isRiskCell = !!riskCellKeys && riskCellKeys.has(cellKey);
+    // Once the Slack-approved amendment lands (pre-save), the risk is resolved: the
+    // upside is now under contract. Show a green checkmark until the save commits it.
+    const isRiskResolved = isRiskCell && !!riskResolved;
+    const isRiskActive = isRiskCell && !isRiskResolved;
+    const riskWarningSvg = (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 2 L22 20 H2 Z" fill="#ba0517" />
+        <rect x="11" y="9" width="2" height="6" rx="1" fill="#fff" />
+        <rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff" />
+      </svg>
+    );
+    const riskResolvedSvg = (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="#2e844a" />
+        <path d="M7 12.5 L10.5 16 L17 8.5" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    );
+    const riskMarker = isRiskActive ? (
+      <span
+        className="cell-risk-warning"
+        role="button"
+        tabIndex={0}
+        aria-label="Above committed agreement — view recommendation"
+        onClick={(e) => { e.stopPropagation(); onViewNextBestAction?.(); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onViewNextBestAction?.(); } }}
+      >
+        {riskWarningSvg}
+      </span>
+    ) : isRiskResolved ? (
+      <span
+        className="cell-risk-resolved"
+        aria-label="Risk resolved — Midwest e-motor upside now under contract (amendment approved)"
+        title="Resolved — Midwest e-motor upside now under contract (amendment approved)"
+      >
+        {riskResolvedSvg}
+      </span>
+    ) : null;
 
     // Filtered-out aggregate rows (visible-only totals): read-only cell chrome
     if (isFilterSummaryReadonly) {
@@ -3046,7 +3119,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                   const adjustmentNoteFieldId = `cell-adjustment-note-${row.id}-${monthKey}`;
                   return (
                     <>
-                    <div style={{ marginBottom: '8px' }}>
+                    <div style={{ marginBottom: '2px' }}>
                       <label
                         htmlFor={adjustmentNoteFieldId}
                         style={{
@@ -3396,6 +3469,54 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     />
                   </div>
                 )}
+
+                {!isApprovalRequestedForEditing && getCellSuggestion && (() => {
+                  const sug = getCellSuggestion(row.id, monthKey);
+                  if (!sug) return null;
+                  const isQuantity = row.name?.toLowerCase().includes('quantity') || false;
+                  const formattedSuggestion = formatValue(sug.value, isQuantity, row.name);
+                  const askPrompt = `What value should I set for ${row.name}${row.name?.toLowerCase().includes('quantity') ? '' : ' quantity'} here — and why?`;
+                  const asked = agentAskState === 'answered';
+                  return (
+                    <div style={{ margin: '0' }}>
+                      <button
+                        type="button"
+                        className="agent-ask-btn"
+                        disabled={asked}
+                        onMouseDown={(e) => {
+                          e.stopPropagation();
+                          isInteractingWithPopoverControlRef.current = true;
+                        }}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setAgentAskState('answered');
+                          onAskAgentforce?.({
+                            question: askPrompt,
+                            answer:
+                              `Based on your curated Data Cloud history and the predicted baseline, I recommend **${formattedSuggestion}** for ${row.name}.\n\n` +
+                              sug.rationale +
+                              `\n\n✦ Recommended value — **${formattedSuggestion}**`,
+                            bullets: [],
+                            apply: {
+                              label: `Use ${formattedSuggestion}`,
+                              // Mock: cap disaggregation to visible rows so applying a
+                              // high-level target doesn't cascade through the whole
+                              // deep subtree (×12 months) and hang the tab.
+                              run: () => handleSaveCell(monthKey, String(sug.value)),
+                            },
+                          });
+                          setTimeout(() => {
+                            isInteractingWithPopoverControlRef.current = false;
+                          }, 150);
+                        }}
+                      >
+                        <span className="agent-ask-btn__icon" aria-hidden>✦</span>
+                        <span>{asked ? 'Asked Agentforce' : 'Ask Agentforce'}</span>
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             </div>,
             document.body
@@ -3573,20 +3694,20 @@ const GridRowComponent: React.FC<GridRowProps> = ({
 
     if (isDirectlyEdited) {
       const isIncrement = deltaPercent !== null && deltaPercent > 0;
-      const deltaColor = isIncrement ? 'var(--slds-g-color-warning-2)' : 'var(--color-accent-blue)';
-      const deltaColorLegacy = isIncrement ? '#ff5d2d' : '#2E76E1';
+      const deltaColor = isRiskActive ? '#ba0517' : (isIncrement ? 'var(--slds-g-color-warning-2)' : 'var(--color-accent-blue)');
+      const deltaColorLegacy = isRiskActive ? '#ba0517' : (isIncrement ? '#ff5d2d' : '#2E76E1');
 
       return (
         <>
           <div className="cell-value-wrapper-edited-container">
             <div className="cell-value-left-icon">
-              {renderStandardValueLeftIcon(isCellLocked)}
+              {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
             </div>
             <div className="cell-value-left-section">
               {deltaPercent !== null && Math.abs(deltaPercent) > 0.001 && (
                 <div
                   className="cell-delta-badge"
-                  style={!isGrid264Ux ? { color: deltaColorLegacy } : undefined}
+                  style={!isGrid264Ux || isRiskActive ? { color: deltaColorLegacy } : undefined}
                 >
                   {isGrid264Ux ? (
                     <>
@@ -3626,20 +3747,20 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     // Impacted cell: show impacted state with new value and delta, no old arrow
     if (isImpacted) {
       const isIncrement = deltaPercent !== null && deltaPercent > 0;
-      const deltaColor = isIncrement ? 'var(--slds-g-color-warning-2)' : 'var(--color-accent-blue)';
-      const deltaColorLegacy = isIncrement ? '#ff5d2d' : '#2E76E1';
+      const deltaColor = isRiskActive ? '#ba0517' : (isIncrement ? 'var(--slds-g-color-warning-2)' : 'var(--color-accent-blue)');
+      const deltaColorLegacy = isRiskActive ? '#ba0517' : (isIncrement ? '#ff5d2d' : '#2E76E1');
 
       return (
         <>
           <div className="cell-value-wrapper-edited-container">
             <div className="cell-value-left-icon">
-              {renderStandardValueLeftIcon(isCellLocked)}
+              {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
             </div>
             <div className="cell-value-left-section">
               {deltaPercent !== null && Math.abs(deltaPercent) > 0.001 && (
                 <div
                   className="cell-delta-badge"
-                  style={!isGrid264Ux ? { color: deltaColorLegacy } : undefined}
+                  style={!isGrid264Ux || isRiskActive ? { color: deltaColorLegacy } : undefined}
                 >
                   {isGrid264Ux ? (
                     <>
@@ -3697,7 +3818,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     : `cell-value-left-icon ${!isCellLocked ? (isIncrease ? 'cell-arrow-increase' : 'cell-arrow-decrease') : ''}`
               }
             >
-              {approvalStampButtonEl ??
+              {isRiskCell ? riskMarker : (approvalStampButtonEl ??
                 (isCellLocked ? (
                   lockIconSvg
                 ) : isGrid264Ux ? (
@@ -3706,12 +3827,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                   <LegacySavedLineArrowUpIcon />
                 ) : (
                   <LegacySavedLineArrowDownIcon />
-                ))}
+                )))}
             </div>
             <span 
-              className={`cell-value cell-value-saved ${!isCellLocked && (isIncrease ? 'cell-value-increase' : 'cell-value-decrease')}`}
+              className={`cell-value cell-value-saved ${!isCellLocked && !isRiskActive && (isIncrease ? 'cell-value-increase' : 'cell-value-decrease')}`}
               {...valueCellHoverProps}
-              style={{ cursor: valueCellCursor }}
+              style={{ cursor: valueCellCursor, ...(isRiskActive ? { color: '#ba0517' } : {}) }}
             >
               {valueMatchesSearch ? (
                 <SearchHighlight text={formatValue(currentValue)} searchTerms={otherTerms} />
@@ -3736,12 +3857,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       <>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           <div className="cell-value-left-icon">
-            {renderStandardValueLeftIcon(isCellLocked)}
+            {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
           </div>
           <span 
             className="cell-value"
             {...valueCellHoverProps}
-            style={{ cursor: valueCellCursor }}
+            style={{ cursor: valueCellCursor, ...(isRiskActive ? { color: '#ba0517' } : {}) }}
           >
             {cellValueMatchesSearch ? (
               <SearchHighlight text={formatValue(cellValue, row.name?.toLowerCase().includes('quantity'), row.name)} searchTerms={otherTerms} />
@@ -3973,7 +4094,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     <>
       <tr
         {...rowA11y}
-        className={`grid-row ${row.type === 'measure' ? 'measure-row' : ''} ${isFilteredOutMutedRow || isFilterBucketNoMatchMutedRow || noMatchBranchScratchedOut ? 'grid-row-filtered-out-dimension' : ''} ${isActualMeasureRow ? 'readonly-measure-row-actual' : ''} ${isDimensionUnderReadonlyMeasure ? 'readonly-dimension-row' : ''} ${isNewlyAdded ? 'newly-added-measure' : ''} ${showFilterDot ? 'row-has-descendants-column-filter' : ''}`}
+        className={`grid-row ${row.type === 'measure' ? 'measure-row' : ''} ${isFilteredOutMutedRow || isFilterBucketNoMatchMutedRow || noMatchBranchScratchedOut ? 'grid-row-filtered-out-dimension' : ''} ${isActualMeasureRow ? 'readonly-measure-row-actual' : ''} ${isDimensionUnderReadonlyMeasure ? 'readonly-dimension-row' : ''} ${isNewlyAdded ? 'newly-added-measure' : ''} ${showFilterDot ? 'row-has-descendants-column-filter' : ''} ${chartActiveRowId && chartActiveRowId === row.id ? 'grid-row-chart-active' : ''}`}
       >
         <td
           {...rowheaderA11y}
@@ -4775,7 +4896,9 @@ const GridRowComponent: React.FC<GridRowProps> = ({
           const pendingSubmissionHoverTd = pendingApprovalLocksCellTd && baseValueEditable;
           /** In plan review, cells are read-only but hover popover (who changed / notes) must still work. */
           const canShowEditInfoOnHover =
-            isEditable || isCellLocked || (isPlanReviewLock && baseValueEditable) || pendingSubmissionHoverTd;
+            isEditable || isCellLocked || (isPlanReviewLock && baseValueEditable) || pendingSubmissionHoverTd ||
+            // Arc 5: allow the risk banner to surface on any flagged E-Motor Housing lineage cell.
+            (!!riskCellKeys && riskCellKeys.has(`${row.id}-${key}`));
           
           // Check if this cell has a note
           // For impacted cells: only show note indicator if there's an unsaved note (new note added after impact)
@@ -4892,10 +5015,13 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 const impactedOriginalValue = isDesignSystemRulesEnabled ? impactedCells?.get(cellKeyForCheck) : undefined;
                 const savedIconColorCheck = isDesignSystemRulesEnabled ? savedEditedCells?.get(cellKeyForCheck) : undefined;
                 const isSavedEditedCheck = savedIconColorCheck !== undefined;
-            if (editedOriginalValue !== undefined) return 'edited-cell';
-            if (impactedOriginalValue !== undefined) return 'impacted-cell';
-            if (isSavedEditedCheck) return '';
-                return '';
+                const inRiskSet = !!riskCellKeys && (riskCellKeys.has(cellKeyForCheck) || riskCellKeys.has(cellKey));
+                const isRiskCellCheck = inRiskSet && !riskResolved;
+                const isRiskResolvedCheck = inRiskSet && !!riskResolved;
+            if (editedOriginalValue !== undefined) return `edited-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
+            if (impactedOriginalValue !== undefined) return `impacted-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
+            if (isSavedEditedCheck) return isRiskCellCheck ? 'risk-cell' : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
+                return isRiskCellCheck ? 'risk-cell' : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
           })()}`;
 
           // Shared event handlers for the Actual cell
@@ -4942,8 +5068,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     approvalForCell.status === 'approvedWithCondition' ||
                     approvalHasNote
                   );
+                  // Arc 5: flagged E-Motor Housing lineage cells always allow the popover (risk banner),
+                  // even though they're impacted / saved-impacted rollups.
+                  const isRiskCellHover = !!riskCellKeys && riskCellKeys.has(focusCellKey);
                   const allowEditInfoPopover =
                     shouldShowApprovalPopover ||
+                    isRiskCellHover ||
                     ((!isDirty || isCellLocked) && !isImpactedCell && !wasImpactedAndSaved) ||
                     (isPlanReviewLock && baseValueEditable && (isImpactedCell || wasImpactedAndSaved)) ||
                     (pendingSubmissionHoverTd && baseValueEditable);
@@ -5006,8 +5136,11 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     approvalForCell.status === 'approvedWithCondition' ||
                     approvalHasNote
                   );
+                  // Arc 5: flagged E-Motor Housing lineage cells always allow the popover (risk banner).
+                  const isRiskCellHover = !!riskCellKeys && riskCellKeys.has(focusCellKey);
                   const allowEditInfoPopover =
                     shouldShowApprovalPopover ||
+                    isRiskCellHover ||
                     ((!isDirty || isCellLocked) && !isImpactedCell && !wasImpactedAndSaved) ||
                     (isPlanReviewLock && baseValueEditable && (isImpactedCell || wasImpactedAndSaved)) ||
                     (pendingSubmissionHoverTd && baseValueEditable);
@@ -5758,6 +5891,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 impactedCells={impactedCells}
                 savedEditedCells={savedEditedCells}
                 unsavedNotes={unsavedNotes}
+                getCellSuggestion={getCellSuggestion}
+                riskCellKeys={riskCellKeys}
+                chartActiveRowId={chartActiveRowId}
+                riskResolved={riskResolved}
+                onViewNextBestAction={onViewNextBestAction}
+                onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}
                 columnWidth={columnWidth}
                 searchTerm={searchTerm}

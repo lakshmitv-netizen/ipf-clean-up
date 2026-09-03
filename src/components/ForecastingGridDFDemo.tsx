@@ -53,6 +53,7 @@ import GlobalSortPanel, { GlobalSortConfig } from './GlobalSortPanel';
 import AlertsPanel, { FocusGridParams } from './AlertsPanel';
 import AgentforcePanel from './AgentforcePanel';
 import { hasPredictedBaseline, ARC5_START_PROMPT, ARC3_REVEAL_MEASURE_ID } from '../utils/agentforceEngine';
+import type { AgentScenario } from '../utils/agentforceEngine';
 import { useAgentforce } from '../contexts/AgentforceContext';
 import { ColumnFilter } from './ColumnFilterPopover';
 import ScopedNotification, { ScopedNotificationToggle } from './ScopedNotification';
@@ -439,30 +440,47 @@ function writeBaselineRevealed(): void {
   }
 }
 
-// Pre-seeded admin conditional-formatting rules (mirrors the deployed grid's Formatting tab).
-// Stored active; the design-system-rules effect renders them toggled off while "Default Rules" is on.
+// DF DEMO FORK — project-local copy of ForecastingGrid used only by the "DF demo" plan.
+// The shared ForecastingGrid.tsx (synced from upstream) is left untouched. The only
+// differences here are the pre-seeded conditional-formatting rules below and the
+// design-system-rules default (set to off so these modifyCells rules render on load).
+//
+// Pre-seeded conditional-formatting rules for the DF demo, all on Order Quantity (No.s),
+// "Less than", pink highlight — reproduces the highlighted cells in the demo screenshots.
 const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
   {
-    id: 'user-rule-admin-1',
-    name: 'Admin Rule 1',
+    id: 'df-demo-products',
+    name: 'Products',
     isActive: true,
     priority: 0,
     mode: 'modifyCells',
-    target: { measureIds: ['measure-sa-qty'], dimensionLevels: ['product'], timeKeys: [] },
-    condition: { type: 'greaterThan', value: 47 },
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['product'], timeKeys: ['oct2026'] },
+    condition: { type: 'lessThan', value: 9 },
+    visualization: { type: 'background', color: '#FFEBEB' },
+    createdAt: new Date('2024-01-03T00:00:00'),
+    updatedAt: new Date('2024-01-03T00:00:00'),
+  },
+  {
+    id: 'df-demo-categories-low-order',
+    name: 'Categories low order',
+    isActive: true,
+    priority: 1,
+    mode: 'modifyCells',
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['category'], timeKeys: ['oct2026'] },
+    condition: { type: 'lessThan', value: 94 },
     visualization: { type: 'background', color: '#FFEBEB' },
     createdAt: new Date('2024-01-02T00:00:00'),
     updatedAt: new Date('2024-01-02T00:00:00'),
   },
   {
-    id: 'user-rule-admin-2',
-    name: 'Admin Rule 2',
+    id: 'df-demo-accounts-low-on-orders',
+    name: 'Accounts Low on Orders',
     isActive: true,
-    priority: 1,
+    priority: 2,
     mode: 'modifyCells',
-    target: { measureIds: ['measure-sa-rev'], dimensionLevels: ['category'], timeKeys: [] },
-    condition: { type: 'greaterThan', value: 30000 },
-    visualization: { type: 'background', color: '#E8F5E8' },
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['account'], timeKeys: ['oct2026'] },
+    condition: { type: 'lessThan', value: 625 },
+    visualization: { type: 'background', color: '#FFEBEB' },
     createdAt: new Date('2024-01-01T00:00:00'),
     updatedAt: new Date('2024-01-01T00:00:00'),
   },
@@ -477,7 +495,7 @@ type HierarchicalGridFocus = { rowId: string; monthKey: string } | null;
 type DimensionsTimeGridFocus = { rowId: string; measureId: string } | null;
 type TimeDimensionsGridFocus = { rowId: string; measureId: string } | null;
 
-const ForecastingGrid: React.FC = () => {
+const ForecastingGridDFDemo: React.FC = () => {
   const { industry } = useIndustry();
   const { session, saveSession } = usePlanningGridSession();
   const { currentUser } = useCurrentUser();
@@ -2673,7 +2691,12 @@ const ForecastingGrid: React.FC = () => {
   const cellChangeHandlerRef = useRef<((rowId: string, monthKey: string, newValue: number, note?: string) => void) | null>(null);
   // Ref to get current cell value from grid's internal state
   const getCurrentCellValueRef = useRef<((rowId: string, monthKey: string) => number) | null>(null);
-  
+
+  // Tracks whether the first cell edit has already flipped the grid into the design-system
+  // "unsaved edit" view (yellow edited/impacted cells + delta %). Runs once so we never fight
+  // a user who later turns design-system rules back off from the Formatting tab.
+  const designSystemAutoAppliedRef = useRef(false);
+
   // Function to add/edit DRAFT edit history entry (unsaved edits)
   // If a draft already exists for this cellKey, update it; otherwise create new
   const addDraftEditHistory = useCallback((entry: Omit<CellEditHistoryEntry, 'id' | 'timestamp' | 'userId' | 'userName'>) => {
@@ -2708,6 +2731,24 @@ const ForecastingGrid: React.FC = () => {
           return next;
         });
       }
+    }
+
+    // On the first real value edit, drop into the design-system "unsaved edit" view: turn on
+    // the yellow edited/impacted highlighting + delta %, which also stands the seeded demo
+    // (red modifyCells) rules down, and collapse the right panel so the edit reads clearly.
+    // Runs once — if the user later opens the Formatting tab and turns design-system rules off,
+    // subsequent edits won't force it back on.
+    if (
+      entry.newValue !== undefined &&
+      entry.newValue !== entry.oldValue &&
+      !designSystemAutoAppliedRef.current
+    ) {
+      designSystemAutoAppliedRef.current = true;
+      setIsDesignSystemRulesEnabled(true);
+      // Collapse whichever right panel was open (Charts is the common one in this flow,
+      // Settings/Formatting the other) so the unsaved-edit view reads clearly.
+      setIsSettingsOpen(false);
+      setIsChartsOpen(false);
     }
 
     setDraftEditHistory(prev => {
@@ -3190,6 +3231,12 @@ const ForecastingGrid: React.FC = () => {
           // Force a re-render by returning a new array reference
           return newHistory;
         });
+        // After a real save, keep BOTH design-system styling and the seeded CF (red modifyCells)
+        // rules on together: allow coexistence and wake the modifyCells rules back up.
+        setAllowRulesCoexist(true);
+        setConditionalFormattingRules(prev =>
+          prev.map(r => (r.mode === 'modifyCells' ? { ...r, isActive: true } : r))
+        );
         // Return empty map to clear drafts - this happens after editHistory update
         return new Map();
       }
@@ -3889,6 +3936,8 @@ const ForecastingGrid: React.FC = () => {
   const [arc5AlertActive, setArc5AlertActive] = useState(false);
   const [arc5Unread, setArc5Unread] = useState(false);
   const [arc5AutoStart, setArc5AutoStart] = useState<string | null>(null);
+  // Scenarios the Agentforce panel proposes ("model the levers") → injected into the bottom drawer.
+  const [agentScenarios, setAgentScenarios] = useState<AgentScenario[] | undefined>(undefined);
   // Cell edit popover "Ask Agentforce": a one-off Q&A seeded into the Agentforce panel.
   const [agentCellQA, setAgentCellQA] = useState<{ question: string; answer: string; bullets: string[]; apply?: { label: string; run: () => void } } | null>(null);
   const pendingRiskCellRef = useRef<string | null>(null);
@@ -3947,7 +3996,12 @@ const ForecastingGrid: React.FC = () => {
   const [conditionalFormattingRules, setConditionalFormattingRules] = useState<ConditionalFormattingRule[]>(INITIAL_CONDITIONAL_FORMATTING_RULES);
   const [applyCfRulesAsColorScale, setApplyCfRulesAsColorScale] = useState(false);
   const [previewConditionalFormattingRule, setPreviewConditionalFormattingRule] = useState<ConditionalFormattingRule | null>(null);
-  const [isDesignSystemRulesEnabled, setIsDesignSystemRulesEnabled] = useState(true);
+  // DF DEMO: default OFF so the seeded modifyCells rules render as pink highlights on load.
+  const [isDesignSystemRulesEnabled, setIsDesignSystemRulesEnabled] = useState(false);
+  // After the user SAVES an edit, we stop treating design-system styling and the seeded CF
+  // (red modifyCells) rules as mutually exclusive — both stay on together. Flipped true in
+  // commitDraftsToHistory; suppresses the three exclusion points below.
+  const [allowRulesCoexist, setAllowRulesCoexist] = useState(false);
   // Always force the preview rule to isActive:true so it shows on the grid
   // regardless of whether the rule is currently toggled off.
   const activePreviewRule = previewConditionalFormattingRule
@@ -3966,7 +4020,7 @@ const ForecastingGrid: React.FC = () => {
     // Design-system edited/impacted styling vs user CF (modifyCells) are mutually exclusive.
     // Agent root-cause highlights (`agent-highlight-*`) are exempt: they must show even
     // while design-system styling is on, without waking the other modifyCells rules.
-    if (isDesignSystemRulesEnabled) {
+    if (isDesignSystemRulesEnabled && !allowRulesCoexist) {
       return base.map(r =>
         r.mode === 'modifyCells' && !r.id.startsWith('agent-highlight-')
           ? { ...r, isActive: false }
@@ -3974,7 +4028,7 @@ const ForecastingGrid: React.FC = () => {
       );
     }
     return base;
-  }, [conditionalFormattingRules, activePreviewRule, isDesignSystemRulesEnabled]);
+  }, [conditionalFormattingRules, activePreviewRule, isDesignSystemRulesEnabled, allowRulesCoexist]);
 
   const handleDesignSystemRulesChange = useCallback((enabled: boolean) => {
     setIsDesignSystemRulesEnabled(enabled);
@@ -3995,12 +4049,12 @@ const ForecastingGrid: React.FC = () => {
   // If design-system rules are on, user-defined modifyCells rules must be inactive (sync corrupt / external state).
   // Agent root-cause highlights (`agent-highlight-*`) are intentionally kept active and excluded here.
   useEffect(() => {
-    if (!isDesignSystemRulesEnabled) return;
+    if (!isDesignSystemRulesEnabled || allowRulesCoexist) return;
     if (!conditionalFormattingRules.some(r => r.mode === 'modifyCells' && r.isActive && !r.id.startsWith('agent-highlight-'))) return;
     setConditionalFormattingRules(prev =>
       prev.map(r => (r.mode === 'modifyCells' && !r.id.startsWith('agent-highlight-') ? { ...r, isActive: false } : r))
     );
-  }, [isDesignSystemRulesEnabled, conditionalFormattingRules]);
+  }, [isDesignSystemRulesEnabled, conditionalFormattingRules, allowRulesCoexist]);
 
   /** Every built-in + custom + CF “create column” field — sort panel always lists these (independent of sub-columns toggle). */
   const allCalculatedFieldsForSort = useMemo((): SubColumn[] => {
@@ -5724,6 +5778,25 @@ const ForecastingGrid: React.FC = () => {
     return () => { cancelled = true; clearTimeout(kickoff); };
   }, [location.search, location.pathname, data, selectedLayoutState, navigate]);
 
+  // On initial load, open the Order Quantity (No.s) measure row one level (→ its plants)
+  // so the DF-demo grid lands on the story measure. Retries briefly until the grid has
+  // registered its expand-measure-row handler. Mount-only: manual collapse/layout changes
+  // afterward are left alone.
+  useEffect(() => {
+    let cancelled = false;
+    let tries = 0;
+    const tryExpand = () => {
+      if (cancelled) return;
+      if (expandMeasureRowRef.current) {
+        expandMeasureRowRef.current('measure-order-qty', 1);
+        return;
+      }
+      if (tries++ < 40) setTimeout(tryExpand, 100);
+    };
+    const t = setTimeout(tryExpand, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, []);
+
   const handleExpandAllRows = () => {
     if (expandAllRef.current) {
       expandAllRef.current();
@@ -6270,26 +6343,6 @@ const ForecastingGrid: React.FC = () => {
           onEndPeriodChange={setEndPeriod}
         />
       )}
-      {showHierarchicalParentTotalsHint && (
-        <ScopedNotification
-          variant="inline"
-          className="scoped-notification--grid-totals-hint"
-          message={
-            includeFilteredOutChildren
-              ? 'Totals include all rows — parent totals roll up over every child, including rows hidden by your filters.'
-              : 'Totals reflect only the filtered rows — parent totals roll up over the visible (filtered) children only.'
-          }
-          action={
-            <ScopedNotificationToggle
-              label="Include all rows in totals"
-              checked={includeFilteredOutChildren}
-              onChange={setScopeEverything}
-            />
-          }
-          closeLabel="Clear filters"
-          onClose={handleClearAllGridFilters}
-        />
-      )}
       <div style={{ display: 'flex', flexDirection: 'row', flex: '1 1 0', minHeight: 0, overflow: 'hidden' }}>
         <div className="grid-wrapper">
         {isApplyingScenario && (
@@ -6537,6 +6590,7 @@ const ForecastingGrid: React.FC = () => {
             }}
             onAddAdjustmentNote={addAdjustmentNote}
             riskCellKeys={riskCellKeys}
+            chartActiveRowId={isChartsOpen ? (gridChartSourceRow?.id ?? null) : null}
             riskResolved={riskResolved}
             onViewNextBestAction={() => {
               setIsAlertsOpen(false);
@@ -6958,6 +7012,7 @@ const ForecastingGrid: React.FC = () => {
           autoStartQA={agentCellQA}
           onAutoStartQAConsumed={() => setAgentCellQA(null)}
           onRevealMeasure={handleAgentRevealMeasure}
+          onCreateScenarios={setAgentScenarios}
         />
 
         {/* Cell Edit Info Popover - shown when a cell with edit history is focused */}
@@ -7076,10 +7131,11 @@ const ForecastingGrid: React.FC = () => {
       <ScenarioDrawer
         onApplyToGrid={applyScenarioToGrid}
         onPromote={(name) => console.log('Promote scenario to plan:', name)}
+        incomingScenarios={agentScenarios}
       />
     </div>
   );
 };
 
-export default ForecastingGrid;
+export default ForecastingGridDFDemo;
 

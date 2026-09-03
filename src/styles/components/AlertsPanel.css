@@ -188,21 +188,23 @@
   gap: 5px;
   padding: 10px 10px 9px;
   background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  font-size: 13px;
-  font-weight: 400;
-  color: var(--slds-g-color-neutral-base-40);
+  /* !important beats the global `:where(button) { border/font/color: … !important }`
+     reset in App.css, which otherwise strips the selected-tab underline. */
+  border: none !important;
+  border-bottom: 2px solid transparent !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  color: var(--slds-g-color-neutral-base-40) !important;
   cursor: pointer;
-  font-family: inherit;
+  font-family: var(--font-family-base) !important;
   transition: color 0.15s, border-color 0.15s;
   margin-bottom: -1px;
 }
-.alerts-panel-tab:hover { color: var(--slds-g-color-on-surface-3); background-color: var(--slds-g-color-surface-container-1); }
+.alerts-panel-tab:hover { color: var(--slds-g-color-on-surface-3) !important; background-color: var(--slds-g-color-surface-container-1) !important; }
 .alerts-panel-tab.active {
-  color: var(--slds-g-color-accent-1);
-  border-bottom-color: var(--slds-g-color-accent-1);
-  font-weight: 600;
+  color: var(--slds-g-color-accent-1) !important;
+  border-bottom-color: var(--slds-g-color-accent-1) !important;
+  font-weight: 600 !important;
 }
 
 .alerts-tab-badge {
@@ -219,6 +221,8 @@
 .alerts-tab-badge--red   { background: var(--slds-g-color-error-container-1); color: var(--slds-g-color-error-1); }
 .alerts-tab-badge--amber { background: var(--slds-g-color-warning-container-1); color: var(--slds-g-color-warning-1); }
 .alerts-tab-badge--grey  { background: var(--slds-g-color-surface-container-1); color: var(--slds-g-color-neutral-base-30); }
+/* Tasks are a count, not a severity — keep amber for the Top-N / warning chips. */
+.alerts-tab-badge--blue  { background: var(--slds-g-color-accent-container-1, #eef4ff); color: var(--slds-g-color-accent-1, #0176d3); }
 
 /* ── Body ────────────────────────────────────────────────────────────────── */
 .alerts-panel-body {
@@ -235,6 +239,224 @@
 .alerts-panel-body::-webkit-scrollbar { width: 5px; }
 .alerts-panel-body::-webkit-scrollbar-track { background: transparent; }
 .alerts-panel-body::-webkit-scrollbar-thumb { background: var(--slds-g-color-neutral-base-80); border-radius: 3px; }
+
+/* ── Overview collapsible cards ──────────────────────────────────────────── */
+.alerts-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* SLDS expandable section: a grey chevron bar per section, content stacked below it.
+   Sections sit further apart than a header sits from its own cards, so the open
+   content reads as belonging to the bar above it. */
+.alerts-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.alerts-overview-card:has(.alerts-overview-card-body) {
+  margin-bottom: 6px;
+}
+
+.alerts-overview-card-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
+  border-radius: 4px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.alerts-overview-card-header:hover {
+  background: var(--slds-g-color-surface-container-3, #ecebea) !important;
+}
+
+.alerts-overview-card-chevron {
+  flex-shrink: 0;
+  color: var(--slds-g-color-neutral-base-50);
+  transition: transform 0.15s ease;
+}
+
+.alerts-overview-card-chevron.open {
+  transform: rotate(90deg);
+}
+
+.alerts-overview-card-title {
+  font-family: var(--font-family-base);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  color: var(--slds-g-color-neutral-base-15);
+}
+
+.alerts-overview-card-body {
+  padding: 0 0 2px 0;
+}
+
+.alerts-overview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Each item inside an expanded section is its own collapsible card. */
+.alerts-overview-item {
+  background: var(--color-surface-white);
+  border: 1px solid var(--slds-g-color-neutral-base-90);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.alerts-overview-item--open {
+  border-color: var(--slds-g-color-neutral-base-80);
+}
+
+/* The always-visible summary row doubles as the disclosure trigger. */
+.alerts-overview-item-main {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 12px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.alerts-overview-item-main:hover {
+  background: var(--slds-g-color-surface-container-1) !important;
+}
+
+.alerts-overview-item-chevron {
+  flex-shrink: 0;
+  margin-top: 4px;
+  color: var(--slds-g-color-neutral-base-50);
+  transition: transform 0.15s ease;
+}
+
+.alerts-overview-item-chevron.open {
+  transform: rotate(90deg);
+}
+
+.alerts-overview-item-body {
+  padding: 0 12px 10px 31px;
+}
+
+.alerts-overview-item-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.alerts-overview-item-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 17px;
+  color: var(--slds-g-color-neutral-base-15);
+}
+
+.alerts-overview-item-detail {
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--slds-g-color-neutral-base-50);
+}
+
+.alerts-overview-item-main .alerts-chip {
+  margin-top: 1px;
+  padding: 1px 7px;
+  font-size: 11px !important;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.alerts-overview-item-insight {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--slds-g-color-neutral-base-30);
+}
+
+.alerts-overview-breakdown {
+  margin-top: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.alerts-overview-breakdown-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 58px;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.alerts-overview-breakdown-name {
+  color: var(--slds-g-color-neutral-base-40);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alerts-overview-breakdown-value {
+  color: var(--slds-g-color-neutral-base-15);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.alerts-overview-breakdown-delta {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.alerts-overview-breakdown-delta--up { color: var(--slds-g-color-success-1, #2e844a); }
+.alerts-overview-breakdown-delta--down { color: var(--slds-g-color-error-1, #ba0517); }
+.alerts-overview-breakdown-delta--flat { color: var(--slds-g-color-neutral-base-50); }
+
+.alerts-overview-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 7px;
+}
+
+/* !important beats the global `:where(button) { color/font: inherit !important }`
+   reset in App.css so these read as links. */
+.alerts-overview-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  color: var(--slds-g-color-accent-1) !important;
+  cursor: pointer;
+}
+
+.alerts-overview-cta:hover {
+  text-decoration: underline;
+}
+
+.alerts-overview-cta svg {
+  flex-shrink: 0;
+}
 
 /* ── Section headers ─────────────────────────────────────────────────────── */
 .alerts-section-header {
@@ -334,6 +556,35 @@
 .alerts-type-badge--submit  { background: var(--slds-g-color-accent-container-2); color: var(--slds-g-color-brand-base-40); }
 .alerts-type-badge--review  { background: var(--slds-g-color-palette-violet-90); color: var(--slds-g-color-neutral-base-20); }
 .alerts-type-badge--approve { background: var(--slds-g-color-warning-container-1); color: var(--slds-g-color-warning-1); }
+.alerts-type-badge--agent   { background: #eef4fb; color: #0176d3; }
+
+/* ── Arc 5 · risk-in-action alert ────────────────────────────────────────── */
+.alerts-card--agent { border-left: 3px solid var(--slds-g-color-error-2, #ea001e); }
+.alerts-agent-spark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--slds-g-color-error-2, #ea001e);
+  flex-shrink: 0;
+}
+.alerts-agent-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--slds-g-color-error-1, #ba0517);
+  background: var(--slds-g-color-error-1, #ba0517);
+  color: #fff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.alerts-agent-cta:hover { background: #8e0412; border-color: #8e0412; }
+.alerts-agent-cta svg { flex-shrink: 0; }
 
 /* Sub / context line */
 .alerts-card-sub {
@@ -405,9 +656,15 @@
 .alerts-card-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin-top: 6px;
   padding-left: 13px;
+}
+
+/* Wrap whole buttons onto the next line rather than breaking their labels. */
+.alerts-card-actions > * {
+  white-space: nowrap;
 }
 
 .alerts-link-btn {
@@ -460,6 +717,23 @@
 }
 .alerts-dismiss-btn:hover { color: var(--slds-g-color-neutral-base-40); }
 
+/* ── "Ask Agentforce" CTA (every card can hand its question to the agent) ──── */
+.alerts-ask-agent-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 !important;
+  background: none !important;
+  border: none !important;
+  font-family: var(--font-family-base) !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: var(--slds-g-color-accent-1) !important;
+  cursor: pointer;
+}
+.alerts-ask-agent-btn:hover { text-decoration: underline; }
+.alerts-ask-agent-btn svg { flex-shrink: 0; }
+
 /* ── Focus grid toggle button ────────────────────────────────────────────── */
 .alerts-focus-btn {
   display: inline-flex;
@@ -503,6 +777,12 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* SLA cards have no urgency dot, so their CTA row doesn't need the dot indent. */
+.alerts-sla-card .alerts-card-actions {
+  margin-top: 0;
+  padding-left: 0;
 }
 
 .alerts-sla-card-row {

@@ -1204,7 +1204,7 @@ const PlanningForecastingPage: React.FC = () => {
                           <ul className="planning-decision-factors-list planning-decision-factors-list--supporting">
                             <li>Forecast vs prior: +8.7%</li>
                             <li>Forecast vs budget: +5.2%</li>
-                            <li>Historical trend positive (3M / 12M)</li>
+                            <li>Historical trend positive over both 3M and 12M</li>
                             <li>Margin impact: +1.9%</li>
                             <li>Revenue impact: +$12,240</li>
                             <li>Capacity within range (80%)</li>

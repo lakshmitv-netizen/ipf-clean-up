@@ -13,14 +13,14 @@ interface UserContextType {
 
 /** Switchable demo users — keep in sync with seeded approval requesters in ForecastingGrid */
 export const APP_USERS: AppUser[] = [
-  { id: 'john-carter', name: 'John Carter' },
+  { id: 'john-carter', name: 'David Chen' },
   { id: 'alice-brennan', name: 'Alice Brennan' },
   { id: 'bob-okoro', name: 'Bob Okoro' },
   { id: 'carol-singh', name: 'Carol Singh' },
   { id: 'david-lee', name: 'David Lee' },
 ];
 
-/** Demo approvers (plan submitter / planner is typically John Carter). */
+/** Demo approvers (plan submitter / planner is typically David Chen). */
 export const APPROVER_USER_IDS = new Set(
   APP_USERS.filter((u) => u.id !== 'john-carter').map((u) => u.id)
 );

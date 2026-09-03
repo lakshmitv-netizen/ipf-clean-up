@@ -310,6 +310,12 @@ interface HierarchicalGridProps {
   onCollapseAllRows?: (handler: () => void) => void; // Callback to register collapse handler
   onExpandMeasuresOnly?: (handler: () => void) => void; // Register handler that expands only measure rows (top level)
   onExpandToCategories?: (handler: () => void) => void; // Register handler that expands measures + accounts (categories collapsed)
+  onExpandMeasureRow?: (handler: (measureId: string, maxDepth?: number) => void) => void; // Register handler that expands a measure row's chevron; maxDepth expands its branch that many tiers deep (default 1)
+  riskCellKeys?: Set<string>; // Arc 5: the E-Motor Housing June lineage flagged as above committed agreement (red warning cells cascading down to the origin)
+  chartActiveRowId?: string | null; // Optional: row whose chart is open in the Charts panel — gets a faint translucent-blue background.
+  riskResolved?: boolean; // Arc 5: amendment approved (pre-save) — show a green checkmark instead of the red warning
+  onViewNextBestAction?: () => void; // Arc 5: launch the agent flow from the risk cell tooltip
+  onAskAgentforce?: (payload: { question: string; answer: string; bullets: string[]; apply?: { label: string; run: () => void } }) => void; // Cell edit popover: ask Agentforce for a recommendation in the side panel
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
   onClearAllFilters?: (handler: () => void) => void; // Callback to register clear all filters handler
   onSettingsClick?: () => void; // Callback to open settings panel
@@ -443,6 +449,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onCollapseAllRows,
   onExpandMeasuresOnly,
   onExpandToCategories,
+  onExpandMeasureRow,
+  riskCellKeys,
+  chartActiveRowId,
+  riskResolved,
+  onViewNextBestAction,
+  onAskAgentforce,
   onResetColumnWidths,
   onClearAllFilters,
   onCellFocusWithHistory,
@@ -602,7 +614,91 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     gridData.forEach(m => { visitRow(m); m.children?.forEach(visitRow); });
     return result;
   }, [gridData]);
-  
+
+  // Per-cell AI suggestion (arc: ✦ Predicted Baseline). Given the cell the user is editing, we look up
+  // the same node under the Predicted Baseline measure and offer Moirai's projected value + a short
+  // rationale. Only surfaces on quantity planning cells (not history, not the baseline itself) and only
+  // when the Predicted Baseline measure is present on this grid.
+  const getCellSuggestion = useCallback((rowId: string, monthKey: string): { value: number; rationale: string } | null => {
+    // Look up the Predicted Baseline from the full (unfiltered) tree so the agent
+    // suggestion still surfaces even when the baseline row is hidden on the grid
+    // (e.g. before the Arc 3 agent has projected it into view).
+    const measureSource = rollupValueSourceData ?? gridData;
+    const baseline = measureSource.find(m => /predicted baseline/i.test(m.name));
+    if (!baseline) return null;
+    // Which measure does this row belong to?
+    const source = measureSource.find(m => rowId === m.id || rowId.endsWith(`-${m.id}`));
+    if (!source || source.id === baseline.id) return null;
+    // Arc: "Push Strategic Targets Downward" — on any Sales Manager measure the Target
+    // Recommendation Agent proposes a defensible FY26 target (650K) that disaggregates
+    // proportionally along the Predicted Baseline down the time + account hierarchy.
+    const isSalesManagerTarget = /sales manager/i.test(source.name);
+    // Otherwise, only offer a baseline-quantity suggestion on quantity planning cells (skip history / revenue).
+    if (!isSalesManagerTarget && (!/quantity/i.test(source.name) || /last year/i.test(source.name))) return null;
+
+    const findById = (rows: GridRowType[] | undefined, id: string): GridRowType | null => {
+      if (!rows) return null;
+      for (const r of rows) {
+        if (r.id === id) return r;
+        const found = findById(r.children, id);
+        if (found) return found;
+      }
+      return null;
+    };
+
+    // Resolve the target (baseline) value + current value for this exact cell.
+    let raw: number | undefined;
+    let current = 0;
+    let name = '';
+    if (rowId === source.id) {
+      // Measure-total row: compare the whole-hierarchy baseline total.
+      raw = (baseline.values as Record<string, number>)[monthKey];
+      current = Math.round(Number((source.values as Record<string, number>)[monthKey] ?? 0));
+    } else {
+      const basePath = rowId.slice(0, rowId.length - source.id.length - 1);
+      const targetId = `${basePath}-${baseline.id}`;
+      const targetNode = findById(baseline.children, targetId);
+      if (!targetNode) return null;
+      raw = (targetNode.values as Record<string, number>)[monthKey];
+      const sourceNode = findById(source.children, rowId);
+      current = sourceNode ? Math.round(Number((sourceNode.values as Record<string, number>)[monthKey] ?? 0)) : 0;
+      name = (sourceNode?.name || '').toLowerCase();
+    }
+    if (typeof raw !== 'number' || !isFinite(raw) || raw <= 0) return null;
+
+    // Sales Manager Target — hardcoded 650K FY26 (per the demo arc), disaggregated
+    // proportionally along the Predicted Baseline: this cell's share = 650K × (this
+    // node/month's baseline ÷ the baseline FY26 total). Rolls up cleanly to 650K.
+    if (isSalesManagerTarget) {
+      const SM_TARGET_FY26 = 650000;
+      const baseYear = Number((baseline.values as Record<string, number>)['year']) || 0;
+      if (baseYear <= 0) return null;
+      const smSuggested = Math.round(SM_TARGET_FY26 * (raw / baseYear));
+      const smDeltaPct = current > 0 ? Math.round(((smSuggested - current) / current) * 100) : 0;
+      const smDelta = smDeltaPct !== 0 ? `${smDeltaPct > 0 ? '+' : ''}${smDeltaPct}% vs current — ` : '';
+      return {
+        value: smSuggested,
+        rationale:
+          `Target Recommendation Agent — ${smDelta}650K FY26 defensible target from the committed agreement floor, ` +
+          `stage-weighted pipeline, and predicted Midwest EV-ramp upside; split proportionally along the Predicted Baseline.`,
+      };
+    }
+
+    const suggested = Math.round(raw);
+    const deltaPct = current > 0 ? Math.round(((suggested - current) / current) * 100) : 0;
+    let flavor: string;
+    if (/e-motor/.test(name)) flavor = 'new EV program — low confidence, sparse history.';
+    else if (/midwest/.test(name)) flavor = 'EV ramp momentum the model sees building.';
+    else if (/southwest/.test(name)) flavor = 'steady legacy chassis — flat all year.';
+    else flavor = 'projected from curated Data Cloud history.';
+
+    const deltaTxt = deltaPct !== 0 ? `${deltaPct > 0 ? '+' : ''}${deltaPct}% vs current — ` : '';
+    return {
+      value: suggested,
+      rationale: `Moirai baseline: ${deltaTxt}${flavor}`,
+    };
+  }, [gridData, rollupValueSourceData]);
+
   // Quick filter state: map of rowId -> QuickFilterCriteria
   const [quickFilters, setQuickFilters] = useState<Map<string, import('./AddRemoveChildNodesModal').QuickFilterCriteria>>(new Map());
   
@@ -1696,11 +1792,17 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       });
     }
     
-    // Expand edited measures only (not nested children — avoids opening the full subtree after edits)
-    if (editedMeasureIds.size > 0) {
+    // Acme demo grid: never auto-expand measures. The seller drives every chevron manually
+    // (or the agent flows drill explicitly) — measures always start collapsed until the user opens them.
+    const isAcmeDemoGrid = gridData.some(m => m.id === 'measure-sm-target-qty' || m.id === 'measure-predicted-baseline-qty');
+
+    // Expand edited measures only (not nested children — avoids opening the full subtree after edits).
+    // Skip measures whose only child is a single node (e.g. the lone 'Acme Partners' account on the
+    // Acme grid): auto-expanding just duplicates the measure's own numbers and adds no value.
+    if (!isAcmeDemoGrid && editedMeasureIds.size > 0) {
       editedMeasureIds.forEach(measureId => {
         const measure = gridData.find(m => m.id === measureId);
-        if (measure) {
+        if (measure && measure.children && measure.children.length > 1) {
           expandedRowIds.add(measure.id);
         }
       });
@@ -1708,7 +1810,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     
     // Only set expanded rows if we have edited measures, otherwise preserve current state
     // This prevents collapsing measures when editedCells changes
-    if (editedMeasureIds.size > 0) {
+    if (!isAcmeDemoGrid && editedMeasureIds.size > 0) {
       setExpandedRows(prev => {
         // Merge with existing expanded rows instead of replacing
         const newSet = new Set(prev);
@@ -1838,6 +1940,31 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     setExpandedRows(ids);
   }, [gridData]);
 
+  // Expand a single measure row's chevron (one level) — used when the agent reveals
+  // a new measure (Arc 3) and we want its chevron open like its siblings.
+  const handleExpandMeasureRow = useCallback((measureId: string, maxDepth: number = 1) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      next.add(measureId); // tier 1: the measure row itself
+      if (maxDepth > 1) {
+        const measure = gridData.find(m => m.id === measureId);
+        // Expand descendant parents so the branch opens `maxDepth` tiers deep
+        // (measure = tier 1); rows whose parent tier < maxDepth get expanded.
+        const walk = (rows: GridRowType[] | undefined, parentTier: number) => {
+          if (!rows || parentTier >= maxDepth) return;
+          for (const row of rows) {
+            if (row.children && row.children.length > 0) {
+              next.add(row.id);
+              walk(row.children, parentTier + 1);
+            }
+          }
+        };
+        walk(measure?.children, 1);
+      }
+      return next;
+    });
+  }, [gridData]);
+
   // Expand measures and accounts (so categories are visible) but leave categories
   // collapsed — accounts → categories only, no products. Used for the "categories behind"
   // focus so the referenced categories read clearly without drilling into SKUs.
@@ -1934,8 +2061,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         latestMeasureId = getMeasureIdFromRowId(rowId);
       }
       
-      // Expand the latest edited measure row only (keep nested rows collapsed)
-      if (latestMeasureId) {
+      // Acme demo grid: never auto-expand the latest edited measure — the seller opens chevrons manually.
+      const isAcmeDemoGrid = gridData.some(m => m.id === 'measure-sm-target-qty' || m.id === 'measure-predicted-baseline-qty');
+      // Expand the latest edited measure row only (keep nested rows collapsed). Skip single-child
+      // measures (e.g. the lone 'Acme Partners' account) — expanding just repeats the parent's numbers.
+      const latestMeasure = latestMeasureId ? gridData.find(m => m.id === latestMeasureId) : null;
+      if (!isAcmeDemoGrid && latestMeasureId && latestMeasure && latestMeasure.children && latestMeasure.children.length > 1) {
         setExpandedRows(prev => {
           const newSet = new Set(prev);
           newSet.add(latestMeasureId!);
@@ -2581,7 +2712,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   ) => {
     // CRITICAL: Clear all preserved values from previous edits
     preservedValuesRef.current.clear();
-    
+
     // Check if it's a measure row
     const measure = gridData.find(m => m.id === rowId);
     const isMeasureRow = !!measure;
@@ -2669,8 +2800,10 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         return newMap;
       });
       
-      // Expand the measure that contains this edited cell (only for new edits)
-      if (isNewEdit) {
+      // Expand the measure that contains this edited cell (only for new edits).
+      // Acme demo grid: never auto-expand on edit — the seller opens every chevron manually.
+      const isAcmeDemoGridEdit = gridData.some(m => m.id === 'measure-sm-target-qty' || m.id === 'measure-predicted-baseline-qty');
+      if (isNewEdit && !isAcmeDemoGridEdit) {
         // Extract measure ID from rowId using the same logic as the useEffect
         const getMeasureIdFromRowId = (rId: string): string | null => {
           // Check if rowId is directly a measure ID
@@ -3620,6 +3753,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     if (onExpandToCategories) {
       onExpandToCategories(handleExpandToCategories);
     }
+    if (onExpandMeasureRow) {
+      onExpandMeasureRow(handleExpandMeasureRow);
+    }
     if (onClearAllFilters) {
       onClearAllFilters(handleClearAllFilters);
     }
@@ -3635,7 +3771,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         setColumnWidths(new Map());
       });
     }
-  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
+  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleExpandMeasureRow, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onExpandMeasureRow, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
 
   // Handle keyboard navigation
   // Note: handleSave is defined later, so we'll use a ref or move this callback after handleSave
@@ -5344,6 +5480,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     impactedCells={impactedCells}
                     savedEditedCells={savedEditedCells}
                     unsavedNotes={unsavedNotes}
+                    getCellSuggestion={getCellSuggestion}
+                    riskCellKeys={riskCellKeys}
+                    chartActiveRowId={chartActiveRowId}
+                    riskResolved={riskResolved}
+                    onViewNextBestAction={onViewNextBestAction}
+                    onAskAgentforce={onAskAgentforce}
                     savedImpactedCells={savedImpactedCells}
                     columnWidth={columnWidth}
                     searchTerm={searchTerm}
@@ -5449,6 +5591,12 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                   impactedCells={impactedCells}
                   savedEditedCells={savedEditedCells}
                   unsavedNotes={unsavedNotes}
+                  getCellSuggestion={getCellSuggestion}
+                  riskCellKeys={riskCellKeys}
+                  chartActiveRowId={chartActiveRowId}
+                  riskResolved={riskResolved}
+                  onViewNextBestAction={onViewNextBestAction}
+                  onAskAgentforce={onAskAgentforce}
                   savedImpactedCells={savedImpactedCells}
                   columnWidth={columnWidth}
                   isNewlyAdded={newlyAddedMeasureIds.includes(measure.id)}

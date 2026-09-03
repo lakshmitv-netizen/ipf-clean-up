@@ -22,6 +22,8 @@ const IndustryUrlSync: React.FC = () => {
       setIndustry('manufacturing-deep');
     } else if (path === '/home/manufacturing-acme') {
       setIndustry('manufacturing-acme');
+    } else if (path === '/home/df-demo') {
+      setIndustry('df-demo');
     } else if (path === '/home') {
       // Reset to null when on selection page so user can choose
       // Note: We can't directly set null, so we'll leave it as is

@@ -374,7 +374,7 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
     const newReply: CardReply = {
       id: `reply-${Date.now()}-${Math.random()}`,
       userId: 'john-carter',
-      userName: 'John Carter',
+      userName: 'David Chen',
       message,
       timestamp: new Date()
     };
@@ -401,7 +401,7 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
     const newComment: GenericComment = {
       id: `gc-${Date.now()}-${Math.random()}`,
       userId: 'john-carter',
-      userName: 'John Carter',
+      userName: 'David Chen',
       userInitials: 'JC',
       message: genericCommentText.trim(),
       timestamp: new Date()
@@ -416,7 +416,7 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
     const newReply: GenericCommentReply = {
       id: `gcr-${Date.now()}-${Math.random()}`,
       userId: 'john-carter',
-      userName: 'John Carter',
+      userName: 'David Chen',
       message,
       timestamp: new Date()
     };
@@ -1866,7 +1866,7 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
                   const pros = [
                     variancePct >= 0 && `Forecast vs prior: ${variancePct >= 0 ? '+' : ''}${variancePct.toFixed(1)}%`,
                     budgetVariancePct >= 0 && `Forecast vs budget: ${budgetVariancePct >= 0 ? '+' : ''}${budgetVariancePct.toFixed(1)}%`,
-                    (historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend positive (3M / 12M)`,
+                    (historical3mPct >= 0 && historical12mPct >= 0) && `Historical trend positive over both 3M and 12M`,
                     marginImpactPct >= 0 && `Margin impact: +${marginImpactPct.toFixed(1)}%`,
                     revenueImpact >= 0 && `Revenue impact: +$${Math.round(revenueImpact).toLocaleString('en-US')}`,
                     capacityUtilization <= 85 && `Capacity within range (${capacityUtilization}%)`,
@@ -2113,7 +2113,7 @@ const CellDetailsHistoryPanel: React.FC<CellDetailsHistoryPanelProps> = ({
                           onChange={(e) => setFilterUser(e.target.value)}
                         >
                           <option value="">All users</option>
-                          <option value="john-carter">John Carter</option>
+                          <option value="john-carter">David Chen</option>
                           <option value="sarah-chen">Sarah Chen</option>
                           <option value="mike-johnson">Mike Johnson</option>
                         </select>

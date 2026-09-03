@@ -157,8 +157,8 @@ const CellEditHistoryCard: React.FC<CellEditHistoryCardProps> = ({ entry, replie
     }
   };
 
-  // Use "John Carter" as the user name, initials "JC"
-  const userName = entry.userName || 'John Carter';
+  // Use "David Chen" as the user name, initials "JC"
+  const userName = entry.userName || 'David Chen';
   const userInitials = getUserInitials(userName);
 
   // For note-only entries, show a truncated preview

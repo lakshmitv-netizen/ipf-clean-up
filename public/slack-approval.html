@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Slack · Acme Inc</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%2336C5F0' d='M9 3a2 2 0 100 4h2V5a2 2 0 00-2-2z'/><path fill='%232EB67D' d='M21 9a2 2 0 10-4 0v2h2a2 2 0 002-2z'/><path fill='%23ECB22E' d='M15 21a2 2 0 100-4h-2v2a2 2 0 002 2z'/><path fill='%23E01E5A' d='M3 15a2 2 0 104 0v-2H5a2 2 0 00-2 2z'/></svg>" />
+  <style>
+    :root {
+      --win-bg: #39063a;          /* title bar */
+      --rail: #2f042f;            /* workspace rail (darkest) */
+      --sidebar: #3f0e40;         /* channel sidebar */
+      --sidebar-text: #cbb8cd;    /* muted lavender */
+      --sidebar-text-strong: #ffffff;
+      --hl-bg: #f9edff;           /* active pill bg */
+      --hl-text: #39063a;
+      --hover: rgba(255,255,255,0.07);
+      --content-pry: #1d1c1d;
+      --content-sec: #454447;
+      --content-ter: #5e5d60;
+      --link: #1264a3;
+      --base-sec: #f8f8f8;
+      --line: #e8e6e9;
+      --new: #e01e5a;
+      --green: #007a5a;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: var(--content-pry);
+      background: #efe9ef;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .win { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ── Title bar ── */
+    .titlebar {
+      height: 44px; background: var(--win-bg); display: flex; align-items: center; gap: 12px;
+      padding: 0 14px; flex-shrink: 0;
+    }
+    .traffic { display: flex; gap: 8px; }
+    .traffic i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+    .traffic .r { background: #ff5f57; }
+    .traffic .y { background: #febc2e; }
+    .traffic .g { background: #28c840; }
+    .tb-icon { color: #d9c2da; opacity: 0.85; display: flex; align-items: center; }
+    .tb-nav { display: flex; align-items: center; gap: 14px; margin-left: 6px; }
+    .tb-search {
+      flex: 1; max-width: 720px; margin: 0 auto; height: 28px; border-radius: 8px;
+      background: rgba(255,255,255,0.16); color: #efdcf0; display: flex; align-items: center; gap: 8px;
+      padding: 0 12px; font-size: 13px;
+    }
+    .tb-right { color: #d9c2da; display: flex; align-items: center; gap: 14px; }
+
+    .body { flex: 1; display: flex; min-height: 0; }
+
+    /* ── Workspace rail ── */
+    .rail {
+      width: 68px; background: var(--rail); display: flex; flex-direction: column; align-items: center;
+      padding: 12px 0 10px; gap: 8px; flex-shrink: 0;
+    }
+    .rail-tile {
+      position: relative; width: 38px; height: 38px; border-radius: 10px;
+      background: linear-gradient(135deg, #ff7a59, #d63649); color: #fff; font-weight: 900; font-size: 17px;
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 3px #2f042f, 0 0 0 5px #7a5a7c;
+    }
+    .rail-badge { position: absolute; top: -5px; right: -6px; min-width: 18px; height: 18px; border-radius: 9px;
+      background: #cd2553; color: #fff; font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--rail); }
+    .rail-nav { display: flex; flex-direction: column; align-items: center; gap: 4px; margin-top: 6px; width: 100%; }
+    .rail-item {
+      width: 46px; padding: 5px 0; border-radius: 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+      color: #d7c4d8; font-size: 10px; cursor: pointer; position: relative;
+    }
+    .rail-item:hover { background: var(--hover); color: #fff; }
+    .rail-item.active .rail-glyph { background: rgba(255,255,255,0.9); color: var(--rail); }
+    .rail-item.active { color: #fff; }
+    .rail-glyph { width: 34px; height: 34px; border-radius: 10px; background: rgba(255,255,255,0.14); display: flex; align-items: center; justify-content: center; }
+    .rail-dot { position: absolute; top: 2px; right: 8px; min-width: 15px; height: 15px; border-radius: 8px; background: #cd2553; color: #fff; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; border: 2px solid var(--rail); padding: 0 3px; }
+    .rail-spacer { flex: 1; }
+    .rail-plus { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.14); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .rail-avatar { width: 30px; height: 30px; border-radius: 7px; background: #b06a2c; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; margin-top: 8px; position: relative; }
+    .rail-avatar::after { content:''; position:absolute; right:-2px; bottom:-2px; width:9px; height:9px; border-radius:50%; background:#2eb67d; border:2px solid var(--rail); }
+
+    /* ── Channel sidebar ── */
+    .side { width: 240px; background: var(--sidebar); display: flex; flex-direction: column; flex-shrink: 0; }
+    .side-head { height: 49px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid rgba(255,255,255,0.13); color: #fff; cursor: pointer; }
+    .side-head .ws { font-weight: 900; font-size: 18px; display: flex; align-items: center; gap: 5px; }
+    .side-head .ws .chev { font-size: 11px; }
+    .side-head .compose { width: 30px; height: 30px; border-radius: 8px; background: #fff; color: var(--sidebar); display:flex; align-items:center; justify-content:center; }
+    .side-scroll { flex: 1; overflow-y: auto; padding: 8px 0 16px; }
+    .side-scroll::-webkit-scrollbar { width: 8px; }
+    .side-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 4px; }
+    .sec { display: flex; align-items: center; gap: 6px; padding: 8px 16px 3px; color: #b39cb4; font-size: 13px; font-weight: 700; }
+    .sec .caret { font-size: 10px; }
+    .item {
+      display: flex; align-items: center; gap: 9px; padding: 3px 16px; font-size: 15px; line-height: 26px;
+      color: var(--sidebar-text); cursor: pointer; white-space: nowrap;
+    }
+    .item:hover { background: var(--hover); }
+    .item .gi { width: 16px; text-align: center; opacity: 0.75; flex-shrink: 0; }
+    .item.unread { color: #fff; font-weight: 700; }
+    .item.active { background: var(--hl-bg); color: var(--hl-text); font-weight: 700; border-radius: 0; }
+    .item.active .gi { opacity: 0.9; }
+    .item .av { width: 20px; height: 20px; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; flex-shrink: 0; position: relative; }
+    .item .av.on::after { content:''; position:absolute; right:-2px; bottom:-2px; width:8px; height:8px; border-radius:50%; background:#2eb67d; border:2px solid var(--sidebar); }
+    .item .count { margin-left: auto; background: #cd2553; color:#fff; font-size:11px; font-weight:800; border-radius:9px; min-width:18px; height:18px; display:flex; align-items:center; justify-content:center; padding:0 5px; }
+    .item .name { overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
+    .main-head { height: 49px; padding: 0 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .main-head .ch { font-weight: 900; font-size: 18px; display: flex; align-items: center; gap: 5px; }
+    .main-head .ch .hash { color: var(--content-ter); }
+    .main-head .topic { color: var(--content-ter); font-size: 13px; }
+    .main-head-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .facepile { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px 2px 4px; }
+    .facepile .stack { display: flex; }
+    .facepile .stack span { width: 22px; height: 22px; border-radius: 5px; margin-left: -3px; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; }
+    .facepile .cnt { margin-left: 4px; font-size: 13px; font-weight: 700; color: var(--content-sec); }
+    .head-icon { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--content-sec); }
+    .head-icon:hover { background: var(--base-sec); }
+
+    .msgs { flex: 1; overflow-y: auto; padding: 16px 0 8px; }
+    .day { display: flex; align-items: center; justify-content: center; position: relative; margin: 4px 0 14px; }
+    .day::before { content: ''; position: absolute; left: 16px; right: 16px; top: 50%; height: 1px; background: var(--line); }
+    .day span { position: relative; background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 3px 13px; font-size: 13px; font-weight: 700; color: var(--content-pry); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
+
+    .new-div { display: flex; align-items: center; margin: 12px 0; }
+    .new-div::before { content: ''; flex: 1; height: 1px; background: var(--new); margin-left: 16px; }
+    .new-div span { color: var(--new); font-size: 12px; font-weight: 800; padding: 0 12px; }
+
+    .msg { display: flex; gap: 10px; padding: 7px 20px; }
+    .msg:hover { background: #f9f9f9; }
+    .m-av { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 14px; overflow: hidden; }
+    .m-body { min-width: 0; flex: 1; }
+    .m-head { display: flex; align-items: baseline; gap: 8px; }
+    .m-author { font-weight: 900; font-size: 15px; color: var(--content-pry); }
+    .m-app { font-size: 10px; font-weight: 700; letter-spacing: 0.02em; color: var(--content-ter); background: #e8e8e8; border-radius: 3px; padding: 1px 5px; text-transform: uppercase; }
+    .m-time { font-size: 12px; color: var(--content-ter); }
+    .m-text { font-size: 15px; line-height: 22px; color: var(--content-pry); margin-top: 2px; }
+    .mention { color: var(--link); background: #e8f2fd; border-radius: 3px; padding: 0 2px; font-weight: 700; }
+
+    .attach { margin-top: 8px; border-left: 4px solid var(--green); background: var(--base-sec); border-radius: 0 8px 8px 0; padding: 12px 15px; max-width: 640px; }
+    .attach-title { font-weight: 900; font-size: 15px; color: var(--content-pry); }
+    .attach-fields { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+    .af .lbl { font-size: 12px; font-weight: 700; color: var(--content-ter); }
+    .af .val { font-size: 14px; color: var(--content-pry); margin-top: 1px; }
+    .af .val strong { color: var(--green); }
+    .af.full { grid-column: 1 / -1; }
+    .attach-foot { margin-top: 11px; font-size: 12px; color: var(--content-ter); }
+    .attach-foot .agent { color: #611f69; font-weight: 700; }
+    .attach-actions { margin-top: 12px; display: flex; gap: 8px; }
+    .btn { height: 30px; padding: 0 14px; border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; border: 1px solid #d0cdd3; background: #fff; color: var(--content-pry); }
+    .btn.primary { background: var(--green); border-color: var(--green); color: #fff; }
+    .btn.primary:hover { background: #05603f; }
+    .btn.link { color: var(--link); border-color: #c9c2cd; }
+
+    .reactions { display: flex; gap: 6px; margin-top: 8px; }
+    .reaction { display: flex; align-items: center; gap: 5px; border: 1px solid #cfe3f7; background: #eaf3fc; border-radius: 12px; padding: 1px 9px; font-size: 12px; color: var(--link); font-weight: 700; }
+    .add-react { width: 26px; height: 22px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; color: var(--content-ter); font-size: 12px; }
+
+    /* ── Composer ── */
+    .composer { padding: 0 20px 22px; flex-shrink: 0; }
+    .composer-box { border: 1px solid #b6b3b8; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .c-toolbar { display: flex; gap: 3px; padding: 7px 10px; border-bottom: 1px solid #eee; color: var(--content-ter); }
+    .c-toolbar span { width: 26px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 4px; font-size: 14px; }
+    .c-toolbar span:hover { background: var(--base-sec); }
+    .c-input { padding: 11px 12px; color: #8d8a8f; font-size: 15px; }
+    .c-bottom { display: flex; align-items: center; justify-content: flex-end; padding: 6px 10px; }
+    .c-send { width: 30px; height: 28px; border-radius: 6px; background: var(--green); color: #fff; display: flex; align-items: center; justify-content: center; }
+
+    /* ── Typing indicator (grey text above composer) ── */
+    .typing { padding: 0 20px 6px; min-height: 18px; font-size: 12.5px; color: var(--content-ter); display: flex; align-items: center; gap: 7px; }
+    .typing b { font-weight: 800; color: var(--content-sec); }
+    .typing .dots { display: inline-flex; gap: 3px; align-items: center; }
+    .typing .dots i { width: 5px; height: 5px; border-radius: 50%; background: #8d8a8f; display: block; animation: tping 1.2s infinite; }
+    .typing .dots i:nth-child(2) { animation-delay: 0.18s; }
+    .typing .dots i:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes tping { 0%, 60%, 100% { opacity: 0.25; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-2px); } }
+
+    /* ── Choreographed message entrance + Slackbot actions ── */
+    .msg.enter { animation: msgIn 0.3s ease; }
+    @keyframes msgIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+    .sb-actions { margin-top: 11px; display: flex; gap: 8px; align-items: center; }
+    .btn.sm { height: 30px; }
+  </style>
+</head>
+<body>
+  <div class="win">
+    <!-- Title bar -->
+    <div class="titlebar">
+      <div class="traffic"><i class="r"></i><i class="y"></i><i class="g"></i></div>
+      <span class="tb-icon" title="Toggle sidebar">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="9" y1="4" x2="9" y2="20"/></svg>
+      </span>
+      <div class="tb-nav">
+        <span class="tb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg></span>
+        <span class="tb-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></span>
+        <span class="tb-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg></span>
+      </div>
+      <div class="tb-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+        Search Acme Inc
+      </div>
+      <div class="tb-right">
+        <span class="tb-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .7-1 1.7"/><line x1="12" y1="17" x2="12" y2="17"/></svg></span>
+      </div>
+    </div>
+
+    <div class="body">
+      <!-- Workspace rail -->
+      <div class="rail">
+        <div class="rail-tile">A<span class="rail-badge">2</span></div>
+        <div class="rail-nav">
+          <div class="rail-item active"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></span>Home</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span><span class="rail-dot">1</span>DMs</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span><span class="rail-dot">1</span>Activity</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M13 2v7h7"/></svg></span>Files</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 3h14a1 1 0 0 1 1 1v16l-8-4-8 4V4a1 1 0 0 1 1-1z"/></svg></span>Later</div>
+          <div class="rail-item"><span class="rail-glyph" style="background:#611f69;"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg></span>Agentforce</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>Tools</div>
+          <div class="rail-item"><span class="rail-glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></span>More</div>
+        </div>
+        <div class="rail-spacer"></div>
+        <div class="rail-plus">+</div>
+        <div class="rail-avatar">DC</div>
+      </div>
+
+      <!-- Channel sidebar -->
+      <div class="side">
+        <div class="side-head">
+          <span class="ws">Acme Inc <span class="chev">▾</span></span>
+          <span class="compose"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></span>
+        </div>
+        <div class="side-scroll">
+          <div class="item unread"><span class="gi">#</span><span class="name">announcements</span></div>
+          <div class="item"><span class="gi">#</span><span class="name">general</span></div>
+          <div class="item"><span class="gi">#</span><span class="name">sales-ops</span></div>
+          <div class="item"><span class="gi">🔒</span><span class="name">deal-desk</span></div>
+
+          <div class="sec" style="margin-top:8px;"><span class="caret">▾</span> 🚗 EV Program</div>
+          <div class="item"><span class="gi">#</span><span class="name">ev-program</span></div>
+          <div class="item"><span class="gi">🔒</span><span class="name">ev-program-leads</span></div>
+
+          <div class="sec" style="margin-top:8px;"><span class="caret">▾</span> Channels</div>
+          <div class="item active"><span class="gi">#</span><span class="name" id="sideChan">midwest-sales-ops</span></div>
+          <div class="item"><span class="gi">#</span><span class="name">forecasting</span></div>
+          <div class="item"><span class="gi">#</span><span class="name">supply-chain</span></div>
+
+          <div class="sec" style="margin-top:8px;"><span class="caret">▾</span> Direct messages</div>
+          <div class="item unread"><span class="av on" style="background:#611f69;"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg></span><span class="name">Agentforce</span><span class="count">1</span></div>
+          <div class="item"><span class="av" style="background:#b06a2c;">DC</span><span class="name" id="sideYou">David Chen</span> <span style="opacity:.55;margin-left:4px;">you</span></div>
+          <div class="item"><span class="av" style="background:#1264a3;">RM</span><span class="name">Rita Menon</span></div>
+
+          <div class="sec" style="margin-top:8px;"><span class="caret">▾</span> Agents</div>
+          <div class="item"><span class="av" style="background:#0b827c;"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="8" width="14" height="10" rx="3"/><circle cx="9.5" cy="13" r="1.3" fill="#0b827c"/><circle cx="14.5" cy="13" r="1.3" fill="#0b827c"/></svg></span><span class="name">Forecast &amp; Risk Agent</span></div>
+          <div class="item"><span class="av" style="background:#9050e0;"><svg width="12" height="12" viewBox="0 0 24 24" fill="#fff"><rect x="5" y="8" width="14" height="10" rx="3"/><circle cx="9.5" cy="13" r="1.3" fill="#9050e0"/><circle cx="14.5" cy="13" r="1.3" fill="#9050e0"/></svg></span><span class="name">Next-Best-Action Agent</span></div>
+
+          <div class="sec" style="margin-top:8px;"><span class="caret">▾</span> Apps</div>
+          <div class="item"><span class="av" style="background:#00a1e0;">☁︎</span><span class="name">Salesforce</span></div>
+          <div class="item"><span class="av" style="background:#1a73e8;">📅</span><span class="name">Google Calendar</span></div>
+          <div class="item"><span class="av" style="background:#e8622c;">📊</span><span class="name">Tableau</span></div>
+        </div>
+      </div>
+
+      <!-- Main channel -->
+      <div class="main">
+        <div class="main-head">
+          <div class="ch"><span class="hash">#</span> <span id="headChan">midwest-sales-ops</span></div>
+          <div class="topic" style="border-left:1px solid var(--line); padding-left:12px;">Midwest sales agreements, amendments &amp; approvals</div>
+          <div class="main-head-right">
+            <div class="facepile">
+              <div class="stack">
+                <span style="background:#611f69;"><svg width="11" height="11" viewBox="0 0 24 24" fill="#fff"><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z"/></svg></span>
+                <span style="background:#b06a2c;">DC</span>
+                <span style="background:#1264a3;">RM</span>
+              </div>
+              <span class="cnt">8</span>
+            </div>
+            <span class="head-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
+            <span class="head-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/></svg></span>
+          </div>
+        </div>
+
+        <div class="msgs">
+          <div class="day"><span>Today</span></div>
+
+          <div class="new-div"><span>New</span></div>
+
+          <!-- David requests approval -->
+          <div class="msg">
+            <div class="m-av" style="background:#b06a2c;">DC</div>
+            <div class="m-body">
+              <div class="m-head"><span class="m-author" id="reqAuthor">David Chen</span><span class="m-time" id="msgTime">Today at 10:18 AM</span></div>
+              <div class="m-text"><span class="mention" id="mention">@Rita Menon</span> — requesting your approval on the Midwest Sales Agreement amendment below. The predicted baseline has the E-Motor Housing ramp running <strong id="mentionPct">~18%</strong> above our committed agreement volume — that upside isn't under contract yet. My Next-Best-Action Agent drafted this amendment from the FY26 plan I just saved to capture it as committed pipeline.</div>
+
+              <div class="attach">
+                <div class="attach-title">✋ Approval requested — Midwest Sales Agreement amendment</div>
+                <div class="attach-fields">
+                  <div class="af"><div class="lbl">Account</div><div class="val" id="fAccount">Acme Partners · Midwest Assembly</div></div>
+                  <div class="af"><div class="lbl">Line</div><div class="val" id="fLine">E-Motor Housing (EV program)</div></div>
+                  <div class="af"><div class="lbl">Volume</div><div class="val" id="fVolume">—</div></div>
+                  <div class="af"><div class="lbl">Effective</div><div class="val">FY26 · remaining periods</div></div>
+                  <div class="af"><div class="lbl">Requested by</div><div class="val" id="fRequester">David Chen</div></div>
+                  <div class="af"><div class="lbl">Approver</div><div class="val" id="fApprover">Rita Menon</div></div>
+                  <div class="af full"><div class="lbl">Why</div><div class="val" id="fWhy">—</div></div>
+                </div>
+                <div class="attach-foot">Drafted from the saved FY26 plan · floored by the current agreement · <span class="agent">Next-Best-Action Agent</span></div>
+                <div class="attach-actions">
+                  <button class="btn primary">Approve amendment</button>
+                  <button class="btn">Request changes</button>
+                  <button class="btn link">Open in Salesforce ↗</button>
+                </div>
+              </div>
+
+              <div class="reactions">
+                <div class="reaction">👀 2</div>
+                <div class="reaction">✅ 1</div>
+                <div class="add-react">＋</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Approver reply -->
+          <div class="msg">
+            <div class="m-av" style="background:#1264a3;">RM</div>
+            <div class="m-body">
+              <div class="m-head"><span class="m-author" id="replyAuthor">Rita Menon</span><span class="m-time">10:24 AM</span></div>
+              <div class="m-text" id="replyText">Thanks David — numbers line up with the plan you saved. Reviewing the terms now, will approve shortly. 👍</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Typing indicator -->
+        <div class="typing" id="typing" style="visibility:hidden;"></div>
+
+        <!-- Composer -->
+        <div class="composer">
+          <div class="composer-box">
+            <div class="c-toolbar">
+              <span style="font-weight:800;">B</span><span style="font-style:italic;">I</span><span style="text-decoration:line-through;">S</span><span>🔗</span><span>≣</span><span>@</span><span>😊</span><span>🎥</span><span>🎙</span>
+            </div>
+            <div class="c-input">Message #<span id="composerChan">midwest-sales-ops</span></div>
+            <div class="c-bottom">
+              <div class="c-send"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const p = new URLSearchParams(window.location.search);
+      const nfmt = (v) => { const n = Number(v); return isFinite(n) ? n.toLocaleString('en-US') : v; };
+      const channel = p.get('channel') || 'midwest-sales-ops';
+      const account = p.get('account') || 'Acme Partners · Midwest Assembly';
+      const line = p.get('line') || 'E-Motor Housing (EV program)';
+      const committed = p.get('committed');
+      const proposed = p.get('proposed');
+      const pct = p.get('pct') || '18';
+
+      const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+      set('sideChan', channel); set('headChan', channel); set('composerChan', channel);
+      set('fAccount', account); set('fLine', line);
+      set('mentionPct', '~' + pct + '%');
+      // Personas are fixed for this story — David Chen (seller) requests, Rita Menon (sales
+      // leader) approves — so the names stay hardcoded in the markup and aren't overridden by
+      // params (only the deal data is dynamic). Keeps the request↔approval framing correct.
+      document.title = 'Slack · #' + channel;
+
+      const volEl = document.getElementById('fVolume');
+      if (volEl) {
+        volEl.innerHTML = (committed && proposed)
+          ? nfmt(committed) + ' → ' + nfmt(proposed) + ' units (<strong>+' + pct + '%</strong>)'
+          : '+<strong>' + pct + '%</strong> uplift';
+      }
+      set('fWhy', 'Predicted baseline is ~' + pct + '% above the committed agreement. Capturing the upside as pipeline.');
+
+      const now = new Date();
+      set('msgTime', 'Today at ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
+
+      // ── Approval choreography ──────────────────────────────────────────────
+      // load → (5s) → "Rita Menon is typing…" (5s) → Rita approves →
+      // Slackbot offers to update the plan → user Yes → Slackbot confirms ripple
+      // → user "Review in grid" → navigate to the FY26 Acme grid with the amendment.
+      const msgs = document.querySelector('.msgs');
+      const typing = document.getElementById('typing');
+      const scrollDown = () => { if (msgs) msgs.scrollTop = msgs.scrollHeight; };
+      const nowTime = () => new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+
+      const RM_AV = '<div class="m-av" style="background:#1264a3;">RM</div>';
+      const SB_AV = '<div class="m-av" style="background:#4a154b;">'
+        + '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+        + '<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V5"/>'
+        + '<circle cx="12" cy="3.4" r="1.4" fill="#fff" stroke="none"/>'
+        + '<circle cx="9.4" cy="13.5" r="1.25" fill="#fff" stroke="none"/>'
+        + '<circle cx="14.6" cy="13.5" r="1.25" fill="#fff" stroke="none"/></svg></div>';
+
+      function addMsg(av, author, isApp, bodyHtml) {
+        const el = document.createElement('div');
+        el.className = 'msg enter';
+        el.innerHTML = av
+          + '<div class="m-body"><div class="m-head"><span class="m-author">' + author + '</span>'
+          + (isApp ? '<span class="m-app">APP</span>' : '')
+          + '<span class="m-time">' + nowTime() + '</span></div>' + bodyHtml + '</div>';
+        if (msgs) msgs.appendChild(el);
+        scrollDown();
+        return el;
+      }
+      function showTyping(name) {
+        typing.innerHTML = '<b>' + name + '</b> is typing<span class="dots"><i></i><i></i><i></i></span>';
+        typing.style.visibility = 'visible';
+        scrollDown();
+      }
+      function hideTyping() { typing.style.visibility = 'hidden'; typing.innerHTML = ''; }
+
+      function onReview(btn) {
+        if (btn) { btn.disabled = true; btn.style.opacity = '0.65'; btn.textContent = 'Opening grid…'; }
+        // Preferred: hand control back to the app tab that opened this screen —
+        // tell it to load the amended grid, bring it forward, and close this tab.
+        const opener = window.opener;
+        if (opener && !opener.closed) {
+          try {
+            opener.postMessage({ type: 'cpm-slack-amendment', amendment: 'emotor' }, window.location.origin);
+            try { opener.focus(); } catch (e) { /* focus may be blocked */ }
+            setTimeout(function () { try { window.close(); } catch (e) { /* ignore */ } }, 200);
+            return;
+          } catch (e) { /* fall through to same-tab navigation */ }
+        }
+        // Fallback (opener gone / blocked): navigate this tab to the grid.
+        const base = window.location.pathname.replace(/[^/]*$/, '');
+        setTimeout(function () {
+          window.location.href = base + 'home/manufacturing-acme?amendment=emotor';
+        }, 650);
+      }
+
+      function onUpdate(actions) {
+        actions.innerHTML = '<button class="btn primary sm" disabled style="opacity:0.65;">✓ Updating…</button>';
+        setTimeout(function () {
+          actions.remove();
+          const done = addMsg(SB_AV, 'Slackbot', true,
+            '<div class="m-text"><strong>Done ✅</strong> — I pushed the amended E-Motor Housing volume into <strong>Sales Manager Target Quantity</strong>. The change rippled up across <strong>6 impacted cells</strong> (Midwest Assembly → Acme Partners rollups). Want to review the edited &amp; impacted cells in the grid before you save?</div>'
+            + '<div class="sb-actions"><button class="btn primary sm" id="btnReview">Yes, review in grid ↗</button></div>');
+          const rv = done.querySelector('#btnReview');
+          rv.addEventListener('click', function () { onReview(rv); });
+        }, 1600);
+      }
+
+      // Step 1: after 5s, Rita starts typing
+      setTimeout(function () {
+        showTyping('Rita Menon');
+        // Step 2: after ~5s of typing, Rita approves
+        setTimeout(function () {
+          hideTyping();
+          addMsg(RM_AV, 'Rita Menon', false,
+            '<div class="m-text">Approved ✅ — the terms look right, David. Locking in the <strong>+' + pct + '%</strong> E-Motor Housing volume as committed FY26 pipeline. Great catch. 🚀</div>');
+          // Step 3: Slackbot offers to update the plan
+          setTimeout(function () {
+            const bot = addMsg(SB_AV, 'Slackbot', true,
+              '<div class="m-text">Nice — the amendment is <strong>approved</strong>. Want me to push the updated E-Motor Housing volumes into <strong>Sales Manager Target Quantity</strong> on the FY26 Acme Partners plan?</div>'
+              + '<div class="sb-actions"><button class="btn primary sm" id="btnUpdate">Yes, update the plan</button><button class="btn sm">Not now</button></div>');
+            const actions = bot.querySelector('.sb-actions');
+            bot.querySelector('#btnUpdate').addEventListener('click', function () { onUpdate(actions); });
+          }, 1400);
+        }, 5000);
+      }, 5000);
+    })();
+  </script>
+</body>
+</html>

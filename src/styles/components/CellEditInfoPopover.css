@@ -9,6 +9,83 @@
   padding: 14px;
 }
 
+/* Arc 5 risk banner merged into the edit-info popover */
+.cell-edit-info-risk {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: #feeceb;
+  border: 1px solid #f5c4c0;
+  border-radius: 6px;
+}
+.cell-edit-info-risk-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ba0517;
+}
+.cell-edit-info-risk-body {
+  margin-top: 4px;
+  /* Align with the title text (icon 14px + 6px gap) */
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--slds-g-color-on-surface-2, #444);
+}
+.cell-edit-info-risk-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  margin-left: 20px;
+  padding: 0;
+  background: none;
+  color: var(--slds-g-color-accent-3, #0176d3);
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--slds-g-font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  cursor: pointer;
+}
+.cell-edit-info-risk-cta:hover {
+  text-decoration: underline;
+}
+
+/* Impacted-cell popover: the next-best-action CTA sits at the bottom (no See Details / View history). */
+.cell-edit-info-bottom-cta {
+  display: flex;
+  justify-content: center;
+  padding-top: 2px;
+}
+.cell-edit-info-bottom-cta .cell-edit-info-risk-cta {
+  margin: 0;
+}
+
+.cell-edit-info-resolved {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: #ebf7ee;
+  border: 1px solid #b8e0c4;
+  border-radius: 6px;
+}
+.cell-edit-info-resolved-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2e844a;
+}
+.cell-edit-info-resolved-body {
+  margin-top: 4px;
+  /* Align with the title text (icon 14px + 6px gap) */
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--slds-g-color-on-surface-2, #444);
+}
+
 .cell-edit-info-popover-nubbin {
   position: absolute;
   top: -8px;
@@ -107,6 +184,93 @@
   line-height: 1.4;
   margin-top: 10px;
   margin-left: 42px;
+}
+
+.cell-edit-info-impact-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--slds-g-color-neutral-base-40);
+  line-height: 1.4;
+  margin-top: 8px;
+  margin-left: 42px;
+}
+
+.cell-edit-info-impact-note strong {
+  font-weight: 600;
+  color: var(--slds-g-color-neutral-base-10);
+}
+
+/* Info icon + hover/focus tooltip describing the cell's route (measure · period · path). */
+.cell-edit-info-route {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: var(--slds-g-color-neutral-base-40);
+  cursor: help;
+  outline: none;
+}
+
+.cell-edit-info-route:hover,
+.cell-edit-info-route:focus-visible {
+  color: var(--slds-g-color-accent-1, #0176d3);
+}
+
+.cell-edit-info-route-tooltip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  min-width: 200px;
+  max-width: 240px;
+  display: none;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  background: #16325c;
+  color: #fff;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.cell-edit-info-route:hover .cell-edit-info-route-tooltip,
+.cell-edit-info-route:focus-visible .cell-edit-info-route-tooltip {
+  display: flex;
+}
+
+.cell-edit-info-route-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-bottom-color: #16325c;
+}
+
+.cell-edit-info-route-row {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.cell-edit-info-route-key {
+  flex: 0 0 46px;
+  color: rgba(255, 255, 255, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 10px;
+}
+
+.cell-edit-info-route-val {
+  flex: 1 1 auto;
+  color: #fff;
+  font-weight: 600;
 }
 
 .cell-edit-info-change-text strong {
