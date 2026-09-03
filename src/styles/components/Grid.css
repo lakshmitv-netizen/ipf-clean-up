@@ -2727,6 +2727,19 @@ button.chevron-icon {
   background: #8e0f0b !important;
 }
 
+/* DF demo "below committed agreement" hover popover: anchored to the warning icon (left-aligned
+   nubbin, not centered), slightly wider to fit the two-line explanation. */
+.cell-agreement-risk-tooltip {
+  width: 268px;
+}
+.cell-agreement-risk-tooltip .cell-risk-tooltip-nubbin {
+  left: 26px;
+  transform: rotate(45deg);
+}
+.cell-agreement-risk-tooltip .cell-risk-tooltip-title svg {
+  flex-shrink: 0;
+}
+
 .cell-value-cell.impacted-cell {
   background: var(--slds-g-color-palette-yellow-95) !important;
   border-top: 1px solid var(--slds-g-color-neutral-base-80) !important;

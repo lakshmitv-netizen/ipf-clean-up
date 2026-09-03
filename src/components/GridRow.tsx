@@ -219,6 +219,12 @@ interface GridRowProps {
   // the red warning becomes a green checkmark until the save commits it back to a normal cell.
   riskResolved?: boolean;
   onViewNextBestAction?: () => void;
+  // DF demo: cells whose Order Quantity is below the committed sales agreement. Rendered with a
+  // red left bar + warning icon; hovering the icon shows a popover explaining the shortfall and a
+  // "✦ Expand hierarchy to see root cause" CTA that expands all rows (via onAgreementRiskExpand).
+  // Independent of the Arc-5 riskCellKeys path (different narrative + hover-not-click behaviour).
+  agreementRiskCellKeys?: Set<string>;
+  onAgreementRiskExpand?: () => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
   onAskAgentforce?: (payload: {
@@ -1255,6 +1261,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   chartActiveRowId,
   riskResolved,
   onViewNextBestAction,
+  agreementRiskCellKeys,
+  onAgreementRiskExpand,
   onAskAgentforce,
   savedImpactedCells = new Set<string>(),
   columnWidth = 100,
@@ -1534,6 +1542,28 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   const [showReadonlyWarning, setShowReadonlyWarning] = useState(false);
   const [warningPopoverPosition, setWarningPopoverPosition] = useState<{ top: number; left: number } | null>(null);
   const warningIconRef = useRef<HTMLButtonElement>(null);
+  // DF demo "below committed agreement" hover popover (anchored to the warning icon).
+  const [agreementTip, setAgreementTip] = useState<{ top: number; left: number } | null>(null);
+  const agreementTipCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const openAgreementTip = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    if (agreementTipCloseTimerRef.current) {
+      clearTimeout(agreementTipCloseTimerRef.current);
+      agreementTipCloseTimerRef.current = null;
+    }
+    const r = e.currentTarget.getBoundingClientRect();
+    // Anchor the popover just below the icon, nudged left so its nubbin sits over the icon.
+    setAgreementTip({ top: r.bottom + 9, left: r.left + r.width / 2 - 26 });
+  }, []);
+  const closeAgreementTipDeferred = useCallback(() => {
+    if (agreementTipCloseTimerRef.current) clearTimeout(agreementTipCloseTimerRef.current);
+    agreementTipCloseTimerRef.current = setTimeout(() => setAgreementTip(null), 140);
+  }, []);
+  const keepAgreementTipOpen = useCallback(() => {
+    if (agreementTipCloseTimerRef.current) {
+      clearTimeout(agreementTipCloseTimerRef.current);
+      agreementTipCloseTimerRef.current = null;
+    }
+  }, []);
   const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
   const [showMeasureMenu, setShowMeasureMenu] = useState(false);
   const [measureMenuPosition, setMeasureMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -2590,6 +2620,59 @@ const GridRowComponent: React.FC<GridRowProps> = ({
         {riskResolvedSvg}
       </span>
     ) : null;
+
+    // DF demo: "below committed agreement" cell — same red chrome as the Arc-5 risk cell, but the
+    // warning icon opens a hover popover (not a click flow) whose CTA expands the hierarchy.
+    const isAgreementRiskCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey);
+    const runAgreementExpand = () => { setAgreementTip(null); onAgreementRiskExpand?.(); };
+    const agreementRiskMarker = (
+      <>
+        <span
+          className="cell-risk-warning"
+          role="button"
+          tabIndex={0}
+          aria-label="Below committed agreement — expand hierarchy to see root cause"
+          onMouseEnter={openAgreementTip}
+          onMouseLeave={closeAgreementTipDeferred}
+          onFocus={(e) => openAgreementTip(e as unknown as React.MouseEvent<HTMLElement>)}
+          onBlur={closeAgreementTipDeferred}
+          onClick={(e) => { e.stopPropagation(); runAgreementExpand(); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); runAgreementExpand(); } }}
+        >
+          {riskWarningSvg}
+        </span>
+        {isAgreementRiskCell && agreementTip && createPortal(
+          <div
+            className="cell-risk-tooltip cell-agreement-risk-tooltip"
+            style={{ position: 'fixed', top: agreementTip.top, left: agreementTip.left, zIndex: 10001 }}
+            onMouseEnter={keepAgreementTipOpen}
+            onMouseLeave={closeAgreementTipDeferred}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cell-risk-tooltip-nubbin" />
+            <div className="cell-risk-tooltip-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2 L22 20 H2 Z" fill="#ba0517" />
+                <rect x="11" y="9" width="2" height="6" rx="1" fill="#fff" />
+                <rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff" />
+              </svg>
+              Below committed agreement
+            </div>
+            <div className="cell-risk-tooltip-body">
+              This value is much lower than expected — several products sold in this region have order
+              quantities well below what was committed in the sales agreement.
+            </div>
+            <button type="button" className="cell-risk-tooltip-cta" onClick={runAgreementExpand}>
+              <span aria-hidden="true">✦</span> Expand hierarchy to see root cause
+            </button>
+          </div>,
+          document.body,
+        )}
+      </>
+    );
+    // Which marker (if any) to place in the cell's left-icon slot, and whether to place one at all.
+    const showLeftRiskMarker = isRiskActive || isRiskResolved || isAgreementRiskCell;
+    const placedRiskMarker = isAgreementRiskCell ? agreementRiskMarker : riskMarker;
 
     // Filtered-out aggregate rows (visible-only totals): read-only cell chrome
     if (isFilterSummaryReadonly) {
@@ -3701,7 +3784,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
         <>
           <div className="cell-value-wrapper-edited-container">
             <div className="cell-value-left-icon">
-              {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
+              {showLeftRiskMarker ? placedRiskMarker : renderStandardValueLeftIcon(isCellLocked)}
             </div>
             <div className="cell-value-left-section">
               {deltaPercent !== null && Math.abs(deltaPercent) > 0.001 && (
@@ -3754,7 +3837,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
         <>
           <div className="cell-value-wrapper-edited-container">
             <div className="cell-value-left-icon">
-              {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
+              {showLeftRiskMarker ? placedRiskMarker : renderStandardValueLeftIcon(isCellLocked)}
             </div>
             <div className="cell-value-left-section">
               {deltaPercent !== null && Math.abs(deltaPercent) > 0.001 && (
@@ -3818,7 +3901,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                     : `cell-value-left-icon ${!isCellLocked ? (isIncrease ? 'cell-arrow-increase' : 'cell-arrow-decrease') : ''}`
               }
             >
-              {isRiskCell ? riskMarker : (approvalStampButtonEl ??
+              {showLeftRiskMarker ? placedRiskMarker : (approvalStampButtonEl ??
                 (isCellLocked ? (
                   lockIconSvg
                 ) : isGrid264Ux ? (
@@ -3857,7 +3940,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       <>
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
           <div className="cell-value-left-icon">
-            {isRiskCell ? riskMarker : renderStandardValueLeftIcon(isCellLocked)}
+            {showLeftRiskMarker ? placedRiskMarker : renderStandardValueLeftIcon(isCellLocked)}
           </div>
           <span 
             className="cell-value"
@@ -5015,9 +5098,11 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 const impactedOriginalValue = isDesignSystemRulesEnabled ? impactedCells?.get(cellKeyForCheck) : undefined;
                 const savedIconColorCheck = isDesignSystemRulesEnabled ? savedEditedCells?.get(cellKeyForCheck) : undefined;
                 const isSavedEditedCheck = savedIconColorCheck !== undefined;
-                const inRiskSet = !!riskCellKeys && (riskCellKeys.has(cellKeyForCheck) || riskCellKeys.has(cellKey));
-                const isRiskCellCheck = inRiskSet && !riskResolved;
-                const isRiskResolvedCheck = inRiskSet && !!riskResolved;
+                const inAgreementRiskSet = !!agreementRiskCellKeys && (agreementRiskCellKeys.has(cellKeyForCheck) || agreementRiskCellKeys.has(cellKey));
+                const inRiskSet = (!!riskCellKeys && (riskCellKeys.has(cellKeyForCheck) || riskCellKeys.has(cellKey)));
+                // DF-demo agreement-risk cells always read as an active (unresolved) red cell.
+                const isRiskCellCheck = (inRiskSet && !riskResolved) || inAgreementRiskSet;
+                const isRiskResolvedCheck = inRiskSet && !inAgreementRiskSet && !!riskResolved;
             if (editedOriginalValue !== undefined) return `edited-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
             if (impactedOriginalValue !== undefined) return `impacted-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
             if (isSavedEditedCheck) return isRiskCellCheck ? 'risk-cell' : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');

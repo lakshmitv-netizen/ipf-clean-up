@@ -315,6 +315,8 @@ interface HierarchicalGridProps {
   chartActiveRowId?: string | null; // Optional: row whose chart is open in the Charts panel — gets a faint translucent-blue background.
   riskResolved?: boolean; // Arc 5: amendment approved (pre-save) — show a green checkmark instead of the red warning
   onViewNextBestAction?: () => void; // Arc 5: launch the agent flow from the risk cell tooltip
+  agreementRiskCellKeys?: Set<string>; // DF demo: Order Quantity cells below the committed sales agreement — red bar + warning icon + hover popover
+  onAgreementRiskExpand?: () => void; // DF demo: CTA on the agreement-risk popover — expand all rows to reveal the product-level root cause
   onAskAgentforce?: (payload: { question: string; answer: string; bullets: string[]; apply?: { label: string; run: () => void } }) => void; // Cell edit popover: ask Agentforce for a recommendation in the side panel
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
   onClearAllFilters?: (handler: () => void) => void; // Callback to register clear all filters handler
@@ -454,6 +456,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   chartActiveRowId,
   riskResolved,
   onViewNextBestAction,
+  agreementRiskCellKeys,
+  onAgreementRiskExpand,
   onAskAgentforce,
   onResetColumnWidths,
   onClearAllFilters,
@@ -5485,6 +5489,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     chartActiveRowId={chartActiveRowId}
                     riskResolved={riskResolved}
                     onViewNextBestAction={onViewNextBestAction}
+                    agreementRiskCellKeys={agreementRiskCellKeys}
+                    onAgreementRiskExpand={onAgreementRiskExpand}
                     onAskAgentforce={onAskAgentforce}
                     savedImpactedCells={savedImpactedCells}
                     columnWidth={columnWidth}
@@ -5596,6 +5602,8 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                   chartActiveRowId={chartActiveRowId}
                   riskResolved={riskResolved}
                   onViewNextBestAction={onViewNextBestAction}
+                  agreementRiskCellKeys={agreementRiskCellKeys}
+                  onAgreementRiskExpand={onAgreementRiskExpand}
                   onAskAgentforce={onAskAgentforce}
                   savedImpactedCells={savedImpactedCells}
                   columnWidth={columnWidth}

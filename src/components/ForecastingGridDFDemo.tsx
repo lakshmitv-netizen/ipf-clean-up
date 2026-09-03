@@ -487,6 +487,29 @@ const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
   },
 ];
 
+// DF demo: the Order Quantity cells that fall below the committed sales agreement. These mirror the
+// three pink conditional-formatting rules above (same measure/month/level thresholds), so the set of
+// decorated cells is exactly the set of pink cells. Each gets a red left bar + warning icon + hover
+// popover (rendered by GridRow); the popover CTA expands the whole hierarchy to reveal the product
+// root cause. Thresholds are keyed by hierarchy depth: 0=account, 1=category, 2=product.
+const DF_AGREEMENT_MONTH_KEY = 'oct2026';
+const DF_AGREEMENT_THRESHOLDS = [625, 94, 9];
+function computeAgreementRiskCellKeys(data: MeasureData[]): Set<string> {
+  const keys = new Set<string>();
+  const measure = (data || []).find((m) => m.id === 'measure-order-qty');
+  if (!measure) return keys;
+  const walk = (nodes: GridRow[] | undefined, depth: number): void => {
+    const threshold = DF_AGREEMENT_THRESHOLDS[depth];
+    (nodes || []).forEach((n) => {
+      const v = Number((n.values as Record<string, number>)?.[DF_AGREEMENT_MONTH_KEY] ?? Infinity);
+      if (threshold !== undefined && v < threshold) keys.add(`${n.id}-${DF_AGREEMENT_MONTH_KEY}`);
+      if (n.children && n.children.length) walk(n.children, depth + 1);
+    });
+  };
+  walk(measure.children, 0);
+  return keys;
+}
+
 import '../styles/components/Grid.css';
 /* Segmented approver decision control (reused in GridRow edit popover) */
 import '../styles/pages/PlanningForecastingPage.css';
@@ -3313,6 +3336,10 @@ const ForecastingGridDFDemo: React.FC = () => {
   // E-Motor Housing leaf. Captured when the edit is made, promoted (as the full lineage) on save.
   // Declared here (ahead of handleCellFocusWithHistory) so it exists before that callback's deps run.
   const [riskCellKeys, setRiskCellKeys] = useState<Set<string>>(new Set());
+
+  // DF demo: Order Quantity cells below the committed sales agreement (the pink cells) — decorated
+  // by GridRow with a red bar + warning icon + hover popover. Recomputed whenever the data changes.
+  const agreementRiskCellKeys = useMemo(() => computeAgreementRiskCellKeys(data), [data]);
 
   // Handler for showing edit info popover when a cell is focused
   // Check both draft and saved edit history
@@ -6599,6 +6626,8 @@ const ForecastingGridDFDemo: React.FC = () => {
               setArc5AutoStart(ARC5_START_PROMPT);
               openAgentforce();
             }}
+            agreementRiskCellKeys={agreementRiskCellKeys}
+            onAgreementRiskExpand={() => { expandAllRef.current?.(); }}
             onAskAgentforce={(payload) => {
               setIsAlertsOpen(false);
               setAgentCellQA(payload);
