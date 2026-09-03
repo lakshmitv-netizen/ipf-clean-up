@@ -334,6 +334,7 @@ const DEFAULT_VISIBLE_MEASURE_IDS = new Set([
   'measure-sa-rev',
   'measure-opp-qty',
   'measure-opp-rev',
+  'measure-pred-forecast-qty',
   'measure-order-qty',
   'measure-order-rev',
   'measure-ly-order-qty',

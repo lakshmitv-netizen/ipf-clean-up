@@ -793,6 +793,45 @@ const dfDemoData: MeasureData[] = (() => {
     dfRollupMeasureTotal(saMeasure);
   }
 
+  // ── 5. ✦ Predictive Forecasted Quantity — a model row shown just above Order ──
+  // Quantity on default load. Every cell sits within ±5% of the matching Last Year
+  // Order Quantity value (deterministic per-leaf jitter, so numbers are stable across
+  // reloads), then rolled up bottom-up so parents stay consistent with their leaves.
+  const lyOrderMeasure = clone.find((mm) => mm.id === 'measure-ly-order-qty');
+  if (lyOrderMeasure) {
+    const OLD_ID = 'measure-ly-order-qty';
+    const NEW_ID = 'measure-pred-forecast-qty';
+    // Deterministic factor in [0.95, 1.05] from a string seed (FNV-1a hash).
+    const dfBandFactor = (seed: string): number => {
+      let h = 2166136261;
+      for (let i = 0; i < seed.length; i += 1) {
+        h ^= seed.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return 0.95 + (((h >>> 0) % 1001) / 1000) * 0.1; // 0.95 … 1.05
+    };
+    const predMeasure: MeasureData = JSON.parse(JSON.stringify(lyOrderMeasure));
+    // Re-id every row (so the new measure's cells are unique) and jitter each row's
+    // months by ±5% against its Last-Year counterpart. The base hierarchy stores
+    // authored totals per level (parents are NOT strict leaf rollups), so we jitter
+    // each level in place — keeping every displayed row within ±5% of Last Year —
+    // and rederive that row's quarter/half/year aggregates from its own months.
+    const rebuild = (row: GridRow): void => {
+      if (typeof row.id === 'string') row.id = row.id.split(OLD_ID).join(NEW_ID);
+      const v = row.values as Record<string, number>;
+      DF_MONTH_KEYS.forEach((mk) => {
+        v[mk] = r(Number(v[mk] ?? 0) * dfBandFactor(`${row.id}|${mk}`));
+      });
+      dfRederiveAggregates(v);
+      if (row.children && row.children.length) row.children.forEach(rebuild);
+    };
+    rebuild(predMeasure as unknown as GridRow);
+    predMeasure.name = '✦ Predictive Forecasted Quantity';
+
+    const orderIdx = clone.findIndex((mm) => mm.id === 'measure-order-qty');
+    clone.splice(orderIdx >= 0 ? orderIdx : clone.length, 0, predMeasure);
+  }
+
   return clone;
 })();
 
