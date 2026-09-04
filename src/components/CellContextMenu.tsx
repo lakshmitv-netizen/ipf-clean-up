@@ -24,6 +24,8 @@ interface CellContextMenuProps {
   onAddFormattingRule?: () => void;
   onRequestApproval?: () => void;
   onCellActions?: () => void;
+  onShowAssociatedCells?: () => void;
+  showAssociatedCells?: boolean;
 }
 
 const CellContextMenu: React.FC<CellContextMenuProps> = ({
@@ -49,6 +51,8 @@ const CellContextMenu: React.FC<CellContextMenuProps> = ({
   onAddFormattingRule,
   onRequestApproval,
   onCellActions,
+  onShowAssociatedCells,
+  showAssociatedCells = false,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -143,6 +147,28 @@ const CellContextMenu: React.FC<CellContextMenuProps> = ({
       </button>
 
       <div className="cell-context-menu-separator" />
+
+      {/* Show Associated Cells — only for red "below committed agreement" warning cells.
+          Reveals the rest of the associated red cells and clears the warning icons. */}
+      {showAssociatedCells && onShowAssociatedCells && (
+        <>
+          <button
+            className="cell-context-menu-item"
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleAction(onShowAssociatedCells);
+            }}
+          >
+            <svg className="cell-context-menu-icon" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0-7a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/>
+            </svg>
+            <span className="cell-context-menu-label">Show Associated Cells</span>
+          </button>
+          <div className="cell-context-menu-separator" />
+        </>
+      )}
 
       {/* ── Actions group: Actions (bulk), View history, View Explainability ── */}
 

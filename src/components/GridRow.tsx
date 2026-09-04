@@ -225,6 +225,7 @@ interface GridRowProps {
   // (via onAgreementRiskExpand, passed the clicked row's id).
   // Independent of the Arc-5 riskCellKeys path (different narrative + hover-not-click behaviour).
   agreementRiskCellKeys?: Set<string>;
+  dismissedAgreementWarningKeys?: Set<string>;
   onAgreementRiskExpand?: (rowId: string) => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
@@ -1263,6 +1264,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   riskResolved,
   onViewNextBestAction,
   agreementRiskCellKeys,
+  dismissedAgreementWarningKeys,
   onAgreementRiskExpand,
   onAskAgentforce,
   savedImpactedCells = new Set<string>(),
@@ -2624,7 +2626,11 @@ const GridRowComponent: React.FC<GridRowProps> = ({
 
     // DF demo: "below committed agreement" cell — same red chrome as the Arc-5 risk cell, but the
     // warning icon opens a hover popover (not a click flow) whose CTA expands the hierarchy.
-    const isAgreementRiskCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey);
+    // Suppress the warning marker + popover on cells the user has revealed via "Show Associated
+    // Cells" (the clicked anchor cell is not in this set, so it keeps its warning). The red cell
+    // styling stays — it is driven separately from agreementRiskCellKeys below.
+    const isAgreementRiskCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey)
+      && !dismissedAgreementWarningKeys?.has(cellKey);
     const runAgreementExpand = () => { setAgreementTip(null); onAgreementRiskExpand?.(row.id); };
     // Level-aware popover: the root cause lives in the children, so the "expand" CTA only
     // makes sense while the row still has a level below it. At the leaf (product) level there
@@ -2676,7 +2682,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             </div>
             {agreementHasChildren && (
               <button type="button" className="cell-risk-tooltip-cta" onClick={runAgreementExpand}>
-                <span aria-hidden="true">✦</span> Expand hierarchy to see root cause
+                Show Associated Cells
               </button>
             )}
           </div>,
@@ -6005,6 +6011,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 riskResolved={riskResolved}
                 onViewNextBestAction={onViewNextBestAction}
                 agreementRiskCellKeys={agreementRiskCellKeys}
+                dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
                 onAgreementRiskExpand={onAgreementRiskExpand}
                 onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}

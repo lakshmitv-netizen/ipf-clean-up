@@ -2577,7 +2577,7 @@ button.chevron-icon {
 .grid-row.measure-row:hover .cell-value-cell.edited-cell.risk-cell,
 .cell-selected.edited-cell.risk-cell {
   background: #feeceb !important;
-  box-shadow: inset 4px 0 0 #ba0517 !important;
+  box-shadow: inset 2px 0 0 #ba0517 !important;
   border-top: 1px solid #f5c4c0 !important;
   border-right: 1px solid #f5c4c0 !important;
   border-bottom: 1px solid #f5c4c0 !important;
@@ -2752,26 +2752,24 @@ button.chevron-icon {
 .cell-value-cell.risk-cell.agreement-risk-cell .cell-delta-badge {
   justify-content: flex-end !important;
 }
-/* DF demo: the "Expand hierarchy" CTA styled as an SLDS 2 link button — no fill, brand link
-   color, regular weight, underline on hover. */
+/* DF demo: the "Show Associated Cells" CTA styled as an SLDS 2 brand outline button —
+   bordered, brand text, fills on hover. */
 .cell-agreement-risk-tooltip .cell-risk-tooltip-cta {
   background: transparent !important;
   color: var(--slds-g-link-color, #0176d3) !important;
-  font-weight: 400 !important;
+  border: 1px solid var(--slds-g-color-border-brand-1, #0176d3) !important;
+  border-radius: 6px !important;
+  font-weight: 600 !important;
   width: auto !important;
-  justify-content: flex-start !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
+  align-self: flex-start !important;
+  justify-content: center !important;
+  padding: 6px 12px !important;
   text-decoration: none !important;
 }
 .cell-agreement-risk-tooltip .cell-risk-tooltip-cta:hover {
-  background: transparent !important;
-  color: var(--slds-g-link-color-hover, #014486) !important;
-  text-decoration: underline !important;
-}
-/* Neutralize the leading sparkle so it doesn't stay red against the link text. */
-.cell-agreement-risk-tooltip .cell-risk-tooltip-cta > * {
-  color: inherit !important;
+  background: var(--slds-g-link-color, #0176d3) !important;
+  color: #ffffff !important;
+  text-decoration: none !important;
 }
 
 .cell-value-cell.impacted-cell {

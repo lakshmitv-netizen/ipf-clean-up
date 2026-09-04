@@ -4440,6 +4440,11 @@ const ForecastingGridDFDemo: React.FC = () => {
     contextMenuRef.current = contextMenu;
   }, [contextMenu]);
 
+  // DF demo: once the user chooses "Show Associated Cells" on a red agreement-risk cell,
+  // the associated red cells are revealed and *their* warning icons are cleared. The clicked
+  // (anchor) cell keeps its warning icon. Holds the cell keys whose warning is suppressed.
+  const [dismissedAgreementWarningKeys, setDismissedAgreementWarningKeys] = useState<Set<string>>(new Set());
+
   // Clipboard state for context menu
   const [clipboardValue, setClipboardValue] = useState<number | null>(null);
 
@@ -4501,6 +4506,26 @@ const ForecastingGridDFDemo: React.FC = () => {
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
+
+  // "Show Associated Cells": reveal the red-warning chain anchored at the right-clicked cell,
+  // then clear the warning icons on the *associated* cells only — the clicked (anchor) cell keeps
+  // its warning icon. All the red cells stay red so the shortfall is still visible.
+  const handleContextShowAssociatedCells = useCallback(() => {
+    const cm = contextMenuRef.current;
+    if (cm?.cellKey) {
+      const parts = cm.cellKey.split('-');
+      const rowId = parts.slice(0, -1).join('-');
+      const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
+      if (ids.length) expandRowsRef.current?.(ids);
+      // Suppress warnings on every agreement-risk cell except the clicked anchor.
+      setDismissedAgreementWarningKeys(() => {
+        const next = new Set<string>(agreementRiskCellKeys);
+        next.delete(cm.cellKey);
+        return next;
+      });
+    }
+    setContextMenu(null);
+  }, [data, agreementRiskCellKeys]);
 
   const handleContextCopy = useCallback(() => {
     if (contextMenu) {
@@ -6658,6 +6683,7 @@ const ForecastingGridDFDemo: React.FC = () => {
               openAgentforce();
             }}
             agreementRiskCellKeys={agreementRiskCellKeys}
+            dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
             onAgreementRiskExpand={(rowId) => {
               // Anchored to the clicked red cell: open one level to its children, then follow only
               // the red-warning children downward until the last red parent with a red child.
@@ -7157,6 +7183,8 @@ const ForecastingGridDFDemo: React.FC = () => {
             onAddFormattingRule={handleContextAddFormattingRule}
             onRequestApproval={handleContextRequestApproval}
             onCellActions={handleContextCellActions}
+            onShowAssociatedCells={handleContextShowAssociatedCells}
+            showAssociatedCells={!!agreementRiskCellKeys?.has(contextMenu.cellKey) && !dismissedAgreementWarningKeys.has(contextMenu.cellKey)}
           />
         )}
 
