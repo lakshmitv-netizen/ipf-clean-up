@@ -4187,6 +4187,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       ? `${row.name || ''} (${row.children?.length ?? 0})`
       : row.name || '';
 
+  // Tooltip explaining the provenance of the ✦ Predictive Forecasted Quantity model row.
+  const rowNameTooltip =
+    row.type === 'measure' && (row.name ?? '').includes('Predictive Forecasted Quantity')
+      ? 'This prediction is generated based on the Moirai algorithm.'
+      : undefined;
+
   return (
     <>
       <tr
@@ -4233,11 +4239,11 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             {!hasExpandChevron && <span style={{ width: '16px', display: 'inline-block' }}></span>}
             {renderTypeIconWithFilterDot()}
             <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, flex: '1 1 0' }}>
-              <span className="cell-name">
+              <span className="cell-name" title={rowNameTooltip}>
                 {searchTerm && searchTerm.trim() ? (
-                  <SearchHighlight 
-                    text={rowNameColumnDisplay} 
-                    searchTerms={extractSearchTerms(searchTerm)} 
+                  <SearchHighlight
+                    text={rowNameColumnDisplay}
+                    searchTerms={extractSearchTerms(searchTerm)}
                   />
                 ) : (
                   rowNameColumnDisplay
