@@ -799,8 +799,9 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
   const cycleUp = useCallback(() => {
     setSnap((s) => SNAP_ORDER[Math.min(SNAP_ORDER.length - 1, SNAP_ORDER.indexOf(s) + 1)]);
   }, []);
+  // Down arrow collapses the drawer fully in one press — back to the band only.
   const cycleDown = useCallback(() => {
-    setSnap((s) => SNAP_ORDER[Math.max(0, SNAP_ORDER.indexOf(s) - 1)]);
+    setSnap('collapsed');
   }, []);
 
   const height = dragHeight ?? (snap === 'full' ? fullPx : SNAP_PX[snap]);
@@ -854,9 +855,24 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
       role="dialog"
       aria-label="Scenario planning"
     >
-      {/* Resize handle on the top edge */}
-      <div className="scenario-drawer-resizer" onPointerDown={onResizeStart} role="separator" aria-label="Resize scenario drawer">
-        <span className="scenario-drawer-grip" aria-hidden="true" />
+      {/* Resize handle on the top edge — full-width invisible drag strip */}
+      <div className="scenario-drawer-resizer" onPointerDown={onResizeStart} role="separator" aria-label="Resize scenario drawer" />
+      {/*
+        Centered expand/collapse arrows straddling the drawer's top edge.
+        Rendered position:fixed (anchored to the live top edge via `bottom`) so the
+        drawer's overflow:hidden can't clip it and the grid can't paint over it.
+      */}
+      <div
+        className="scenario-edge-arrows"
+        style={{ bottom: (typeof height === 'number' ? height : 0) - 11 }}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
+          <button type="button" className="scenario-icon-btn scenario-icon-btn--edge" onClick={cycleUp} title="Expand" disabled={snap === 'full'}>
+            <Chevron dir="up" />
+          </button>
+          <button type="button" className="scenario-icon-btn scenario-icon-btn--edge" onClick={cycleDown} title="Collapse" disabled={snap === 'collapsed'}>
+            <Chevron dir="down" />
+          </button>
       </div>
 
       {/* ---- HEADER RAIL (anchored — identical in every state) ---- */}
@@ -908,12 +924,6 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
             ) : (
               'Show in grid'
             )}
-          </button>
-          <button type="button" className="scenario-icon-btn" onClick={cycleUp} title="Expand" disabled={snap === 'full'}>
-            <Chevron dir="up" />
-          </button>
-          <button type="button" className="scenario-icon-btn" onClick={cycleDown} title="Collapse" disabled={snap === 'collapsed'}>
-            <Chevron dir="down" />
           </button>
         </div>
       </div>

@@ -455,7 +455,7 @@ const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
     isActive: true,
     priority: 0,
     mode: 'modifyCells',
-    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['product'], timeKeys: ['oct2026'] },
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['product'], timeKeys: ['mar2026'] },
     condition: { type: 'lessThan', value: 9 },
     visualization: { type: 'background', color: '#FFEBEB' },
     createdAt: new Date('2024-01-03T00:00:00'),
@@ -467,7 +467,7 @@ const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
     isActive: true,
     priority: 1,
     mode: 'modifyCells',
-    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['category'], timeKeys: ['oct2026'] },
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['category'], timeKeys: ['mar2026'] },
     condition: { type: 'lessThan', value: 94 },
     visualization: { type: 'background', color: '#FFEBEB' },
     createdAt: new Date('2024-01-02T00:00:00'),
@@ -479,7 +479,7 @@ const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
     isActive: true,
     priority: 2,
     mode: 'modifyCells',
-    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['account'], timeKeys: ['oct2026'] },
+    target: { measureIds: ['measure-order-qty'], dimensionLevels: ['account'], timeKeys: ['mar2026'] },
     condition: { type: 'lessThan', value: 625 },
     visualization: { type: 'background', color: '#FFEBEB' },
     createdAt: new Date('2024-01-01T00:00:00'),
@@ -492,7 +492,7 @@ const INITIAL_CONDITIONAL_FORMATTING_RULES: ConditionalFormattingRule[] = [
 // decorated cells is exactly the set of pink cells. Each gets a red left bar + warning icon + hover
 // popover (rendered by GridRow); the popover CTA expands the whole hierarchy to reveal the product
 // root cause. Thresholds are keyed by hierarchy depth: 0=account, 1=category, 2=product.
-const DF_AGREEMENT_MONTH_KEY = 'oct2026';
+const DF_AGREEMENT_MONTH_KEY = 'mar2026';
 const DF_AGREEMENT_THRESHOLDS = [625, 94, 9];
 function computeAgreementRiskCellKeys(data: MeasureData[]): Set<string> {
   const keys = new Set<string>();
@@ -508,6 +508,35 @@ function computeAgreementRiskCellKeys(data: MeasureData[]): Set<string> {
   };
   walk(measure.children, 0);
   return keys;
+}
+
+// Locate a row anywhere in the measure tree by id.
+function findDfRowById(data: MeasureData[], id: string): GridRow | undefined {
+  const stack: GridRow[] = [...((data as unknown as GridRow[]) || [])];
+  while (stack.length) {
+    const n = stack.pop() as GridRow;
+    if (n.id === id) return n;
+    if (n.children && n.children.length) stack.push(...(n.children as GridRow[]));
+  }
+  return undefined;
+}
+
+// Starting from the clicked red cell's row, expand ONE level to its immediate children, then
+// follow only the red-warning children downward — expanding each red parent until the last red
+// parent whose child is red. Non-red branches are never opened. Returns the row ids to expand.
+function computeRedChainExpandIds(rootId: string, data: MeasureData[], redKeys: Set<string>): string[] {
+  const root = findDfRowById(data, rootId);
+  if (!root) return [];
+  const ids: string[] = [];
+  const collect = (node: GridRow): void => {
+    if (!node.children || !node.children.length) return;
+    ids.push(node.id); // expand this node so its immediate children show
+    node.children.forEach((c) => {
+      if (redKeys.has(`${c.id}-${DF_AGREEMENT_MONTH_KEY}`)) collect(c); // only follow red children
+    });
+  };
+  collect(root);
+  return ids;
 }
 
 import '../styles/components/Grid.css';
@@ -5321,6 +5350,7 @@ const ForecastingGridDFDemo: React.FC = () => {
   const expandMeasuresOnlyRef = useRef<(() => void) | null>(null);
   const expandToCategoriesRef = useRef<(() => void) | null>(null);
   const expandMeasureRowRef = useRef<((measureId: string, maxDepth?: number) => void) | null>(null);
+  const expandRowsRef = useRef<((rowIds: string[]) => void) | null>(null);
   const resetColumnWidthsRef = useRef<(() => void) | null>(null);
   const clearAllFiltersRef = useRef<(() => void) | null>(null);
   // Registered by FiltersPanel so we can reset its filter cards from the grid hint.
@@ -6535,6 +6565,7 @@ const ForecastingGridDFDemo: React.FC = () => {
             onExpandMeasuresOnly={(handler) => { expandMeasuresOnlyRef.current = handler; }}
             onExpandToCategories={(handler) => { expandToCategoriesRef.current = handler; }}
             onExpandMeasureRow={(handler) => { expandMeasureRowRef.current = handler; }}
+            onExpandRows={(handler) => { expandRowsRef.current = handler; }}
             onResetColumnWidths={(handler) => { resetColumnWidthsRef.current = handler; }}
             onClearAllFilters={(handler) => { clearAllFiltersRef.current = handler; }}
             onSettingsClick={() => setIsSettingsOpen(true)}
@@ -6627,7 +6658,13 @@ const ForecastingGridDFDemo: React.FC = () => {
               openAgentforce();
             }}
             agreementRiskCellKeys={agreementRiskCellKeys}
-            onAgreementRiskExpand={() => { expandAllRef.current?.(); }}
+            onAgreementRiskExpand={(rowId) => {
+              // Anchored to the clicked red cell: open one level to its children, then follow only
+              // the red-warning children downward until the last red parent with a red child.
+              // Non-red branches stay collapsed, so the page never expands the whole hierarchy.
+              const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
+              if (ids.length) expandRowsRef.current?.(ids);
+            }}
             onAskAgentforce={(payload) => {
               setIsAlertsOpen(false);
               setAgentCellQA(payload);

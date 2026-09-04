@@ -311,6 +311,7 @@ interface HierarchicalGridProps {
   onExpandMeasuresOnly?: (handler: () => void) => void; // Register handler that expands only measure rows (top level)
   onExpandToCategories?: (handler: () => void) => void; // Register handler that expands measures + accounts (categories collapsed)
   onExpandMeasureRow?: (handler: (measureId: string, maxDepth?: number) => void) => void; // Register handler that expands a measure row's chevron; maxDepth expands its branch that many tiers deep (default 1)
+  onExpandRows?: (handler: (rowIds: string[]) => void) => void; // Register handler that additively expands an explicit set of row ids (leaves others untouched)
   riskCellKeys?: Set<string>; // Arc 5: the E-Motor Housing June lineage flagged as above committed agreement (red warning cells cascading down to the origin)
   chartActiveRowId?: string | null; // Optional: row whose chart is open in the Charts panel — gets a faint translucent-blue background.
   riskResolved?: boolean; // Arc 5: amendment approved (pre-save) — show a green checkmark instead of the red warning
@@ -452,6 +453,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onExpandMeasuresOnly,
   onExpandToCategories,
   onExpandMeasureRow,
+  onExpandRows,
   riskCellKeys,
   chartActiveRowId,
   riskResolved,
@@ -1968,6 +1970,17 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       return next;
     });
   }, [gridData]);
+
+  // Additively expand an explicit set of row ids (used by the agreement-risk popover CTA to open
+  // only the red-child chain). Leaves every other row's expand state untouched.
+  const handleExpandRows = useCallback((rowIds: string[]) => {
+    if (!rowIds || !rowIds.length) return;
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      rowIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
 
   // Expand measures and accounts (so categories are visible) but leave categories
   // collapsed — accounts → categories only, no products. Used for the "categories behind"
@@ -3760,6 +3773,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     if (onExpandMeasureRow) {
       onExpandMeasureRow(handleExpandMeasureRow);
     }
+    if (onExpandRows) {
+      onExpandRows(handleExpandRows);
+    }
     if (onClearAllFilters) {
       onClearAllFilters(handleClearAllFilters);
     }
@@ -3775,7 +3791,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         setColumnWidths(new Map());
       });
     }
-  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleExpandMeasureRow, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onExpandMeasureRow, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
+  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleExpandMeasureRow, handleExpandRows, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onExpandMeasureRow, onExpandRows, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
 
   // Handle keyboard navigation
   // Note: handleSave is defined later, so we'll use a ref or move this callback after handleSave

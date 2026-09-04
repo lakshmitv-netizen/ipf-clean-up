@@ -59,25 +59,49 @@
   overflow: hidden;
 }
 
-/* ---- Resize handle (top edge) ---- */
+/* ---- Resize handle (top edge) — also hosts the centered expand/collapse arrows ---- */
 .scenario-drawer-resizer {
+  position: relative;
   flex: 0 0 auto;
-  height: 12px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: ns-resize;
   touch-action: none;
 }
-.scenario-drawer-grip {
-  width: 40px;
-  height: 4px;
+/* Centered pill straddling the drawer's top edge carrying the up/down arrows.
+   position:fixed + inline `bottom` anchors it to the live top edge; because it is
+   fixed (and no ancestor is a transformed containing block) the drawer's
+   overflow:hidden cannot clip it and the grid cannot paint over it. */
+.scenario-edge-arrows {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1200; /* above .scenario-drawer (1100) and .grid-wrapper (1002) */
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 6px;
+  background: #f3f6fb;
+  border: 1px solid #c3cede;
   border-radius: 999px;
-  background: #c9c9c9;
-  transition: background 0.15s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  cursor: default;
 }
-.scenario-drawer-resizer:hover .scenario-drawer-grip {
-  background: #0176d3;
+.scenario-edge-arrows .scenario-icon-btn--edge {
+  width: 26px;
+  height: 18px;
+  border-radius: 8px;
+  color: #32536b;
+}
+.scenario-edge-arrows .scenario-icon-btn--edge:hover:not(:disabled) {
+  background: #e3ebf6;
+  color: #0176d3;
+}
+/* Keep the extreme-state arrow legible (not near-invisible) */
+.scenario-edge-arrows .scenario-icon-btn--edge:disabled {
+  opacity: 0.35;
 }
 
 /* ==========================================================================
@@ -203,38 +227,40 @@
   margin-left: auto;
 }
 
-/* Show in grid button */
+/* Show in grid button — primary CTA, filled and prominent.
+   !important + class beats App.css `:where(button:not(.fill-handle))` reset. */
 .scenario-showgrid-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 14px;
-  border-radius: 6px;
-  border: 1px solid #0176d3;
-  background: #fff;
-  color: #0176d3;
-  font-size: 12px;
-  font-weight: 600;
+  gap: 7px;
+  height: 36px;
+  padding: 0 22px;
+  border-radius: 8px;
+  border: 1px solid #0176d3 !important;
+  background: #0176d3 !important;
+  color: #fff !important;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  box-shadow: 0 2px 6px rgba(1, 118, 211, 0.35);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 .scenario-showgrid-btn:hover:not(:disabled) {
-  background: #eef4ff;
+  background: #015fac !important;
+  border-color: #015fac !important;
+  box-shadow: 0 3px 10px rgba(1, 118, 211, 0.45);
 }
-.scenario-showgrid-btn--on {
-  background: #0176d3;
-  color: #fff;
-  border-color: #0176d3;
+.scenario-showgrid-btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
-.scenario-showgrid-btn--on:hover:not(:disabled) {
-  background: #014486;
-  border-color: #014486;
-}
+/* "Applied to grid" keeps the primary blue; the :disabled rule below fades it
+   normally (no special green state). */
 .scenario-showgrid-btn:disabled {
   opacity: 0.4;
   cursor: default;
+  box-shadow: none;
 }
 .scenario-showgrid-dot {
   width: 7px;

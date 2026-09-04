@@ -221,10 +221,11 @@ interface GridRowProps {
   onViewNextBestAction?: () => void;
   // DF demo: cells whose Order Quantity is below the committed sales agreement. Rendered with a
   // red left bar + warning icon; hovering the icon shows a popover explaining the shortfall and a
-  // "✦ Expand hierarchy to see root cause" CTA that expands all rows (via onAgreementRiskExpand).
+  // "✦ Expand hierarchy to see root cause" CTA — expands only the clicked cell's red-child chain
+  // (via onAgreementRiskExpand, passed the clicked row's id).
   // Independent of the Arc-5 riskCellKeys path (different narrative + hover-not-click behaviour).
   agreementRiskCellKeys?: Set<string>;
-  onAgreementRiskExpand?: () => void;
+  onAgreementRiskExpand?: (rowId: string) => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
   onAskAgentforce?: (payload: {
@@ -2624,20 +2625,32 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     // DF demo: "below committed agreement" cell — same red chrome as the Arc-5 risk cell, but the
     // warning icon opens a hover popover (not a click flow) whose CTA expands the hierarchy.
     const isAgreementRiskCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey);
-    const runAgreementExpand = () => { setAgreementTip(null); onAgreementRiskExpand?.(); };
+    const runAgreementExpand = () => { setAgreementTip(null); onAgreementRiskExpand?.(row.id); };
+    // Level-aware popover: the root cause lives in the children, so the "expand" CTA only
+    // makes sense while the row still has a level below it. At the leaf (product) level there
+    // is nothing to drill into — drop the CTA and phrase the message as a final explanation.
+    const agreementHasChildren = !!(row.children && row.children.length > 0);
+    const agreementBody = !agreementHasChildren
+      ? 'This product came in well below what was committed in the sales agreement — its order quantity is short of the committed volume.'
+      : row.type === 'category'
+        ? 'This value is much lower than expected — several products in this category have order quantities well below what was committed in the sales agreement.'
+        : 'This value is much lower than expected — several products across this region have order quantities well below what was committed in the sales agreement.';
+    const agreementAriaLabel = agreementHasChildren
+      ? 'Below committed agreement — expand hierarchy to see root cause'
+      : 'Below committed agreement';
     const agreementRiskMarker = (
       <>
         <span
           className="cell-risk-warning"
           role="button"
           tabIndex={0}
-          aria-label="Below committed agreement — expand hierarchy to see root cause"
+          aria-label={agreementAriaLabel}
           onMouseEnter={openAgreementTip}
           onMouseLeave={closeAgreementTipDeferred}
           onFocus={(e) => openAgreementTip(e as unknown as React.MouseEvent<HTMLElement>)}
           onBlur={closeAgreementTipDeferred}
-          onClick={(e) => { e.stopPropagation(); runAgreementExpand(); }}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); runAgreementExpand(); } }}
+          onClick={(e) => { e.stopPropagation(); if (agreementHasChildren) runAgreementExpand(); }}
+          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && agreementHasChildren) { e.preventDefault(); runAgreementExpand(); } }}
         >
           {riskWarningSvg}
         </span>
@@ -2659,12 +2672,13 @@ const GridRowComponent: React.FC<GridRowProps> = ({
               Below committed agreement
             </div>
             <div className="cell-risk-tooltip-body">
-              This value is much lower than expected — several products sold in this region have order
-              quantities well below what was committed in the sales agreement.
+              {agreementBody}
             </div>
-            <button type="button" className="cell-risk-tooltip-cta" onClick={runAgreementExpand}>
-              <span aria-hidden="true">✦</span> Expand hierarchy to see root cause
-            </button>
+            {agreementHasChildren && (
+              <button type="button" className="cell-risk-tooltip-cta" onClick={runAgreementExpand}>
+                <span aria-hidden="true">✦</span> Expand hierarchy to see root cause
+              </button>
+            )}
           </div>,
           document.body,
         )}
@@ -5103,10 +5117,13 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 // DF-demo agreement-risk cells always read as an active (unresolved) red cell.
                 const isRiskCellCheck = (inRiskSet && !riskResolved) || inAgreementRiskSet;
                 const isRiskResolvedCheck = inRiskSet && !inAgreementRiskSet && !!riskResolved;
-            if (editedOriginalValue !== undefined) return `edited-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
-            if (impactedOriginalValue !== undefined) return `impacted-cell${isRiskCellCheck ? ' risk-cell' : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
-            if (isSavedEditedCheck) return isRiskCellCheck ? 'risk-cell' : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
-                return isRiskCellCheck ? 'risk-cell' : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
+                // DF-demo agreement cells keep the number right-aligned like a normal cell (via
+                // the agreement-risk-cell class), unlike the Arc-5 risk cell.
+                const riskCls = isRiskCellCheck ? (inAgreementRiskSet ? 'risk-cell agreement-risk-cell' : 'risk-cell') : '';
+            if (editedOriginalValue !== undefined) return `edited-cell${isRiskCellCheck ? ' ' + riskCls : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
+            if (impactedOriginalValue !== undefined) return `impacted-cell${isRiskCellCheck ? ' ' + riskCls : ''}${isRiskResolvedCheck ? ' risk-cell-resolved' : ''}`;
+            if (isSavedEditedCheck) return isRiskCellCheck ? riskCls : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
+                return isRiskCellCheck ? riskCls : (isRiskResolvedCheck ? 'risk-cell-resolved' : '');
           })()}`;
 
           // Shared event handlers for the Actual cell
@@ -5981,6 +5998,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 chartActiveRowId={chartActiveRowId}
                 riskResolved={riskResolved}
                 onViewNextBestAction={onViewNextBestAction}
+                agreementRiskCellKeys={agreementRiskCellKeys}
+                onAgreementRiskExpand={onAgreementRiskExpand}
                 onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}
                 columnWidth={columnWidth}

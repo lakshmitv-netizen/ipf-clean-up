@@ -2739,6 +2739,40 @@ button.chevron-icon {
 .cell-agreement-risk-tooltip .cell-risk-tooltip-title svg {
   flex-shrink: 0;
 }
+/* DF demo: keep the number right-aligned in the same position as normal cells (the Arc-5 risk
+   styling above pins it left; override that back to flex-end for agreement cells). The warning
+   icon stays absolutely positioned at left:8px, so the value can sit flush right as usual. */
+.cell-value-cell.risk-cell.agreement-risk-cell .cell-value,
+.cell-value-cell.risk-cell.agreement-risk-cell .cell-value-left-section {
+  justify-content: flex-end !important;
+  align-items: center !important;
+  padding-left: 12px !important;
+  padding-right: 20px !important;
+}
+.cell-value-cell.risk-cell.agreement-risk-cell .cell-delta-badge {
+  justify-content: flex-end !important;
+}
+/* DF demo: the "Expand hierarchy" CTA styled as an SLDS 2 link button — no fill, brand link
+   color, regular weight, underline on hover. */
+.cell-agreement-risk-tooltip .cell-risk-tooltip-cta {
+  background: transparent !important;
+  color: var(--slds-g-link-color, #0176d3) !important;
+  font-weight: 400 !important;
+  width: auto !important;
+  justify-content: flex-start !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  text-decoration: none !important;
+}
+.cell-agreement-risk-tooltip .cell-risk-tooltip-cta:hover {
+  background: transparent !important;
+  color: var(--slds-g-link-color-hover, #014486) !important;
+  text-decoration: underline !important;
+}
+/* Neutralize the leading sparkle so it doesn't stay red against the link text. */
+.cell-agreement-risk-tooltip .cell-risk-tooltip-cta > * {
+  color: inherit !important;
+}
 
 .cell-value-cell.impacted-cell {
   background: var(--slds-g-color-palette-yellow-95) !important;

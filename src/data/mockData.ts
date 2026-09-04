@@ -480,8 +480,9 @@ export const getMockData = (industry: IndustryType | null): MeasureData[] => {
     return acmeHierarchyData;
   }
   if (industry === 'df-demo') {
-    // Project-local demo dataset — isolated clone of the manufacturing tree with the
-    // Georgia Plant Sales Agreement Quantity boosted in Sep/Oct (see dfDemoData below).
+    // Project-local demo dataset — isolated clone of the manufacturing tree. The agreement-gap
+    // deviation is authored on October then swapped into March (step 6 in dfDemoData below), so
+    // the shortfall lands in March.
     ensureWeekValues(dfDemoData);
     return dfDemoData;
   }
@@ -793,6 +794,48 @@ const dfDemoData: MeasureData[] = (() => {
     dfRollupMeasureTotal(saMeasure);
   }
 
+  // ── 4b. Electrical Systems / Georgia — retune Sales Agreement so the Charts ──
+  // "Variance" tab (Actual = Order Quantity vs reference = Sales Agreement Quantity)
+  // shows the agreement hugging actual all year (a small ~3% in-band gap) EXCEPT one
+  // single month where order falls well short of the agreement. This replaces the old
+  // step-1b plateau (which made the gap widen across May→Oct) so the deviation is a
+  // clean single-month spike instead. Authored on OCTOBER — step 6 later swaps Mar↔Oct
+  // across every row, so the big gap ends up on MARCH (matching the red "below committed
+  // agreement" cells, which are keyed to March). Runs after steps 2–4 so it reads the
+  // FINAL order totals; SA is set per product so it hugs order (×1.03) every month, except
+  // the deviation month where the category agreement total is pinned to a fixed 191 — so with
+  // order at ~77 the March gap reads ~60% below agreement, prominent for the demo.
+  const SA_ELC_GAP_FACTOR = 1.03;        // agreement sits ~3% above order → inside the ±5% band
+  const SA_ELC_DEVIATION_TARGET = 191;   // deviation month: fixed agreement total (order ~77 → ~60% gap)
+  const SA_ELC_DEVIATION_MONTH = 'oct2026'; // swapped into March by step 6
+  {
+    const orderElcGeoFinal = orderGeorgia?.children?.find(
+      (c) => c.id === 'category-geo-elc-measure-order-qty');
+    const saElcGeoFinal = saGeorgia?.children?.find(
+      (c) => c.id === 'category-geo-elc-measure-sa-qty');
+    if (saMeasure && saGeorgia && orderElcGeoFinal && saElcGeoFinal?.children) {
+      const saKids = saElcGeoFinal.children;
+      DF_MONTH_KEYS.forEach((mk) => {
+        const orderTotal = dfLeafSum(orderElcGeoFinal, mk);
+        const target = mk === SA_ELC_DEVIATION_MONTH
+          ? SA_ELC_DEVIATION_TARGET
+          : r(orderTotal * SA_ELC_GAP_FACTOR);
+        let assigned = 0;
+        saKids.forEach((prod, i) => {
+          const frac = SA_ELC_GEO_PRODUCT_FRACS[i] ?? 1 / saKids.length;
+          const v = r(target * frac);
+          (prod.values as Record<string, number>)[mk] = v;
+          assigned += v;
+        });
+        // Absorb the rounding residual into the first product so the category total is exact.
+        (saKids[0].values as Record<string, number>)[mk] += target - assigned;
+      });
+      saKids.forEach((p) => dfRederiveAggregates(p.values as Record<string, number>));
+      dfRecomputeSubtree(saGeorgia);
+      dfRollupMeasureTotal(saMeasure);
+    }
+  }
+
   // ── 5. ✦ Predictive Forecasted Quantity — a model row shown just above Order ──
   // Quantity on default load. Every cell sits within ±5% of the matching Last Year
   // Order Quantity value (deterministic per-leaf jitter, so numbers are stable across
@@ -831,6 +874,22 @@ const dfDemoData: MeasureData[] = (() => {
     const orderIdx = clone.findIndex((mm) => mm.id === 'measure-order-qty');
     clone.splice(orderIdx >= 0 ? orderIdx : clone.length, 0, predMeasure);
   }
+
+  // ── 6. Relocate the agreement-gap deviation from October to March ──
+  // The whole story (order shortfall, elevated agreement line, predictive) was authored on
+  // oct2026. Swap every row's March and October month values — across all measures and all
+  // hierarchy levels — so the shortfall now lands in March and October reads as a normal month.
+  // Quarter/half/year aggregates are rederived from the swapped months. All interactions,
+  // thresholds and CTA behaviour stay identical; only the flagged month moves.
+  const dfSwapMarOct = (row: GridRow): void => {
+    const v = row.values as Record<string, number>;
+    const tmp = v.mar2026;
+    v.mar2026 = v.oct2026;
+    v.oct2026 = tmp;
+    dfRederiveAggregates(v);
+    if (row.children && row.children.length) row.children.forEach(dfSwapMarOct);
+  };
+  clone.forEach((mm) => dfSwapMarOct(mm as unknown as GridRow));
 
   return clone;
 })();
