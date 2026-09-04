@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Scenario Planning — Competitive Analysis</title>
+<style>
+  :root{
+    --ink:#181818; --muted:#5c5c5c; --faint:#706e6b; --line:#e5e5e5; --line2:#dddbda;
+    --brand:#0176d3; --navy:#032d60; --bg:#f4f6f9;
+    --lead:#2e844a; --leadbg:#ecfdf3; --parity:#8c4b02; --paritybg:#fef3e6; --behind:#ba0517; --behindbg:#feded8;
+    --anaplan:#1f4ed8; --sap:#0a6ed1; --pigment:#111827; --aera:#6b21a8; --ours:#0b827c;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;font-family:var(--sans);color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  @page{ size:1280px 905px; margin:0; }
+  .page{
+    position:relative; width:1280px; min-height:905px; padding:52px 64px 58px;
+    background:#fff; page-break-after:always; overflow:hidden;
+  }
+  .page:last-child{ page-break-after:auto; }
+  .page::after{
+    content:attr(data-pageno); position:absolute; right:44px; bottom:26px;
+    font-size:12px; color:#b0b0b0; letter-spacing:.04em;
+  }
+  .kicker{ position:absolute; left:64px; bottom:26px; font-size:12px; color:#b0b0b0; letter-spacing:.05em; text-transform:uppercase; }
+
+  h1{ font-size:46px; line-height:1.06; margin:0 0 14px; letter-spacing:-.01em; }
+  h2{ font-size:30px; line-height:1.12; margin:0 0 6px; letter-spacing:-.01em; color:var(--navy); }
+  h3{ font-size:19px; margin:0 0 8px; color:var(--ink); }
+  p{ font-size:14.5px; line-height:1.5; color:#2f2f2f; margin:0 0 10px; }
+  .lead{ font-size:16px; color:#3a3a3a; }
+  .eyebrow{ font-size:13px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--brand); margin:0 0 10px; }
+  small{ font-size:12px; }
+  .muted{ color:var(--muted); }
+  .faint{ color:var(--faint); }
+  b,strong{ color:var(--ink); }
+
+  .row{ display:flex; gap:22px; }
+  .col{ flex:1 1 0; min-width:0; }
+  .mt8{margin-top:8px;} .mt16{margin-top:16px;} .mt24{margin-top:24px;} .mt32{margin-top:32px;}
+
+  /* Cover */
+  .cover{ background:linear-gradient(160deg,#032d60 0%, #0a4f9e 52%, #0176d3 100%); color:#fff; }
+  .cover::after{ color:rgba(255,255,255,.5); }
+  .cover .eyebrow{ color:#a9d2ff; }
+  .cover h1{ color:#fff; font-size:58px; max-width:16ch; }
+  .cover p{ color:#dbe9fb; max-width:60ch; }
+  .cover .vendors{ display:flex; gap:10px; flex-wrap:wrap; margin-top:26px; }
+  .cover .vchip{ background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.28); color:#fff;
+    padding:9px 15px; border-radius:999px; font-size:14px; font-weight:600; }
+  .cover .meta{ position:absolute; left:64px; bottom:56px; color:#bcd6f5; font-size:13px; }
+
+  /* Cards / callouts */
+  .card{ border:1px solid var(--line); border-radius:12px; padding:18px 20px; background:#fff; }
+  .card.soft{ background:#fafbfd; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+  .tag{ display:inline-block; font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:6px; letter-spacing:.02em; }
+  .tag.lead{ color:var(--lead); background:var(--leadbg); }
+  .tag.parity{ color:var(--parity); background:var(--paritybg); }
+  .tag.behind{ color:var(--behind); background:var(--behindbg); }
+
+  ul.clean{ margin:6px 0 0; padding-left:18px; }
+  ul.clean li{ font-size:14px; line-height:1.5; margin-bottom:6px; color:#2f2f2f; }
+  ul.tight li{ margin-bottom:3px; font-size:13.5px; }
+
+  .shot{ width:100%; border:1px solid var(--line2); border-radius:10px; box-shadow:0 6px 22px rgba(3,45,96,.08); display:block; }
+  figcaption{ font-size:12.5px; color:var(--faint); margin-top:7px; }
+  .annot{ display:flex; gap:9px; align-items:flex-start; font-size:13.5px; margin-bottom:8px; }
+  .annot .n{ flex:0 0 auto; width:20px; height:20px; border-radius:50%; background:var(--ours); color:#fff;
+     font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+
+  /* Matrix table */
+  table.matrix{ width:100%; border-collapse:collapse; font-size:13px; }
+  table.matrix th, table.matrix td{ border-bottom:1px solid var(--line); padding:9px 10px; text-align:center; vertical-align:middle; }
+  table.matrix th{ font-size:12px; color:var(--navy); background:#f7f9fc; }
+  table.matrix td.cap, table.matrix th.cap{ text-align:left; width:250px; font-weight:600; color:var(--ink); }
+  table.matrix td.cap small{ display:block; font-weight:400; color:var(--faint); }
+  table.matrix col.ours{ background:#f0fbfa; }
+  table.matrix th.ours{ background:#e2f5f3; color:#075e59; }
+  .dots{ font-size:14px; letter-spacing:1px; }
+  .dots .on{ color:#0b827c; } .dots .onc{ color:#c23934; }
+  .score{ font-weight:700; }
+
+  /* Representative mockup frames (competitor "screens") */
+  .mock{ border:1px solid var(--line2); border-radius:12px; overflow:hidden; background:#fff; box-shadow:0 8px 26px rgba(3,45,96,.09); }
+  .mock-repbadge{ position:absolute; top:12px; right:14px; background:#fff3cd; color:#8a6d00; border:1px solid #f0d58a;
+    font-size:11px; font-weight:700; padding:3px 9px; border-radius:6px; letter-spacing:.02em; }
+  .mock-top{ height:34px; display:flex; align-items:center; gap:8px; padding:0 12px; color:#fff; font-size:13px; font-weight:600; }
+  .mock-body{ padding:14px 16px; background:#fbfcfe; }
+  .mchip{ display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--line2);
+    border-radius:6px; padding:5px 10px; font-size:12px; color:#333; }
+  .mchip .sw{ width:9px; height:9px; border-radius:2px; display:inline-block; }
+  .mgrid{ width:100%; border-collapse:collapse; font-size:11.5px; margin-top:10px; background:#fff; border:1px solid var(--line); }
+  .mgrid th,.mgrid td{ border:1px solid var(--line); padding:5px 8px; text-align:right; }
+  .mgrid th{ background:#f2f5f9; color:#333; font-weight:600; text-align:right; }
+  .mgrid td.lbl,.mgrid th.lbl{ text-align:left; color:#444; }
+  .mbar{ height:9px; border-radius:3px; }
+  .pos{ color:#2e844a; font-weight:600; } .neg{ color:#ba0517; font-weight:600; }
+  .conv{ background:#fff; border:1px solid var(--line); border-radius:10px; padding:11px 13px; font-size:12.5px; }
+  .conv .u{ background:#eef4ff; border-radius:8px; padding:7px 10px; color:#1c3a66; margin-bottom:8px; display:inline-block; }
+  .conv .a{ color:#333; }
+  .conv .rec{ border-left:3px solid var(--aera); background:#faf5ff; padding:8px 11px; border-radius:0 8px 8px 0; margin-top:8px; }
+
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font-size:12.5px; color:#444; }
+  .legend .k{ display:inline-flex; align-items:center; gap:6px; }
+  .swk{ width:11px; height:11px; border-radius:3px; display:inline-block; }
+
+  .verdict{ border-radius:10px; padding:13px 16px; font-size:13.5px; }
+  .verdict.lead{ background:var(--leadbg); border:1px solid #b6e6c8; }
+  .verdict.parity{ background:var(--paritybg); border:1px solid #f4d3a1; }
+  .verdict.behind{ background:var(--behindbg); border:1px solid #f5b3a8; }
+
+  .phase{ border:1px solid var(--line); border-radius:12px; padding:16px 18px; }
+  .phase h3{ display:flex; align-items:center; gap:9px; }
+  .phase .pill{ font-size:11px; font-weight:700; color:#fff; background:var(--brand); border-radius:999px; padding:3px 10px; }
+  .stat{ font-size:34px; font-weight:800; color:var(--navy); line-height:1; }
+  .stat + .muted{ font-size:12.5px; }
+</style>
+</head>
+<body>
+
+<!-- ============================ COVER ============================ -->
+<section class="page cover" data-pageno="">
+  <p class="eyebrow">Product · Competitive Analysis</p>
+  <h1>Scenario Planning: How We Compare</h1>
+  <p class="lead">A side-by-side look at scenario &amp; what-if planning in our forecasting grid versus the leading enterprise planning and decision-intelligence platforms.</p>
+  <div class="vendors">
+    <span class="vchip">Our Solution — In-grid Scenario Drawer</span>
+    <span class="vchip">Anaplan</span>
+    <span class="vchip">SAP (SAC + IBP)</span>
+    <span class="vchip">Pigment</span>
+    <span class="vchip">Aera Technology</span>
+  </div>
+  <div class="meta">
+    Prepared July 2026 · Competitor visuals are <b>representative mockups</b> built from public documentation — not product screenshots.<br/>
+    Our-solution images are live screenshots of the working prototype.
+  </div>
+</section>
+
+<!-- ============================ EXEC SUMMARY ============================ -->
+<section class="page" data-pageno="2">
+  <p class="eyebrow">Executive Summary</p>
+  <h2>Where we win, where we're at parity, where we trail</h2>
+  <p class="lead mt8">Our scenario planning is <b>embedded directly in the forecasting grid</b> as a progressive bottom drawer. That in-context model, business-semantic drivers, and in-table goal-seek are genuine differentiators. The enterprise incumbents lead on <b>calculation scale, governance/versioning, and predictive + agentic AI</b>.</p>
+
+  <div class="grid3 mt24">
+    <div class="card"><span class="tag lead">WE LEAD</span>
+      <ul class="clean mt8">
+        <li><b>In-context planning</b> — scenarios live inside the grid; no separate modeling app or context switch.</li>
+        <li><b>Business-semantic drivers</b> — "Price Concession Depth: Match Competitor", not raw model formulas.</li>
+        <li><b>In-table goal-seek</b> — edit a KPI target and the driver back-solves instantly.</li>
+        <li><b>Round-trip to the plan</b> — "Show in grid" surfaces impacted cells + deltas to review &amp; save.</li>
+      </ul>
+    </div>
+    <div class="card"><span class="tag parity">AT PARITY</span>
+      <ul class="clean mt8">
+        <li><b>Side-by-side comparison</b> — named scenarios as columns with deltas vs baseline.</li>
+        <li><b>Decision-support charts</b> — revenue, trade-off, and target-attainment views.</li>
+        <li><b>Driver-based what-if</b> — levers recompute dependent KPIs live.</li>
+        <li><b>Approval-aware workflow</b> — promote / alerts patterns exist in the app.</li>
+      </ul>
+    </div>
+    <div class="card"><span class="tag behind">WE TRAIL</span>
+      <ul class="clean mt8">
+        <li><b>Calculation engine at scale</b> — multidimensional, enterprise-volume modeling.</li>
+        <li><b>Versioning &amp; governance</b> — auditable lifecycle, lineage, access control.</li>
+        <li><b>Predictive ML forecasting</b> — statistical baselines &amp; accuracy measures.</li>
+        <li><b>Agentic / NL AI</b> — generate scenarios &amp; recommend actions conversationally.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card soft mt24">
+    <h3>The one-line positioning</h3>
+    <p style="margin-bottom:0">The incumbents are <b>modeling platforms you plan in</b>; ours is <b>planning where the work already happens</b>. Our defensible edge is the <b>last mile of decision-making</b> — driver semantics a business user understands, goal-seek in the same table they read, and a one-click path from "what if" to reviewable edits in the live plan. The strategic gaps to close are engine scale, governance, and AI depth.</p>
+  </div>
+  <div class="kicker">Scenario Planning — Competitive Analysis</div>
+</section>
+
+<!-- ============================ OUR SOLUTION 1 ============================ -->
+<section class="page" data-pageno="3">
+  <p class="eyebrow">Our Solution · Live Screenshots</p>
+  <h2>The in-grid Scenario Drawer</h2>
+  <p class="mt8">Scenario planning is a persistent bottom drawer on the forecasting grid. It uses <b>progressive disclosure</b>: a collapsed strip for quick levers, expanding to a full comparison workspace — the planner never leaves the grid they were reading.</p>
+
+  <figure style="margin:14px 0 0">
+    <img class="shot" src="shots/our-01-collapsed.png" alt="Collapsed scenario strip"/>
+    <figcaption>Collapsed strip — active scenario selector, quick levers (Growth / Price / Volume), and "Show in grid".</figcaption>
+  </figure>
+
+  <figure style="margin:18px 0 0">
+    <img class="shot" src="shots/our-02-expanded-full.png" alt="Expanded scenario workspace"/>
+    <figcaption>Expanded workspace — named scenarios as columns, business-semantic driver dropdowns, a full KPI comparison matrix with favorable/unfavorable deltas, and three decision-support charts.</figcaption>
+  </figure>
+  <div class="kicker">Our Solution</div>
+</section>
+
+<!-- ============================ OUR SOLUTION 2 ============================ -->
+<section class="page" data-pageno="4">
+  <p class="eyebrow">Our Solution · Live Screenshots</p>
+  <h2>Goal-seek &amp; decision-support charts</h2>
+  <div class="row mt16">
+    <div class="col">
+      <figure style="margin:0">
+        <img class="shot" src="shots/our-05-goalseek.png" alt="Goal seek in KPI table"/>
+        <figcaption>Goal-seek — KPI cells are editable. Type a target (e.g. a revenue figure) and the relevant driver back-solves via a bisection solver, recomputing every dependent KPI.</figcaption>
+      </figure>
+    </div>
+    <div class="col">
+      <figure style="margin:0">
+        <img class="shot" src="shots/our-04-charts.png" alt="Scenario charts"/>
+        <figcaption>Charts — revenue comparison (line), qty-vs-margin trade-off (bubble = concession cost), and target-revenue attainment (bar with 100% reference). Clicking a series focuses that scenario in the table.</figcaption>
+      </figure>
+    </div>
+  </div>
+
+  <div class="card soft mt24">
+    <h3>What makes this distinctive</h3>
+    <div class="grid3">
+      <div><div class="annot"><span class="n">1</span><div><b>No context switch.</b> The comparison overlays the same grid; "Show in grid" writes the scenario back as reviewable pending edits with deltas and a save action.</div></div></div>
+      <div><div class="annot"><span class="n">2</span><div><b>Semantics over formulas.</b> Levers read as business choices ("Match Competitor", "Protect Margin", "Rebate Tier"), not cell math.</div></div></div>
+      <div><div class="annot"><span class="n">3</span><div><b>Goal-seek in place.</b> Back-solving lives inside the comparison table itself — no separate solver dialog.</div></div></div>
+    </div>
+  </div>
+  <div class="kicker">Our Solution</div>
+</section>
+
+<!-- ============================ ANAPLAN ============================ -->
+<section class="page" data-pageno="5">
+  <p class="eyebrow" style="color:var(--anaplan)">Competitor · Anaplan</p>
+  <h2>Anaplan — connected planning at enterprise scale</h2>
+  <div class="row mt16">
+    <div class="col" style="flex:1.15">
+      <div class="mock" style="position:relative">
+        <div class="mock-repbadge">Representative</div>
+        <div class="mock-top" style="background:var(--anaplan)">◧ Anaplan · Scenario Comparison Board</div>
+        <div class="mock-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+            <span class="mchip"><span class="sw" style="background:#5c5c5c"></span>Version: FY26 Baseline ▾</span>
+            <span class="mchip"><span class="sw" style="background:#1f4ed8"></span>Downturn ▾</span>
+            <span class="mchip"><span class="sw" style="background:#0b827c"></span>Aggressive ▾</span>
+            <span class="mchip">+ New version</span>
+            <span class="mchip">Switchover: Apr FY26</span>
+          </div>
+          <table class="mgrid">
+            <tr><th class="lbl">Driver / KPI</th><th>Baseline</th><th>Downturn</th><th>Aggressive</th></tr>
+            <tr><td class="lbl">Volume growth %</td><td>3.0%</td><td>-4.0%</td><td>9.0%</td></tr>
+            <tr><td class="lbl">Price index</td><td>100</td><td>96</td><td>103</td></tr>
+            <tr><td class="lbl">Revenue ($M)</td><td>612</td><td><span class="neg">548</span></td><td><span class="pos">691</span></td></tr>
+            <tr><td class="lbl">Op. margin %</td><td>18.5</td><td><span class="neg">15.1</span></td><td><span class="pos">20.4</span></td></tr>
+            <tr><td class="lbl">Cash ($M)</td><td>210</td><td>171</td><td>248</td></tr>
+          </table>
+          <div style="display:flex;gap:8px;margin-top:9px">
+            <span class="mchip">⚙ PlanIQ forecast</span>
+            <span class="mchip">▤ Sensitivity</span>
+            <span class="mchip">🤖 CoModeler agent</span>
+          </div>
+        </div>
+      </div>
+      <figcaption>Representative Anaplan pattern: versions/scenarios managed centrally, unlimited what-if comparison boards, ML (PlanIQ) and 2026 role-based AI agents.</figcaption>
+    </div>
+    <div class="col">
+      <h3>What they do well</h3>
+      <ul class="clean">
+        <li><b>Hyperblock / Polaris / HyperModel engines</b> — massive multidimensional models, real-time recalculation, "granularity without sacrificing performance".</li>
+        <li><b>Versions as first-class</b> — admins create/name versions, set switchover dates; unlimited scenario comparison + automated variance.</li>
+        <li><b>Driver-based &amp; sensitivity</b> — market-leading for strategic finance; board-ready comparison dashboards.</li>
+        <li><b>AI</b> — PlanIQ / Predictive Insights (ML) plus 2026 agentic layer (CoModeler, NL scenario generation, role agents).</li>
+        <li><b>Governance</b> — ALM, decision lineage back to source systems, auditability.</li>
+      </ul>
+      <div class="verdict behind mt16"><b>vs Us:</b> Anaplan leads decisively on engine scale, versioning/governance and AI. We lead on <b>time-to-value and in-context UX</b> — Anaplan typically needs modeling expertise / partners; ours is usable by a business planner with zero setup.</div>
+    </div>
+  </div>
+  <div class="kicker">Competitor · Anaplan</div>
+</section>
+
+<!-- ============================ SAP ============================ -->
+<section class="page" data-pageno="6">
+  <p class="eyebrow" style="color:var(--sap)">Competitor · SAP</p>
+  <h2>SAP — SAC (xP&amp;A) + IBP Harmonized Scenarios</h2>
+  <div class="row mt16">
+    <div class="col" style="flex:1.15">
+      <div class="mock" style="position:relative">
+        <div class="mock-repbadge">Representative</div>
+        <div class="mock-top" style="background:var(--sap)">▦ SAP IBP · Planner Workspace — Scenario Lifecycle</div>
+        <div class="mock-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="mchip">Create</span><span class="mchip">▶ Simulate</span>
+            <span class="mchip">▤ Compare</span><span class="mchip">✔ Promote to baseline</span>
+            <span class="mchip">Shine-through: on</span>
+            <span class="mchip">Auto-delete: +365d</span>
+          </div>
+          <table class="mgrid">
+            <tr><th class="lbl">Key figure</th><th>Baseline</th><th>Scenario A</th><th>Δ</th></tr>
+            <tr><td class="lbl">Demand (units)</td><td>84,000</td><td>90,300</td><td class="pos">+7.5%</td></tr>
+            <tr><td class="lbl">Supply / receipts</td><td>82,100</td><td>88,900</td><td class="pos">+8.3%</td></tr>
+            <tr><td class="lbl">Projected stock</td><td>12,400</td><td>9,800</td><td class="neg">-21%</td></tr>
+            <tr><td class="lbl">Revenue ($M)</td><td>255</td><td>272</td><td class="pos">+6.7%</td></tr>
+          </table>
+          <div style="margin-top:9px;display:flex;gap:8px">
+            <span class="mchip">SAC value-driver tree</span>
+            <span class="mchip">Excel add-in</span>
+            <span class="mchip">🤖 Joule</span>
+          </div>
+        </div>
+      </div>
+      <figcaption>Representative SAP pattern (IBP 2602/2605): one scenario spans key figures + orders — create, simulate, compare, and promote to baseline with controlled shine-through; SAC adds value-driver-tree what-if.</figcaption>
+    </div>
+    <div class="col">
+      <h3>What they do well</h3>
+      <ul class="clean">
+        <li><b>Harmonized Scenario Management (IBP)</b> — unified lifecycle across time-series key figures <i>and</i> orders in one framework; create without simulating first, branch from a simulation, promote results (incl. orders) to baseline.</li>
+        <li><b>Controlled shine-through</b> — precise control of how baseline changes flow into scenarios; scheduled deletion prevents scenario sprawl.</li>
+        <li><b>One-click simulation</b> — statistical forecast in simulation mode, discard in one click; now in the Excel add-in too.</li>
+        <li><b>SAC (xP&amp;A)</b> — value driver trees, versions (public/private), data actions, predictive.</li>
+        <li><b>Deep ERP integration &amp; Joule AI</b>; enterprise governance.</li>
+      </ul>
+      <div class="verdict behind mt16"><b>vs Us:</b> SAP leads on lifecycle rigor (promote-to-baseline, shine-through, orders+key-figures) and ERP depth. We lead on <b>approachability</b> — SAP's power sits behind planning-area configuration and a steeper UI; ours is immediate and grid-native.</div>
+    </div>
+  </div>
+  <div class="kicker">Competitor · SAP</div>
+</section>
+
+<!-- ============================ PIGMENT ============================ -->
+<section class="page" data-pageno="7">
+  <p class="eyebrow" style="color:var(--pigment)">Competitor · Pigment</p>
+  <h2>Pigment — modern Scenarios vs governed Versions</h2>
+  <div class="row mt16">
+    <div class="col" style="flex:1.15">
+      <div class="mock" style="position:relative">
+        <div class="mock-repbadge">Representative</div>
+        <div class="mock-top" style="background:var(--pigment)">◑ Pigment · Compare Scenarios</div>
+        <div class="mock-body">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="mchip">☑ Base</span><span class="mchip">☑ Best case</span>
+            <span class="mchip">☑ Worst case</span><span class="mchip">☐ + Scenario</span>
+            <span class="mchip">Compare to snapshot ▾</span>
+          </div>
+          <table class="mgrid">
+            <tr><th class="lbl">Metric</th><th>Base ①</th><th>Best ②</th><th>Worst ③</th></tr>
+            <tr><td class="lbl">New bookings</td><td>$4.2M</td><td class="pos">$5.1M</td><td class="neg">$3.4M</td></tr>
+            <tr><td class="lbl">Headcount</td><td>310</td><td>340</td><td>285</td></tr>
+            <tr><td class="lbl">Gross margin</td><td>72%</td><td>74%</td><td>69%</td></tr>
+            <tr><td class="lbl">Runway (mo)</td><td>18</td><td class="pos">22</td><td class="neg">13</td></tr>
+          </table>
+          <div style="margin-top:9px;display:flex;gap:8px">
+            <span class="mchip">ƒ Per-scenario formulas</span>
+            <span class="mchip">⧉ Copy inputs</span>
+            <span class="mchip">📈 Predictions</span>
+          </div>
+        </div>
+      </div>
+      <figcaption>Representative Pigment pattern: multi-select scenarios shown side-by-side, each with independent inputs/formulas; Version dimension for governed cycles; Predictions for ML.</figcaption>
+    </div>
+    <div class="col">
+      <h3>What they do well</h3>
+      <ul class="clean">
+        <li><b>Two-tier model</b> — <i>Scenarios</i> for fast ad-hoc what-if (best/worst, sensitivity, short-term) vs a <i>Version dimension</i> for governed, auditable, repeatable cycles.</li>
+        <li><b>Compare Scenarios</b> — check multiple scenarios to view side-by-side on grids/boards; edit inputs <b>and formulas independently per scenario</b>; copy inputs between scenarios.</li>
+        <li><b>Compare-to-snapshot</b> — live plan vs a frozen snapshot without duplicating data.</li>
+        <li><b>Predictions</b> — ML forecasting with accuracy measures &amp; model comparison.</li>
+        <li><b>Modern, business-user-friendly UI</b> — the closest peer to our design philosophy.</li>
+      </ul>
+      <div class="verdict parity mt16"><b>vs Us:</b> The nearest match on <b>UX and side-by-side comparison</b>. Pigment goes deeper (per-scenario formulas, snapshots, ML). We counter with <b>in-grid embedding, business-semantic drivers, and in-table goal-seek</b> that Pigment doesn't surface as directly.</div>
+    </div>
+  </div>
+  <div class="kicker">Competitor · Pigment</div>
+</section>
+
+<!-- ============================ AERA ============================ -->
+<section class="page" data-pageno="8">
+  <p class="eyebrow" style="color:var(--aera)">Competitor · Aera Technology</p>
+  <h2>Aera — agentic decision intelligence</h2>
+  <div class="row mt16">
+    <div class="col" style="flex:1.15">
+      <div class="mock" style="position:relative">
+        <div class="mock-repbadge">Representative</div>
+        <div class="mock-top" style="background:var(--aera)">✦ Aera Decision Cloud · Simulate &amp; Recommend</div>
+        <div class="mock-body">
+          <div class="conv">
+            <div class="u">“Demand for SKU-118 just spiked 12% in the West. What should we do?”</div>
+            <div class="a"><b>Aera</b> analyzed live data across 3 systems and simulated 4 responses:</div>
+            <table class="mgrid">
+              <tr><th class="lbl">Option</th><th>Fill rate</th><th>Margin Δ</th><th>Cost</th></tr>
+              <tr><td class="lbl">Expedite from DC-2</td><td>98%</td><td class="neg">-1.2%</td><td>$41k</td></tr>
+              <tr><td class="lbl">Reallocate East stock</td><td>95%</td><td class="pos">+0.3%</td><td>$12k</td></tr>
+              <tr><td class="lbl">Do nothing</td><td class="neg">86%</td><td>0%</td><td>$0</td></tr>
+            </table>
+            <div class="rec"><b>Recommended:</b> Reallocate East stock — best margin at lowest cost. <br/><small class="muted">Explainable · traceable to source · execute on approval.</small></div>
+          </div>
+        </div>
+      </div>
+      <figcaption>Representative Aera pattern: conversational "situation → simulation → recommended action", with explainable trade-offs and governed one-click execution.</figcaption>
+    </div>
+    <div class="col">
+      <h3>What they do well</h3>
+      <ul class="clean">
+        <li><b>Scenario &amp; simulation models</b> — what-if analysis that quantifies trade-offs and assesses outcomes <i>before execution</i>, composed from rules + AI/ML + live data.</li>
+        <li><b>Agentic reasoning</b> — go from question to validated action in one conversation (2026); surfaces adjacent risks/opportunities.</li>
+        <li><b>Decision Data Model</b> — "decision memory" learns from outcomes to improve future recommendations.</li>
+        <li><b>Governed execution</b> — auto-execute or route for approval; fully auditable. Excel-like self-service Workspaces + real-time Calc engine.</li>
+        <li><b>2026 Gartner MQ Leader — Decision Intelligence.</b></li>
+      </ul>
+      <div class="verdict behind mt16"><b>vs Us:</b> Different category — Aera is a <b>decision-automation layer</b> (mostly supply-chain/ops) that <i>acts</i>, not a planning grid. It far outpaces us on autonomy &amp; recommendations. We are a <b>human-driven planning surface</b>; the lesson to borrow is <b>recommend-and-explain</b>.</div>
+    </div>
+  </div>
+  <div class="kicker">Competitor · Aera</div>
+</section>
+
+<!-- ============================ MATRIX ============================ -->
+<section class="page" data-pageno="9">
+  <p class="eyebrow">Capability Matrix</p>
+  <h2>Scenario planning — scored comparison</h2>
+  <div class="legend mt8" style="margin-bottom:10px">
+    <span class="k"><span class="dots"><span class="on">●●●●</span></span> Strong / market-leading</span>
+    <span class="k"><span class="dots"><span class="on">●●●</span>○</span> Solid</span>
+    <span class="k"><span class="dots"><span class="on">●●</span>○○</span> Partial</span>
+    <span class="k"><span class="dots"><span class="on">●</span>○○○</span> Minimal</span>
+    <span class="k">○○○○ None</span>
+  </div>
+  <table class="matrix">
+    <colgroup><col/><col class="ours"/><col/><col/><col/><col/></colgroup>
+    <thead>
+      <tr>
+        <th class="cap">Capability</th>
+        <th class="ours">Ours</th><th>Anaplan</th><th>SAP</th><th>Pigment</th><th>Aera</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td class="cap">In-context / embedded in the grid<small>Plan without leaving the working view</small></td>
+        <td class="ours"><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td></tr>
+      <tr><td class="cap">Side-by-side scenario comparison</td>
+        <td class="ours"><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Business-semantic drivers<small>Levers a business user reads directly</small></td>
+        <td class="ours"><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Goal-seek / back-solve in place</td>
+        <td class="ours"><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td></tr>
+      <tr><td class="cap">Real-time recalculation</td>
+        <td class="ours"><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td></tr>
+      <tr><td class="cap">Calculation engine at scale<small>Multidimensional, enterprise volume</small></td>
+        <td class="ours"><span class="dots"><span class="on">●</span>○○○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td></tr>
+      <tr><td class="cap">Scenario lifecycle<small>Create · branch · promote-to-baseline · retire</small></td>
+        <td class="ours"><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Versioning · governance · audit lineage</td>
+        <td class="ours"><span class="dots"><span class="on">●</span>○○○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Predictive ML forecasting</td>
+        <td class="ours">○○○○</td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td></tr>
+      <tr><td class="cap">Generative / agentic AI &amp; recommendations</td>
+        <td class="ours">○○○○</td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td></tr>
+      <tr><td class="cap">Decision-support charts</td>
+        <td class="ours"><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Round-trip to plan as reviewable edits</td>
+        <td class="ours"><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td></tr>
+      <tr><td class="cap">Time-to-value / business-user accessibility</td>
+        <td class="ours"><span class="dots"><span class="on">●●●●</span></span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td><td><span class="dots"><span class="on">●●●</span>○</span></td><td><span class="dots"><span class="on">●●</span>○○</span></td></tr>
+    </tbody>
+  </table>
+  <p class="faint mt16"><small>Scores are a directional assessment for scenario/what-if planning specifically (not whole-platform breadth), based on public documentation as of mid-2026 and the current state of our prototype.</small></p>
+  <div class="kicker">Capability Matrix</div>
+</section>
+
+<!-- ============================ GAP ANALYSIS ============================ -->
+<section class="page" data-pageno="10">
+  <p class="eyebrow">Gap Analysis &amp; Roadmap Implications</p>
+  <h2>Closing the gap without losing the edge</h2>
+  <div class="grid2 mt16">
+    <div class="card">
+      <h3 style="color:var(--lead)">Protect &amp; press our advantages</h3>
+      <ul class="clean">
+        <li><b>In-context drawer</b> — keep scenario work glued to the grid; this is our identity.</li>
+        <li><b>Business-semantic drivers</b> — expand the driver library (discounting, channel mix, promo) as curated dropdowns.</li>
+        <li><b>Goal-seek</b> — extend from single-driver back-solve to multi-driver, constrained solves.</li>
+        <li><b>Round-trip to plan</b> — the "Show in grid → reviewable edits → save/promote" loop is uniquely tight; make it the headline.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--behind)">Gaps to close (priority order)</h3>
+      <ul class="clean">
+        <li><b>Scenario lifecycle &amp; versioning</b> — name, save, clone, and promote scenarios with an audit trail (table-stakes vs all four).</li>
+        <li><b>Predictive baseline</b> — an ML/statistical forecast as the starting scenario (Anaplan PlanIQ / Pigment Predictions parity).</li>
+        <li><b>Recommend-and-explain</b> — surface a suggested scenario + rationale (borrow from Aera), short of full auto-execution.</li>
+        <li><b>Governance</b> — access control &amp; lineage for when scenarios feed the official plan.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="row mt24">
+    <div class="col phase">
+      <h3><span class="pill">Now</span> Solidify the core</h3>
+      <ul class="tight clean">
+        <li>Persist &amp; name scenarios (save/clone/delete).</li>
+        <li>Assumptions saved per scenario; audit of who changed what.</li>
+        <li>Multi-driver goal-seek with bounds.</li>
+      </ul>
+    </div>
+    <div class="col phase">
+      <h3><span class="pill" style="background:#0b827c">Next</span> Add intelligence</h3>
+      <ul class="tight clean">
+        <li>ML predictive baseline scenario.</li>
+        <li>Sensitivity / tornado view across drivers.</li>
+        <li>"Suggested scenario" with explainable rationale.</li>
+      </ul>
+    </div>
+    <div class="col phase">
+      <h3><span class="pill" style="background:#8c4b02">Later</span> Enterprise-grade</h3>
+      <ul class="tight clean">
+        <li>Versioning + governance + lineage.</li>
+        <li>Scale the calc model beyond the current grid.</li>
+        <li>Agent that drafts &amp; compares scenarios on request.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="verdict lead mt24">
+    <b>Bottom line:</b> We don't need to out-engine Anaplan or out-automate Aera to win the moment. Our wedge is the <b>decision last-mile</b> — the fastest path from a business question to a reviewed change in the live plan. Fund lifecycle + a predictive baseline + recommend-and-explain, and we reach parity on the fundamentals while keeping a UX lead none of them have in-grid.
+  </div>
+  <div class="kicker">Gap Analysis</div>
+</section>
+
+<!-- ============================ APPENDIX ============================ -->
+<section class="page" data-pageno="11">
+  <p class="eyebrow">Appendix</p>
+  <h2>Method &amp; sources</h2>
+  <div class="grid2 mt16">
+    <div class="card soft">
+      <h3>Method</h3>
+      <ul class="clean">
+        <li><b>Our screens</b> are live screenshots of the working prototype's scenario drawer.</li>
+        <li><b>Competitor screens</b> are <b>representative mockups</b> rebuilt from public product documentation and release notes — they illustrate the interaction pattern, not the exact pixels, and carry no copyrighted assets.</li>
+        <li>Scores are scoped to scenario / what-if planning, not full-platform breadth.</li>
+      </ul>
+    </div>
+    <div class="card soft">
+      <h3>Primary sources (public, mid-2026)</h3>
+      <ul class="tight clean">
+        <li>Anaplan — Platform &amp; "Scenario planning and analysis"; Polaris / HyperModel; PlanIQ; 2026 agentic announcements.</li>
+        <li>SAP — IBP 2602 / 2605 release notes (Harmonized Scenario Management); SAP Learning "Scenarios"; SAP Analytics Cloud xP&amp;A.</li>
+        <li>Pigment — KB "Versions &amp; Scenarios", "Compare Scenarios", "Compare to Snapshot"; Predictions.</li>
+        <li>Aera Technology — Aera Decision Cloud, Multi-Engine Orchestration, Workspaces, 2026 agentic reasoning news; Gartner Peer Insights.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="faint mt24"><small>Prepared as an internal competitive assessment. Vendor names and trademarks belong to their respective owners. Representative mockups are for comparison of interaction models only.</small></p>
+  <div class="kicker">Appendix</div>
+</section>
+
+</body>
+</html>

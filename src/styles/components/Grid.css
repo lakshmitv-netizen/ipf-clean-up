@@ -2772,6 +2772,20 @@ button.chevron-icon {
   text-decoration: none !important;
 }
 
+/* DF demo: associated cells carry an outline (unfilled) red warning icon. Clicking it opens a
+   styled popover naming the anchor cell they're affected by. */
+.cell-risk-warning.cell-risk-warning--associated {
+  cursor: pointer;
+}
+.cell-risk-warning.cell-risk-warning--associated:focus-visible {
+  outline: 2px solid var(--slds-g-color-border-brand-1, #0176d3);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+.cell-associated-risk-tooltip .cell-risk-tooltip-body {
+  margin-bottom: 0;
+}
+
 .cell-value-cell.impacted-cell {
   background: var(--slds-g-color-palette-yellow-95) !important;
   border-top: 1px solid var(--slds-g-color-neutral-base-80) !important;

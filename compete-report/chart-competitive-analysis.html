@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Charts in Planning &amp; Forecasting — Competitive &amp; Persona Analysis</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --surface:#ffffff;
+    --ink:#12141a;
+    --ink-2:#43485a;
+    --ink-3:#767b8c;
+    --line:#e3e6ec;
+    --line-2:#eef0f4;
+    --accent:#1b5fd9;
+    --accent-soft:#eaf1fe;
+    --strong:#0b7a5a;
+    --strong-bg:#e3f5ee;
+    --partial:#9a6b00;
+    --partial-bg:#fdf3dc;
+    --weak:#8a2f3a;
+    --weak-bg:#fbe9eb;
+    --white-space:#5b3fb5;
+    --white-space-bg:#efeaFB;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(18,20,26,.06), 0 8px 24px rgba(18,20,26,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent)}
+
+  /* ---------- header ---------- */
+  header.top{
+    position:sticky; top:0; z-index:40;
+    background:rgba(255,255,255,.92); backdrop-filter:saturate(180%) blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{max-width:1400px;margin:0 auto;padding:14px 24px 0}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  h1{margin:6px 0 2px;font-size:22px;letter-spacing:-.02em}
+  .sub{color:var(--ink-2);font-size:13.5px;margin:0 0 12px;max-width:900px}
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap}
+  .tab{
+    appearance:none;border:0;background:transparent;cursor:pointer;
+    padding:9px 14px;border-radius:8px 8px 0 0;font:inherit;font-size:13.5px;font-weight:600;
+    color:var(--ink-2);border-bottom:2px solid transparent;
+  }
+  .tab:hover{background:var(--line-2);color:var(--ink)}
+  .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-soft)}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 12px;min-width:250px;
+  }
+  .search input{border:0;outline:0;font:inherit;font-size:13.5px;width:100%;background:transparent;color:var(--ink)}
+  .search svg{flex:0 0 auto;opacity:.5}
+
+  /* ---------- layout ---------- */
+  main{max-width:1400px;margin:0 auto;padding:22px 24px 80px}
+  .panel[hidden]{display:none}
+  section.block{margin:0 0 26px}
+  h2.blk{font-size:15px;letter-spacing:-.01em;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  h2.blk .n{
+    font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 7px;letter-spacing:.04em;
+  }
+  p.lead{color:var(--ink-2);margin:0 0 14px;max-width:980px;font-size:14px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+
+  /* ---------- chips / filters ---------- */
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
+  .chip{
+    appearance:none;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;
+    background:var(--surface);color:var(--ink-2);border:1px solid var(--line);
+    border-radius:999px;padding:6px 13px;
+  }
+  .chip:hover{border-color:#c9cedb;color:var(--ink)}
+  .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip .cnt{opacity:.6;font-weight:500;margin-left:5px}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);font-weight:600;cursor:pointer;user-select:none}
+  .switch input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+
+  /* ---------- class banner ---------- */
+  .classes{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .cls{padding:14px 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface)}
+  .cls h3{margin:0 0 5px;font-size:13.5px}
+  .cls p{margin:0;font-size:12.8px;color:var(--ink-2)}
+  .cls .who{margin-top:8px;font-size:12px;color:var(--ink-3);font-weight:600}
+  .cls.k-plan{border-top:3px solid #1b5fd9}
+  .cls.k-di{border-top:3px solid #5b3fb5}
+  .cls.k-ri{border-top:3px solid #0b7a5a}
+  .cls.k-crm{border-top:3px solid #9a6b00}
+
+  /* ---------- takeaway ---------- */
+  .take{padding:16px 18px}
+  .take .num{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--accent)}
+  .take h3{margin:7px 0 6px;font-size:14.5px;letter-spacing:-.01em}
+  .take p{margin:0;color:var(--ink-2);font-size:13.3px}
+
+  /* ---------- vendor cards ---------- */
+  .vcard{padding:15px 17px;display:flex;flex-direction:column;gap:9px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .vcard:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(18,20,26,.08),0 14px 34px rgba(18,20,26,.09)}
+  .vcard .vhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .vcard h3{margin:0;font-size:15px;letter-spacing:-.01em}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .b-plan{background:var(--accent-soft);color:#12489f}
+  .b-di{background:var(--white-space-bg);color:#4a2f9c}
+  .b-ri{background:var(--strong-bg);color:#0b6b50}
+  .b-crm{background:var(--partial-bg);color:#8a5f00}
+  .sig{font-size:12.8px;color:var(--ink);background:var(--line-2);border-left:3px solid var(--accent);padding:8px 10px;border-radius:0 7px 7px 0}
+  .sig b{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}
+  .vcard p.tl{margin:0;font-size:13.2px;color:var(--ink-2)}
+  .mini{display:flex;gap:4px;margin-top:2px}
+  .mini i{height:5px;border-radius:3px;flex:1;background:var(--line)}
+  .mini i.l3{background:var(--strong)}
+  .mini i.l2{background:#e3b23c}
+  .mini i.l1{background:#dcdfe6}
+  .more{font-size:12px;color:var(--accent);font-weight:650}
+
+  /* ---------- screenshot gallery ---------- */
+  .shot{padding:15px 17px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .shot:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(18,20,26,.08),0 14px 34px rgba(18,20,26,.09)}
+  .frame{
+    border:1px solid var(--line);border-radius:var(--radius);background:#fbfcfd;
+    padding:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .shot .frame{min-height:190px}
+  .frame img{display:block;max-width:100%;max-height:300px;object-fit:contain;border-radius:6px}
+  .frame svg{display:block;max-width:100%;height:auto}
+  .shotcap{margin:0;font-size:13px;color:var(--ink-2)}
+  .shotfoot{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:auto}
+  .srclink{font-size:12px;font-weight:650;text-decoration:none;border-bottom:1px solid transparent}
+  .srclink:hover{border-bottom-color:var(--accent)}
+  .pill{
+    font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:var(--partial-bg);color:var(--partial);white-space:nowrap;
+  }
+  .pill.real{background:var(--strong-bg);color:var(--strong)}
+  .mshot{margin:8px 0 0}
+  .mshot .frame{background:#fbfcfd}
+  .mshot .frame img{max-height:260px}
+  .mshot .meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:8px;font-size:12.2px;color:var(--ink-3)}
+
+  /* ---------- modal ---------- */
+  .scrim{position:fixed;inset:0;background:rgba(12,14,20,.5);z-index:60;display:none}
+  .scrim.on{display:block}
+  .modal{
+    position:fixed;z-index:61;right:0;top:0;height:100%;width:min(560px,100%);
+    background:var(--surface);box-shadow:-16px 0 50px rgba(0,0,0,.18);
+    display:none;flex-direction:column;
+  }
+  .modal.on{display:flex}
+  .mhead{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .mhead h3{margin:6px 0 0;font-size:18px;letter-spacing:-.02em}
+  .mbody{padding:18px 22px;overflow:auto}
+  .x{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;width:30px;height:30px;font-size:17px;line-height:1;cursor:pointer;color:var(--ink-2)}
+  .x:hover{background:var(--line-2)}
+  .mbody h4{margin:16px 0 7px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .mbody ul{margin:0;padding-left:18px}
+  .mbody li{margin:0 0 6px;font-size:13.4px;color:var(--ink-2)}
+  .mrow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13.2px}
+  .mrow:last-child{border-bottom:0}
+  .mrow span:first-child{color:var(--ink-2)}
+
+  /* ---------- matrix ---------- */
+  .mwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.8px}
+  thead th{
+    position:sticky;top:0;z-index:3;background:#fafbfc;border-bottom:1px solid var(--line);
+    padding:11px 9px;text-align:center;font-size:11.5px;font-weight:700;color:var(--ink-2);white-space:nowrap;
+  }
+  thead th.cap{text-align:left;left:0;z-index:5;min-width:290px;background:#fafbfc}
+  tbody th.cap{
+    position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;font-weight:600;
+    padding:10px 12px;border-bottom:1px solid var(--line-2);border-right:1px solid var(--line);
+    font-size:12.9px;color:var(--ink);
+  }
+  tbody td{padding:8px 9px;text-align:center;border-bottom:1px solid var(--line-2)}
+  tbody tr:hover th.cap,tbody tr:hover td{background:#fbfcfe}
+  .tag{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-left:7px;vertical-align:middle}
+  .t-stake{background:var(--line-2);color:var(--ink-3)}
+  .t-diff{background:var(--accent-soft);color:#12489f}
+  .t-ws{background:var(--white-space-bg);color:#4a2f9c}
+  .lvl{display:inline-flex;align-items:center;justify-content:center;min-width:74px;padding:4px 9px;border-radius:999px;font-size:11.2px;font-weight:700}
+  .lvl.l3{background:var(--strong-bg);color:var(--strong)}
+  .lvl.l2{background:var(--partial-bg);color:var(--partial)}
+  .lvl.l1{background:var(--weak-bg);color:var(--weak)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:12px 0 0;font-size:12.4px;color:var(--ink-2)}
+  .legend b{font-weight:700}
+
+  /* ---------- personas ---------- */
+  .pcard{padding:15px 17px}
+  .pcard .ph{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+  .pcard h3{margin:0;font-size:14.6px;letter-spacing:-.01em}
+  .dom{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);background:var(--line-2);padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .field{margin:0 0 9px}
+  .field .k{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:3px}
+  .field .v{font-size:13.3px;color:var(--ink-2)}
+  .field.goal .v{color:var(--ink);font-weight:550}
+  .cbits{display:flex;gap:6px;flex-wrap:wrap}
+  .cbit{font-size:11.8px;background:var(--accent-soft);color:#12489f;border-radius:6px;padding:3px 8px;font-weight:600}
+  .req{border-left:3px solid #e3b23c;background:#fffdf6;padding:8px 11px;border-radius:0 7px 7px 0;font-size:12.9px;color:var(--ink-2)}
+
+  /* ---------- win section ---------- */
+  .three{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+  .bucket{padding:15px 17px}
+  .bucket h3{margin:0 0 3px;font-size:14px}
+  .bucket .sub2{font-size:12.2px;color:var(--ink-3);margin:0 0 11px}
+  .bucket ul{margin:0;padding-left:17px}
+  .bucket li{font-size:13.1px;color:var(--ink-2);margin:0 0 6px}
+  .bucket.stake{border-top:3px solid #a9b0c0}
+  .bucket.diff{border-top:3px solid var(--accent)}
+  .bucket.ws{border-top:3px solid var(--white-space)}
+
+  .note{
+    margin-top:22px;padding:13px 16px;border-radius:10px;background:#fffdf6;
+    border:1px solid #f0e2bd;font-size:12.8px;color:#6b5726;
+  }
+  .empty{padding:34px;text-align:center;color:var(--ink-3);font-size:13.5px}
+  mark{background:#fff2a8;color:inherit;padding:0 1px;border-radius:2px}
+  footer{max-width:1400px;margin:0 auto;padding:0 24px 40px;color:var(--ink-3);font-size:12.2px}
+
+  @media (max-width:700px){
+    .search{min-width:100%;margin-left:0;order:3}
+    h1{font-size:19px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="eyebrow">Competitive &amp; Persona Analysis</div>
+    <h1>Chart functionality across planning &amp; forecasting platforms</h1>
+    <p class="sub">Ten vendors across three product classes, compared on the chart capabilities that actually drive planning and forecasting decisions — plus the personas who consume those charts and the job each chart does for them.</p>
+    <div class="toolbar">
+      <div class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab" role="tab" aria-selected="true"  data-tab="overview">Overview</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="vendors">Vendors <span class="cnt" id="vcount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="shots">Screenshots <span class="cnt" id="scount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="matrix">Capability matrix</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="personas">Personas <span class="cnt" id="pcount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="win">Where to win</button>
+      </div>
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input id="q" type="search" placeholder="Search vendors, capabilities, personas…" autocomplete="off" />
+      </label>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ================= OVERVIEW ================= -->
+  <div class="panel" id="panel-overview">
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> These aren't one market</h2>
+      <p class="lead">Grouping all ten vendors together hides the most important fact: they answer different chart questions. Comparing Anaplan's chart library to Clari's is only meaningful once you know they serve different jobs.</p>
+      <div class="classes" id="classes"></div>
+    </section>
+
+    <section class="block">
+      <h2 class="blk"><span class="n">02</span> The three findings that matter</h2>
+      <div class="grid g3" id="takeaways"></div>
+    </section>
+
+    <section class="block">
+      <h2 class="blk"><span class="n">03</span> How to read the matrix</h2>
+      <p class="lead">Every capability is labelled by competitive status, which is more useful than a raw feature count. <span class="tag t-stake">table stakes</span> means everyone has it and it wins nothing. <span class="tag t-diff">differentiator</span> means it separates leaders from followers today. <span class="tag t-ws">white space</span> means nobody has really solved it — which is where design leverage lives.</p>
+      <div class="card" style="padding:15px 17px">
+        <div class="legend">
+          <span><span class="lvl l3">Strong</span> &nbsp;first-class, a reason customers buy</span>
+          <span><span class="lvl l2">Partial</span> &nbsp;present but shallow, or needs another tool</span>
+          <span><span class="lvl l1">Limited</span> &nbsp;absent or incidental</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= VENDORS ================= -->
+  <div class="panel" id="panel-vendors" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Vendor profiles</h2>
+      <p class="lead">Filter by product class, then open any vendor for its signature chart, strengths, and the honest weaknesses. The coloured bar on each card is its capability profile across all twelve dimensions.</p>
+      <div class="chips" id="vfilters"></div>
+      <div class="grid g3" id="vendors"></div>
+      <div class="empty" id="vempty" hidden>No vendors match that search.</div>
+    </section>
+  </div>
+
+  <!-- ================= SCREENSHOTS ================= -->
+  <div class="panel" id="panel-shots" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> What these charts actually look like</h2>
+      <p class="lead">One representative visual per vendor, chosen to show the chart capability that vendor is known for — Oracle's in-form prediction band, Clari's forecast waterfall, SAP's IBCS bridge, and so on. Click any tile to open the full vendor profile.</p>
+      <div class="chips" id="sfilters"></div>
+      <div class="grid g2" id="shots"></div>
+      <div class="empty" id="sempty" hidden>No screenshots match that search.</div>
+      <div class="note" id="shotnote"></div>
+    </section>
+  </div>
+
+  <!-- ================= MATRIX ================= -->
+  <div class="panel" id="panel-matrix" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Capability matrix</h2>
+      <p class="lead">Capabilities as rows, vendors as columns. Use the toggles to strip out the table stakes and see only what actually separates these products.</p>
+      <div class="chips">
+        <label class="switch"><input type="checkbox" id="onlyDiff" /> Differentiators &amp; white space only</label>
+        <label class="switch"><input type="checkbox" id="onlyStrong" /> Highlight only “Strong” ratings</label>
+      </div>
+      <div class="mwrap">
+        <table id="matrix">
+          <thead><tr id="mhead"></tr></thead>
+          <tbody id="mbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><b>Legend:</b></span>
+        <span><span class="lvl l3">Strong</span></span>
+        <span><span class="lvl l2">Partial</span></span>
+        <span><span class="lvl l1">Limited</span></span>
+        <span style="color:var(--ink-3)">Click any capability name for what “good” looks like.</span>
+      </div>
+    </section>
+  </div>
+
+  <!-- ================= PERSONAS ================= -->
+  <div class="panel" id="panel-personas" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Personas, goals, and the chart's job</h2>
+      <p class="lead">Twelve personas across the planning and forecasting lifecycle. For each: the goal they're accountable for, the charts that actually move the needle, and the requirement that makes the chart useful rather than decorative.</p>
+      <div class="chips" id="pfilters"></div>
+      <div class="grid g2" id="personas"></div>
+      <div class="empty" id="pempty" hidden>No personas match that search.</div>
+    </section>
+  </div>
+
+  <!-- ================= WIN ================= -->
+  <div class="panel" id="panel-win" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Table stakes, differentiators, white space</h2>
+      <p class="lead">The same twelve capabilities, sorted by what they're worth competitively.</p>
+      <div class="three" id="buckets"></div>
+    </section>
+    <section class="block">
+      <h2 class="blk"><span class="n">02</span> Implications</h2>
+      <div class="grid g3" id="implications"></div>
+    </section>
+    <div class="note" id="caveat"></div>
+  </div>
+
+</main>
+
+<footer>
+  <span id="foot"></span>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+  <div class="mhead">
+    <div>
+      <span class="badge" id="mbadge"></span>
+      <h3 id="mtitle"></h3>
+    </div>
+    <button class="x" id="mclose" aria-label="Close">×</button>
+  </div>
+  <div class="mbody" id="mcontent"></div>
+</aside>
+
+<script>
+/* =========================================================================
+   DATA
+   ========================================================================= */
+
+const CLASSES = [
+  { id:'plan', key:'k-plan', badge:'b-plan', name:'Enterprise planning platforms',
+    desc:'Multi-dimensional grids with driver-based math and scenario versions. Charts serve the plan itself.',
+    who:'SAP · Anaplan · Oracle · o9' },
+  { id:'di', key:'k-di', badge:'b-di', name:'Decision intelligence',
+    desc:'Recommendation-first. Charts exist to justify a proposed action, not to enable open-ended exploration.',
+    who:'Aera Technologies' },
+  { id:'ri', key:'k-ri', badge:'b-ri', name:'Revenue intelligence',
+    desc:'Sales forecasting off CRM plus activity signals. Built on historical pipeline snapshots.',
+    who:'Clari · Aviso · BoostUp · Weflow' },
+  { id:'crm', key:'k-crm', badge:'b-crm', name:'CRM-native reporting',
+    desc:'Approachable dashboards and forecast-vs-goal. No planning grid, no driver-based scenario math.',
+    who:'HubSpot' },
+];
+
+const CAPS = [
+  { id:'core',   name:'Core visuals (trend, bar, combo, KPI tiles, funnel)', status:'stake',
+    good:'Complete, fast, and consistent. Nobody wins on this — but a thin library is noticed immediately.' },
+  { id:'avp',    name:'Actual vs Plan vs Forecast on one timeline', status:'stake',
+    good:'Three series, one axis, with the switchover point between actual and forecast visually explicit.' },
+  { id:'bridge', name:'Variance / bridge waterfall (period-over-period change)', status:'diff',
+    good:'Reconciles last call to this call in named, clickable buckets — created, pulled in, pushed out, slipped, won, lost.' },
+  { id:'band',   name:'Forecast uncertainty (confidence / prediction band)', status:'diff',
+    good:'A band, not a line — and it narrows or widens visibly where history is thin. Uncertainty is the message.' },
+  { id:'driver', name:'Driver decomposition / contribution to change', status:'diff',
+    good:'Answers “what moved the number” by decomposing into the drivers, ranked by contribution, with drill-through.' },
+  { id:'snap',   name:'Snapshot history &amp; forecast accuracy over time', status:'diff',
+    good:'Stores versions so you can chart bias and accuracy by team over quarters. Without snapshots this is impossible.' },
+  { id:'scen',   name:'Scenario comparison (side-by-side with deltas)', status:'diff',
+    good:'Two-plus scenarios with the delta as a first-class series, so the decision — not just the data — is visible.' },
+  { id:'ingrid', name:'Charts embedded in the planning grid (in-context)', status:'ws',
+    good:'The chart appears at the row you are editing, without navigating away and losing your place.' },
+  { id:'wb',     name:'Chart → edit / write-back in the same surface', status:'ws',
+    good:'You see the anomaly on the chart and change the number right there. Almost universally unsolved.' },
+  { id:'agent',  name:'Chart as evidence for an agent recommendation', status:'ws',
+    good:'The chart exists to explain why an agent suggested a number, so a human can accept or reject with confidence.' },
+  { id:'narr',   name:'AI narrative / automated insight on charts', status:'diff',
+    good:'Plain-language “why” attached to the visual, specific enough to act on rather than generic restatement.' },
+  { id:'self',   name:'Self-service dashboard building', status:'stake',
+    good:'A business user can assemble a usable view without a BI team or a services engagement.' },
+];
+
+/* level: 3 strong, 2 partial, 1 limited */
+const VENDORS = [
+  { id:'sap', name:'SAP', cls:'plan', tagline:'IBP for the plan, Analytics Cloud for the picture — powerful, but split across two layers.',
+    signature:'IBCS-compliant variance and bridge visuals — standardised delta notation that finance teams read instantly.',
+    strengths:[
+      'Best-in-class standardised variance visuals (IBCS): consistent delta bars, bridges, actual/plan/forecast notation.',
+      'Statistical forecasting exposes confidence intervals; Smart Insights adds automated driver commentary.',
+      'Supply Chain Control Tower contributes strong KPI, alert and network visualisations.',
+      'Value driver trees make cause-and-effect explicit for planners.'
+    ],
+    weaknesses:[
+      'Charts typically live one layer away from the planning grid — a two-tool feel in daily use.',
+      'Licensing and capability differ between IBP and Analytics Cloud, so “what you get” depends on entitlement.',
+      'Time-to-first-chart is long relative to the revenue-intelligence class.'
+    ],
+    levels:{core:3,avp:3,bridge:3,band:3,driver:3,snap:2,scen:3,ingrid:1,wb:1,agent:1,narr:2,self:3},
+    shot:{ file:'vendor-shots/sap.png', schematic:false,
+      source:'https://help.sap.com/doc/00f68c2e08b941f081002fd3691d86a7/2023.20/en-US/d11afdbac8944590bff13b1b8604241c.html',
+      sourceName:'help.sap.com — Waterfall Charts',
+      caption:'SAP Analytics Cloud waterfall bridge reconciling headcount period over period, with IBCS-style increase / decrease / subtotal / total notation — the standardised variance language SAP leans on.' } },
+
+  { id:'anaplan', name:'Anaplan', cls:'plan', tagline:'Unmatched calculation engine and scenario versioning; the native chart library is the weak link.',
+    signature:'Charts wired live to modules — drill from a chart straight into the calculation that produced it.',
+    strengths:[
+      'Scenario versions make side-by-side comparison genuinely native rather than bolted on.',
+      'Drill-through from chart to underlying module is excellent for trust and auditability.',
+      'PlanIQ adds machine-learning forecasts with prediction intervals.',
+      'Conditional formatting in grids does a lot of quiet visual work.'
+    ],
+    weaknesses:[
+      'Native chart library is comparatively basic; polish lags the analytics specialists.',
+      'Many customers still export to Tableau or Power BI for presentation-grade visuals.',
+      'Forecast accuracy analytics are largely do-it-yourself.'
+    ],
+    levels:{core:3,avp:3,bridge:2,band:2,driver:2,snap:2,scen:3,ingrid:2,wb:1,agent:1,narr:1,self:2},
+    shot:{ file:'vendor-shots/anaplan.png', schematic:false,
+      source:'https://help.anaplan.com/add-forecast-actions-to-a-page-2512d187-08b4-4ea3-bac0-a806dd3012c5',
+      sourceName:'help.anaplan.com — Add forecast actions to a page',
+      caption:'An Anaplan board: actual vs forecast profit as a combo chart sitting directly above the planning grid it is calculated from, with forecast actions available from the card configuration panel.' } },
+
+  { id:'oracle', name:'Oracle', cls:'plan', tagline:'EPM Cloud’s Predictive Planning is the closest anyone gets to charts inside the planning form.',
+    signature:'In-form prediction: run a forecast on a row and get an overlay with prediction intervals without leaving the grid.',
+    strengths:[
+      'Predictive Planning runs in-context from a planning form — the strongest in-grid chart pattern in this set.',
+      'Prediction and confidence intervals are first-class, not an afterthought.',
+      'IPM Insights surfaces variance and anomaly detection automatically.',
+      'Narrative Reporting packages commentary with charts for close and board cycles.'
+    ],
+    weaknesses:[
+      'Visuals are functional rather than modern; design polish trails the newer entrants.',
+      'Advanced exploration pushes you to Oracle Analytics Cloud — another product to license and learn.',
+      'Bridge and waterfall storytelling is weaker than SAP’s IBCS discipline.'
+    ],
+    levels:{core:3,avp:3,bridge:2,band:3,driver:2,snap:2,scen:3,ingrid:3,wb:2,agent:1,narr:2,self:2},
+    shot:{ file:'vendor-shots/oracle.png', schematic:false,
+      source:'https://docs.oracle.com/en/cloud/saas/planning-budgeting-cloud/predictive-planning/index.html',
+      sourceName:'docs.oracle.com — Planning and Forecasting Using Predictive Planning',
+      caption:'Predictive Planning running inside an EPM Cloud planning form: historical actuals to the left of the separator, prediction to the right, wrapped in a Worst Case 2.5% / Best Case 97.5% band — all without leaving the grid.' } },
+
+  { id:'o9', name:'o9 Solutions', cls:'plan', tagline:'Graph-native, so “why did the forecast move” is answerable rather than aspirational.',
+    signature:'Driver decomposition across the knowledge graph — the most credible “what moved the number” in the planning class.',
+    strengths:[
+      'Knowledge-graph foundation gives the best driver decomposition story of any planning platform here.',
+      'Forecast value-add and accuracy analytics are built in, not reconstructed by hand.',
+      'What-if simulation with scenario comparison charts sits inside the planning workbench.',
+      'Analytics are embedded in the workbench rather than a separate BI layer — a real advantage over SAP.'
+    ],
+    weaknesses:[
+      'Breadth carries configuration complexity; the surface can overwhelm casual users.',
+      'Still panel-based rather than truly in-cell contextual.',
+      'Implementation-heavy, so chart quality depends on how well the model was built.'
+    ],
+    levels:{core:3,avp:3,bridge:3,band:3,driver:3,snap:3,scen:3,ingrid:2,wb:2,agent:2,narr:2,self:2},
+    shot:{ file:'vendor-shots/o9.png', schematic:false,
+      source:'https://o9solutions.com/solutions/demand-planning/collaborative-demand-planning',
+      sourceName:'o9solutions.com — Collaborative Demand Planning',
+      caption:'The o9 Demand Review workbench: KPI tiles for outlook and gap-to-target above a waterfall that decomposes outlook into planned growth, opportunity and risk — with Bridge, Outlook and Gap as sibling tabs and the driver breakdown grid beneath.' } },
+
+  { id:'aera', name:'Aera Technologies', cls:'di', tagline:'Not a dashboard product. Charts are evidence attached to a recommendation you accept or reject.',
+    signature:'The recommendation card — trend, root cause, and simulated impact, assembled to justify one proposed action.',
+    strengths:[
+      'The only vendor here whose charts are designed primarily as recommendation evidence and explainability.',
+      'Root-cause and driver-contribution visuals are genuinely strong.',
+      'Simulated impact of accepting a recommendation closes the loop from insight to action.',
+      'Closest analogue in this set to an agentic, human-approves pattern.'
+    ],
+    weaknesses:[
+      'Thin as self-service business intelligence — not the tool for open-ended exploration.',
+      'No planning grid, so in-grid contextual charting is not applicable.',
+      'Value depends heavily on decision scope being modelled up front.'
+    ],
+    levels:{core:2,avp:2,bridge:2,band:2,driver:3,snap:2,scen:2,ingrid:1,wb:2,agent:3,narr:3,self:1},
+    shot:{ file:'vendor-shots/aera.png', schematic:false,
+      source:'https://www.aeratechnology.com/aera-inbox/',
+      sourceName:'aeratechnology.com — Aera Inbox',
+      caption:'Aera\u2019s Decision Workbench — the prioritised recommendation queue that is the product\u2019s primary surface. Note what is <em>not</em> here: Aera publishes no public screenshot of the supporting trend and root-cause charts, which sit one click inside each recommendation.' } },
+
+  { id:'clari', name:'Clari', cls:'ri', tagline:'Owns the most influential chart in the entire set — and the snapshot architecture beneath it.',
+    signature:'The forecast waterfall — how the number changed between two points in time, in named, clickable buckets.',
+    strengths:[
+      'The waterfall/bridge is the category-defining visual for revenue forecasting.',
+      'Historical pipeline snapshots are the real moat; accuracy analytics follow for free.',
+      'Commit vs best-case vs closed trends, coverage, funnel, velocity and rep scorecards are all mature.',
+      'Change-since-last-week framing matches how managers actually work.'
+    ],
+    weaknesses:[
+      'Sales-side only — no multi-dimensional planning grid or driver-based plan math.',
+      'Uncertainty is expressed as projection ranges rather than true statistical bands.',
+      'Scenario modelling is light next to the planning platforms.'
+    ],
+    levels:{core:3,avp:3,bridge:3,band:2,driver:2,snap:3,scen:2,ingrid:2,wb:2,agent:2,narr:2,self:2},
+    shot:{ file:'vendor-shots/clari.jpg', schematic:false,
+      source:'https://www.clari.com/blog/new-from-clari-next-level-analytics-for-revenue-leaders/',
+      sourceName:'clari.com — Next-Level Analytics for Revenue Leaders',
+      caption:'The category-defining chart: start pipeline $33.5M reconciled to end pipeline $32.4M through named, clickable buckets — amount decrease, slipped, lost, amount increase, new, pulled in, pushed in, won.' } },
+
+  { id:'aviso', name:'Aviso AI', cls:'ri', tagline:'Forecast-first with explicit confidence ranges, plus conversational access to charts.',
+    signature:'Predicted number with a confidence range, decomposed to deal-level scores.',
+    strengths:[
+      'Confidence ranges on the predicted number are front and centre.',
+      'Deal-level scoring makes the roll-up explainable rather than a black box.',
+      'Conversational querying lets users request a chart in natural language instead of building it.',
+      'Risk heatmaps at rep and team level are practical for pipeline reviews.'
+    ],
+    weaknesses:[
+      'Bridge/waterfall storytelling is less developed than Clari’s.',
+      'Sales-side scope only; no planning grid.',
+      'Depends on CRM data quality, which degrades the visuals when hygiene is poor.'
+    ],
+    levels:{core:3,avp:3,bridge:2,band:3,driver:2,snap:2,scen:2,ingrid:2,wb:2,agent:2,narr:3,self:2},
+    shot:{ file:'vendor-shots/aviso.png', schematic:false,
+      source:'https://www.aviso.com/product/revenue-forecasting',
+      sourceName:'aviso.com — Revenue Forecasting',
+      caption:'Aviso\u2019s roll-up: the Aviso Forecast set against plan and most-likely for every region, with deltas called out, over a pipeline-history trend and at-risk / in-focus deal gauges.' } },
+
+  { id:'boostup', name:'BoostUp.ai', cls:'ri', tagline:'Clari-adjacent, with heavier emphasis on activity and conversation signals as visuals.',
+    signature:'Pipeline change analysis fused with engagement and conversation signals.',
+    strengths:[
+      'Strong pipeline change/waterfall analysis and forecast submission tracking.',
+      'Activity and conversation signals rendered as engagement and risk visuals.',
+      'Conversion and cohort funnels are solid for diagnosing stage leakage.',
+      'Forecast accuracy tracking is a first-class concern.'
+    ],
+    weaknesses:[
+      'Overlaps heavily with Clari without an equally distinctive signature chart.',
+      'No planning grid or driver-based scenario math.',
+      'Uncertainty visualisation is shallower than Aviso’s.'
+    ],
+    levels:{core:3,avp:3,bridge:3,band:2,driver:2,snap:3,scen:2,ingrid:2,wb:2,agent:1,narr:2,self:2},
+    shot:{ file:'vendor-shots/boostup.png', schematic:false,
+      source:'https://support.boostup.ai/hc/en-us/articles/8245482883348-Forecast-Overview',
+      sourceName:'support.boostup.ai — Forecast Overview',
+      caption:'BoostUp\u2019s Forecast Trends waterfall: all changes for deals closing this quarter over the last 14 days, bridging bar A (pipeline then) to bar B (pipeline now) through new, pulled, ±value, pushed, won and lost.' } },
+
+  { id:'weflow', name:'Weflow', cls:'ri', tagline:'The lightest here — hygiene and fast updates first; charts are supporting cast.',
+    signature:'Pipeline hygiene scoring plus fast inline CRM updates, with simple deal-movement trends.',
+    strengths:[
+      'Fast inline editing and hygiene workflows genuinely improve the data charts depend on.',
+      'Simple, legible forecast roll-ups and deal-movement views.',
+      'Low adoption friction for frontline sellers.'
+    ],
+    weaknesses:[
+      'Minimal analytical charting; no uncertainty, decomposition or scenario capability.',
+      'Not a planning or forecasting analytics platform in the sense the others are.',
+      'Write-back strength is in the grid, not from charts.'
+    ],
+    levels:{core:2,avp:2,bridge:2,band:1,driver:1,snap:2,scen:1,ingrid:2,wb:1,agent:1,narr:1,self:1},
+    shot:{ schematic:true,
+      source:'https://www.weflow.ai/product/deal-intelligence-forecasting',
+      sourceName:'weflow.ai — Deal Intelligence & Forecasting (feature description)',
+      caption:'Weflow publishes no downloadable product screenshot, so this is a recreation of the roll-up its documentation describes: closed won, commit and best case per team against quota, with a hygiene line underneath. Deliberately plain — that is the point of the product.',
+      svg:'<svg viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Illustrative recreation of a Weflow forecast roll-up: closed won, commit and best case bars per region measured against quota.">'
+        +'<rect width="660" height="300" fill="#ffffff"/>'
+        +'<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif">'
+        +'<text x="16" y="24" font-size="13" font-weight="700" fill="#12141a">Forecast roll-up — Q3</text>'
+        +'<g font-size="10.5" fill="#43485a">'
+        +'<rect x="16" y="40" width="9" height="9" rx="2" fill="#0b7a5a"/><text x="30" y="48.5">Closed won</text>'
+        +'<rect x="106" y="40" width="9" height="9" rx="2" fill="#1b5fd9"/><text x="120" y="48.5">Commit</text>'
+        +'<rect x="176" y="40" width="9" height="9" rx="2" fill="#9dbcf2"/><text x="190" y="48.5">Best case</text>'
+        +'<path d="M262 39.5V50" stroke="#12141a" stroke-width="2"/><text x="270" y="48.5">Quota</text>'
+        +'</g>'
+        +'<g stroke="#eef0f4" stroke-width="1"><path d="M130 68V222"/><path d="M365 68V222"/><path d="M600 68V222"/></g>'
+        +'<g font-size="11" fill="#43485a" font-weight="600">'
+        +'<text x="16" y="98">EMEA</text><text x="16" y="148">AMER</text><text x="16" y="198">APAC</text></g>'
+        +'<g><rect x="130" y="84" width="99" height="20" fill="#0b7a5a"/><rect x="229" y="84" width="113" height="20" fill="#1b5fd9"/><rect x="342" y="84" width="75" height="20" fill="#9dbcf2"/><path d="M435 80V108" stroke="#12141a" stroke-width="2"/></g>'
+        +'<g><rect x="130" y="134" width="160" height="20" fill="#0b7a5a"/><rect x="290" y="134" width="146" height="20" fill="#1b5fd9"/><rect x="436" y="134" width="103" height="20" fill="#9dbcf2"/><path d="M553 130V158" stroke="#12141a" stroke-width="2"/></g>'
+        +'<g><rect x="130" y="184" width="42" height="20" fill="#0b7a5a"/><rect x="172" y="184" width="56" height="20" fill="#1b5fd9"/><rect x="228" y="184" width="52" height="20" fill="#9dbcf2"/><path d="M290 180V208" stroke="#12141a" stroke-width="2"/></g>'
+        +'<g font-size="10.5" fill="#767b8c" text-anchor="end">'
+        +'<text x="648" y="98">6.1M of 6.5M</text><text x="648" y="148">8.7M of 9.0M</text><text x="648" y="198">3.2M of 3.4M</text></g>'
+        +'<g font-size="10" fill="#767b8c"><text x="130" y="240">$0</text><text x="365" y="240">$5M</text><text x="600" y="240">$10M</text></g>'
+        +'<path d="M16 258H644" stroke="#eef0f4" stroke-width="1"/>'
+        +'<text x="16" y="278" font-size="10.5" fill="#767b8c">Pipeline hygiene 92% · 4 deals missing a next step · 2 close dates in the past</text>'
+        +'</g></svg>' } },
+
+  { id:'hubspot', name:'HubSpot', cls:'crm', tagline:'Approachable and quick, deliberately not a planning platform.',
+    signature:'Forecast vs goal plus an unusually easy custom report builder.',
+    strengths:[
+      'Best ease-of-assembly here — a business user builds a usable dashboard unaided.',
+      'Deal-stage funnels, sales velocity and forecast-vs-goal cover mid-market needs well.',
+      'Pipeline snapshots and deal-change reporting exist at higher tiers.'
+    ],
+    weaknesses:[
+      'No multi-dimensional planning grid, driver math or scenario versioning.',
+      'No meaningful forecast uncertainty visualisation.',
+      'Decomposition and bridge analysis are effectively absent.'
+    ],
+    levels:{core:3,avp:3,bridge:2,band:1,driver:1,snap:2,scen:1,ingrid:1,wb:2,agent:1,narr:2,self:3},
+    shot:{ file:'vendor-shots/hubspot.png', schematic:false,
+      source:'https://knowledge.hubspot.com/reports/create-sales-reports-in-the-sales-analytics-suite',
+      sourceName:'knowledge.hubspot.com — Create sales reports in the sales analytics suite',
+      caption:'The forecast-category report: pipeline, best case, commit and closed won stacked per deal owner against the total revenue goal line, with attainment on hover. Legible and quick — and with no uncertainty band anywhere.' } },
+];
+
+const PERSONAS = [
+  { name:'Key Account Manager / Seller', dom:'Sales', uc:'Account volume planning',
+    goal:'Commit a defensible per-account, per-SKU number and defend it in review.',
+    charts:['Predicted baseline vs committed agreement vs pipeline','Confidence band','Child contribution by plant/SKU'],
+    req:'Must render at the row being edited, and show where uncertainty concentrates — an aggregate line hides the one new program that is actually risky.' },
+  { name:'Sales Manager (frontline)', dom:'Sales', uc:'Weekly pipeline review',
+    goal:'Know which deals and accounts to intervene on this week.',
+    charts:['Rep roll-up vs quota','Deal-movement waterfall since last week','Risk / engagement heatmap'],
+    req:'Change-since-last-period framing rather than absolute snapshots — managers act on deltas, not levels.' },
+  { name:'Sales VP / CRO', dom:'Sales', uc:'Forecast commit',
+    goal:'Submit a number to the board with a credible range and known risk.',
+    charts:['Forecast waterfall','Commit vs best-case vs closed trend','Coverage ratio','Historical forecast accuracy'],
+    req:'Reconciliation above all — the chart must explain the gap between last call and this call, line by line.' },
+  { name:'Sales / Revenue Operations', dom:'RevOps', uc:'Forecast process integrity',
+    goal:'Improve forecast accuracy and keep the process honest.',
+    charts:['Submission tracking','Accuracy over time by team','Hygiene scores','Stage-conversion funnels'],
+    req:'Snapshot history is non-negotiable — without stored versions, accuracy analytics cannot exist.' },
+  { name:'Demand Planner', dom:'Supply chain', uc:'Statistical demand forecast',
+    goal:'Produce a baseline everyone trusts, with overrides that are visible and justified.',
+    charts:['Statistical forecast with prediction interval','Forecast error (bias, MAPE)','Forecast value-add','Override vs baseline overlay'],
+    req:'Must separate machine baseline from human adjustment so every override can be audited later.' },
+  { name:'Supply / Production Planner', dom:'Supply chain', uc:'Feasibility and constraints',
+    goal:'Confirm the plan can actually be made and shipped.',
+    charts:['Supply-demand balance','Capacity utilisation vs load','Inventory projection vs target band','Exception alerts'],
+    req:'Constraint thresholds drawn on the chart itself, with drill-down to the offending week and plant.' },
+  { name:'S&amp;OP / IBP Lead', dom:'S&amp;OP', uc:'Monthly consensus cycle',
+    goal:'Land one reconciled cross-functional plan with a decision log.',
+    charts:['Scenario comparison with deltas','Bridge from prior cycle to current','Consensus vs financial plan gap'],
+    req:'Scenario comparison must surface the decision — which scenario and why — not merely display the numbers.' },
+  { name:'FP&amp;A Analyst', dom:'Finance', uc:'Variance and reforecast',
+    goal:'Explain variance credibly and rebuild the forecast quickly.',
+    charts:['Variance waterfall (price / volume / mix)','Driver tree','Sensitivity / tornado','Actual vs budget vs forecast'],
+    req:'Decomposition all the way down to the driver, with drill-through to the source rows.' },
+  { name:'CFO / Finance Leader', dom:'Finance', uc:'Commit and capital decisions',
+    goal:'Decide with a clear view of range and downside.',
+    charts:['Scenario range (base / upside / downside)','Cash and margin bridges','Target vs projection gap'],
+    req:'Ruthless summarisation — three scenarios and the gap, not forty measures.' },
+  { name:'Category / Trade Marketing Manager', dom:'Commercial', uc:'Promotion planning (CPG)',
+    goal:'Plan promotions with defensible lift and return on investment.',
+    charts:['Baseline vs incremental lift decomposition','Promo ROI waterfall','Cannibalisation view','Price-volume curve'],
+    req:'Must isolate incremental effect from baseline, or the whole promo case collapses under scrutiny.' },
+  { name:'Data / Platform Admin', dom:'Platform', uc:'Data trust and ingestion',
+    goal:'Prove the numbers rest on fresh, complete data.',
+    charts:['Ingestion freshness / status timeline','Load volume trend','Anomaly and reconciliation charts'],
+    req:'Lineage — click a suspicious point and reach the feed that caused it.' },
+  { name:'Executive / COO', dom:'Executive', uc:'Exception-based oversight',
+    goal:'Steer by exception without living in the tool.',
+    charts:['KPI tiles with sparkline trend','Alert / exception summary','Plan attainment gauge'],
+    req:'Surface only what is off-track, with one click to the cause.' },
+];
+
+const TAKEAWAYS = [
+  { n:'FINDING 01', h:'The waterfall is the highest-leverage chart in the set',
+    p:'Clari’s dominance in revenue forecasting is substantially a story about one chart plus snapshot history. Any planning product without a credible “what changed and why” bridge will feel less accountable than the alternatives — regardless of how good its math is.' },
+  { n:'FINDING 02', h:'Confidence bands are now expected, not novel',
+    p:'Oracle, Aviso, o9, SAP and Anaplan all visualise forecast uncertainty. The differentiator is no longer showing a band — it is pointing at the specific child driving the uncertainty and recommending an action about it.' },
+  { n:'FINDING 03', h:'In-grid, agent-justifying charts are genuinely open',
+    p:'Nobody has solved charts adjacent to the cell being edited with write-back, and only Aera treats charts as recommendation evidence. That combination — contextual placement plus explanation of a suggestion you can accept — is the defensible position.' },
+];
+
+const IMPLICATIONS = [
+  { n:'DO THIS', h:'Ship a real bridge, not a bar chart',
+    p:'Named, clickable buckets that reconcile last cycle to this one. This requires storing snapshots, so treat version history as an architectural decision rather than a reporting feature.' },
+  { n:'DO THIS', h:'Make the band accusatory',
+    p:'A confidence band alone is now table stakes. Win by naming the child that widened it — “E-Motor Housing, low confidence, new program” — and attaching the recommended next step.' },
+  { n:'DO THIS', h:'Keep the chart next to the cell',
+    p:'The moment a user must navigate away to understand a number, they lose their place and their edit context. In-grid contextual charts with write-back is the one thing no competitor here has convincingly delivered.' },
+];
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const LVL = {3:['l3','Strong'],2:['l2','Partial'],1:['l1','Limited']};
+const STATUS = {stake:['t-stake','table stakes'],diff:['t-diff','differentiator'],ws:['t-ws','white space']};
+const clsOf = id => CLASSES.find(c=>c.id===id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+let state = { tab:'overview', q:'', vcls:'all', scls:'all', pdom:'all' };
+
+/* ---- overview ---- */
+function renderOverview(){
+  $('#classes').innerHTML = CLASSES.map(c=>`
+    <div class="cls ${c.key}">
+      <h3>${c.name}</h3>
+      <p>${c.desc}</p>
+      <div class="who">${c.who}</div>
+    </div>`).join('');
+  $('#takeaways').innerHTML = TAKEAWAYS.map(t=>`
+    <div class="card take">
+      <div class="num">${t.n}</div>
+      <h3>${t.h}</h3>
+      <p>${t.p}</p>
+    </div>`).join('');
+}
+
+/* ---- vendors ---- */
+function vendorMatches(v){
+  if(state.vcls!=='all' && v.cls!==state.vcls) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  const hay = [v.name,v.tagline,v.signature,...v.strengths,...v.weaknesses,clsOf(v.cls).name].join(' ').toLowerCase();
+  return hay.includes(q);
+}
+function renderVendorFilters(){
+  const counts = {all:VENDORS.length};
+  CLASSES.forEach(c=>counts[c.id]=VENDORS.filter(v=>v.cls===c.id).length);
+  const items = [{id:'all',name:'All classes'}].concat(CLASSES.map(c=>({id:c.id,name:c.name})));
+  $('#vfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-vcls="${i.id}" aria-pressed="${state.vcls===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span>
+    </button>`).join('');
+}
+function renderVendors(){
+  const list = VENDORS.filter(vendorMatches);
+  $('#vempty').hidden = list.length>0;
+  $('#vendors').innerHTML = list.map(v=>{
+    const c = clsOf(v.cls);
+    const bars = CAPS.map(cp=>`<i class="l${v.levels[cp.id]}"></i>`).join('');
+    return `<article class="card vcard" data-vendor="${v.id}" tabindex="0" role="button" aria-label="Open ${esc(v.name)} detail">
+      <div class="vhead"><h3>${esc(v.name)}</h3><span class="badge ${c.badge}">${c.id==='di'?'Decision intel':c.id==='ri'?'Revenue intel':c.id==='crm'?'CRM':'Planning'}</span></div>
+      <p class="tl">${v.tagline}</p>
+      <div class="sig"><b>Signature chart</b>${v.signature}</div>
+      <div class="mini" title="Capability profile across 12 dimensions">${bars}</div>
+      <span class="more">Open profile →</span>
+    </article>`;
+  }).join('');
+}
+
+/* ---- screenshots ---- */
+const clsLabel = c => c.id==='di'?'Decision intel':c.id==='ri'?'Revenue intel':c.id==='crm'?'CRM':'Planning';
+function shotFigure(v){
+  return v.shot.schematic
+    ? v.shot.svg
+    : `<img src="${v.shot.file}" alt="${esc(v.name)} — product screenshot showing its signature chart" loading="lazy" />`;
+}
+function shotMatches(v){
+  if(!v.shot) return false;
+  if(state.scls!=='all' && v.cls!==state.scls) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  return [v.name,v.shot.caption,v.shot.sourceName,v.tagline,v.signature,clsOf(v.cls).name].join(' ').toLowerCase().includes(q);
+}
+function renderShotFilters(){
+  const withShot = VENDORS.filter(v=>v.shot);
+  const counts = {all:withShot.length};
+  CLASSES.forEach(c=>counts[c.id]=withShot.filter(v=>v.cls===c.id).length);
+  const items = [{id:'all',name:'All classes'}].concat(CLASSES.map(c=>({id:c.id,name:c.name})));
+  $('#sfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-scls="${i.id}" aria-pressed="${state.scls===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span>
+    </button>`).join('');
+}
+function renderShots(){
+  const list = VENDORS.filter(shotMatches);
+  $('#sempty').hidden = list.length>0;
+  $('#shots').innerHTML = list.map(v=>{
+    const c = clsOf(v.cls);
+    const pill = v.shot.schematic
+      ? `<span class="pill">Illustrative recreation — not a vendor screenshot</span>`
+      : `<span class="pill real">Vendor screenshot</span>`;
+    return `<article class="card shot" data-vendor="${v.id}" tabindex="0" role="button" aria-label="Open ${esc(v.name)} detail">
+      <div class="vhead"><h3>${esc(v.name)}</h3><span class="badge ${c.badge}">${clsLabel(c)}</span></div>
+      <div class="frame">${shotFigure(v)}</div>
+      <p class="shotcap">${v.shot.caption}</p>
+      <div class="shotfoot">${pill}
+        <a class="srclink" href="${v.shot.source}" target="_blank" rel="noopener noreferrer">Source ↗</a>
+      </div>
+    </article>`;
+  }).join('');
+  const genuine = VENDORS.filter(v=>v.shot && !v.shot.schematic).length;
+  const recreated = VENDORS.filter(v=>v.shot && v.shot.schematic).length;
+  $('#shotnote').innerHTML = `<b>Attribution and fair use.</b> ${genuine} of these ${genuine+recreated} visuals are genuine product screenshots published by the vendors themselves — on their documentation, help-centre or product sites — and each tile links back to the exact public page it came from. They remain the property of their respective owners and are reproduced here only as illustration for internal competitive commentary. The remaining ${recreated===1?'one is an illustrative recreation':recreated+' are illustrative recreations'}, clearly labelled as such, built from the vendor’s own written description because no public screenshot was obtainable.`;
+}
+
+/* ---- matrix ---- */
+function renderMatrix(){
+  const onlyDiff = $('#onlyDiff').checked;
+  const onlyStrong = $('#onlyStrong').checked;
+  const q = state.q.trim().toLowerCase();
+
+  $('#mhead').innerHTML = `<th class="cap">Capability</th>` +
+    VENDORS.map(v=>`<th>${esc(v.name)}</th>`).join('');
+
+  const rows = CAPS.filter(cp=>{
+    if(onlyDiff && cp.status==='stake') return false;
+    if(!q) return true;
+    return (cp.name+' '+cp.good).toLowerCase().includes(q);
+  });
+
+  $('#mbody').innerHTML = rows.map(cp=>{
+    const [sc,sl] = STATUS[cp.status];
+    const cells = VENDORS.map(v=>{
+      const lv = v.levels[cp.id];
+      if(onlyStrong && lv<3) return `<td><span style="color:#c9cedb">·</span></td>`;
+      const [lc,ll] = LVL[lv];
+      return `<td><span class="lvl ${lc}">${ll}</span></td>`;
+    }).join('');
+    return `<tr>
+      <th class="cap"><span class="caplink" data-cap="${cp.id}" style="cursor:pointer">${cp.name}</span><span class="tag ${sc}">${sl}</span></th>
+      ${cells}</tr>`;
+  }).join('') || `<tr><td colspan="${VENDORS.length+1}" class="empty">No capabilities match that search.</td></tr>`;
+}
+
+/* ---- personas ---- */
+function personaMatches(p){
+  if(state.pdom!=='all' && p.dom!==state.pdom) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  return [p.name,p.goal,p.req,p.uc,p.dom,...p.charts].join(' ').toLowerCase().includes(q);
+}
+function renderPersonaFilters(){
+  const doms = Array.from(new Set(PERSONAS.map(p=>p.dom)));
+  const counts = {all:PERSONAS.length};
+  doms.forEach(d=>counts[d]=PERSONAS.filter(p=>p.dom===d).length);
+  const items = [{id:'all',name:'All personas'}].concat(doms.map(d=>({id:d,name:d})));
+  $('#pfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-pdom="${i.id}" aria-pressed="${state.pdom===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span>
+    </button>`).join('');
+}
+function renderPersonas(){
+  const list = PERSONAS.filter(personaMatches);
+  $('#pempty').hidden = list.length>0;
+  $('#personas').innerHTML = list.map(p=>`
+    <article class="card pcard">
+      <div class="ph"><h3>${p.name}</h3><span class="dom">${p.dom}</span></div>
+      <div class="field"><div class="k">Use case</div><div class="v">${p.uc}</div></div>
+      <div class="field goal"><div class="k">Goal</div><div class="v">${p.goal}</div></div>
+      <div class="field"><div class="k">Charts that move the needle</div>
+        <div class="cbits">${p.charts.map(c=>`<span class="cbit">${c}</span>`).join('')}</div></div>
+      <div class="field"><div class="k">What makes it work</div><div class="req">${p.req}</div></div>
+    </article>`).join('');
+}
+
+/* ---- win ---- */
+function renderWin(){
+  const buckets = [
+    {k:'stake', cls:'stake', h:'Table stakes', sub:'Everyone has it. Wins nothing; its absence is punished.'},
+    {k:'diff',  cls:'diff',  h:'Differentiators', sub:'Separates leaders from followers today.'},
+    {k:'ws',    cls:'ws',    h:'White space', sub:'Nobody has solved it. Design leverage lives here.'},
+  ];
+  $('#buckets').innerHTML = buckets.map(b=>{
+    const items = CAPS.filter(c=>c.status===b.k);
+    return `<div class="card bucket ${b.cls}">
+      <h3>${b.h} <span style="color:var(--ink-3);font-weight:600">(${items.length})</span></h3>
+      <p class="sub2">${b.sub}</p>
+      <ul>${items.map(c=>{
+        const leaders = VENDORS.filter(v=>v.levels[c.id]===3).map(v=>v.name);
+        const lead = leaders.length ? ` <span style="color:var(--ink-3)">— strong: ${leaders.join(', ')}</span>` : ` <span style="color:var(--ink-3)">— no vendor rated strong</span>`;
+        return `<li>${c.name}${lead}</li>`;
+      }).join('')}</ul>
+    </div>`;
+  }).join('');
+  $('#implications').innerHTML = IMPLICATIONS.map(t=>`
+    <div class="card take"><div class="num">${t.n}</div><h3>${t.h}</h3><p>${t.p}</p></div>`).join('');
+  $('#caveat').innerHTML = `<b>Read this with care.</b> Ratings are an analytical judgement from working product knowledge, not a vendor datasheet — chart libraries change release to release and vary by module and licence tier (especially SAP and Oracle, where the planning product and the analytics product are licensed separately). The revenue-intelligence vendors converge quickly, so treat Clari / Aviso / BoostUp distinctions as differences of emphasis rather than exclusive capability.`;
+}
+
+/* ---- modal ---- */
+function openVendor(id){
+  const v = VENDORS.find(x=>x.id===id); if(!v) return;
+  const c = clsOf(v.cls);
+  $('#mbadge').className = 'badge '+c.badge;
+  $('#mbadge').textContent = c.name;
+  $('#mtitle').textContent = v.name;
+  const ranked = CAPS.slice().sort((a,b)=>v.levels[b.id]-v.levels[a.id]);
+  const shot = v.shot ? `
+    <h4>Product screenshot</h4>
+    <div class="mshot">
+      <div class="frame">${v.shot.schematic ? v.shot.svg
+        : `<a href="${v.shot.file}" target="_blank" rel="noopener noreferrer" title="Open full size">${shotFigure(v)}</a>`}</div>
+      <div class="meta">
+        ${v.shot.schematic
+          ? `<span class="pill">Illustrative recreation — not a vendor screenshot</span>`
+          : `<span class="pill real">Vendor screenshot</span>`}
+        <a class="srclink" href="${v.shot.source}" target="_blank" rel="noopener noreferrer">${esc(v.shot.sourceName)} ↗</a>
+      </div>
+      <p style="margin:9px 0 0;font-size:13px;color:var(--ink-2)">${v.shot.caption}</p>
+    </div>` : '';
+  $('#mcontent').innerHTML = `
+    <p style="margin:0;color:var(--ink-2);font-size:13.6px">${v.tagline}</p>
+    ${shot}
+    <h4>Signature chart</h4>
+    <div class="sig" style="border-left-color:${c.id==='ri'?'var(--strong)':c.id==='di'?'var(--white-space)':'var(--accent)'}">${v.signature}</div>
+    <h4>Strengths</h4><ul>${v.strengths.map(s=>`<li>${s}</li>`).join('')}</ul>
+    <h4>Weaknesses &amp; caveats</h4><ul>${v.weaknesses.map(s=>`<li>${s}</li>`).join('')}</ul>
+    <h4>Capability ratings</h4>
+    <div>${ranked.map(cp=>{
+      const [lc,ll]=LVL[v.levels[cp.id]];
+      return `<div class="mrow"><span>${cp.name}</span><span class="lvl ${lc}">${ll}</span></div>`;
+    }).join('')}</div>`;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+}
+function openCap(id){
+  const cp = CAPS.find(c=>c.id===id); if(!cp) return;
+  const [sc,sl]=STATUS[cp.status];
+  $('#mbadge').className='badge '+(cp.status==='ws'?'b-di':cp.status==='diff'?'b-plan':'b-crm');
+  $('#mbadge').textContent = sl;
+  $('#mtitle').innerHTML = cp.name;
+  const sorted = VENDORS.slice().sort((a,b)=>b.levels[cp.id]-a.levels[cp.id]);
+  $('#mcontent').innerHTML = `
+    <h4>What “good” looks like</h4>
+    <div class="sig" style="border-left-color:var(--accent)">${cp.good}</div>
+    <h4>Who does it well</h4>
+    <div>${sorted.map(v=>{
+      const [lc,ll]=LVL[v.levels[cp.id]];
+      return `<div class="mrow"><span>${v.name}</span><span class="lvl ${lc}">${ll}</span></div>`;
+    }).join('')}</div>`;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+}
+function closeModal(){ $('#scrim').classList.remove('on'); $('#modal').classList.remove('on'); }
+
+/* ---- tabs & events ---- */
+function setTab(t){
+  state.tab=t;
+  $$('.tab').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
+  ['overview','vendors','shots','matrix','personas','win'].forEach(k=>{ $('#panel-'+k).hidden = (k!==t); });
+}
+function renderAll(){
+  renderVendorFilters(); renderVendors();
+  renderShotFilters(); renderShots();
+  renderPersonaFilters(); renderPersonas();
+  renderMatrix();
+  $('#vcount').textContent = VENDORS.filter(vendorMatches).length;
+  $('#scount').textContent = VENDORS.filter(shotMatches).length;
+  $('#pcount').textContent = PERSONAS.filter(personaMatches).length;
+}
+
+document.addEventListener('click', e=>{
+  const tab = e.target.closest('.tab');           if(tab){ setTab(tab.dataset.tab); return; }
+  if(e.target.closest('a[href]')) return;         /* let source / full-size links through */
+  const vc  = e.target.closest('[data-vcls]');    if(vc){ state.vcls=vc.dataset.vcls; renderAll(); return; }
+  const sc  = e.target.closest('[data-scls]');    if(sc){ state.scls=sc.dataset.scls; renderAll(); return; }
+  const pd  = e.target.closest('[data-pdom]');    if(pd){ state.pdom=pd.dataset.pdom; renderAll(); return; }
+  const cap = e.target.closest('[data-cap]');     if(cap){ openCap(cap.dataset.cap); return; }
+  const ven = e.target.closest('[data-vendor]');  if(ven){ openVendor(ven.dataset.vendor); return; }
+  if(e.target.id==='mclose' || e.target.id==='scrim'){ closeModal(); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter'){ const v=e.target.closest?.('[data-vendor]'); if(v) openVendor(v.dataset.vendor); }
+});
+$('#q').addEventListener('input', e=>{
+  state.q = e.target.value;
+  renderAll();
+  if(state.q && state.tab==='overview') setTab('vendors');
+});
+$('#onlyDiff').addEventListener('change', renderMatrix);
+$('#onlyStrong').addEventListener('change', renderMatrix);
+
+renderOverview(); renderWin(); renderAll(); setTab('overview');
+const SHOTS = VENDORS.filter(v=>v.shot);
+const REAL_SHOTS = SHOTS.filter(v=>!v.shot.schematic).length;
+$('#foot').textContent = `${VENDORS.length} vendors · ${CAPS.length} capability dimensions · ${PERSONAS.length} personas · `
+  + `${SHOTS.length} product screenshots (${REAL_SHOTS} genuine, ${SHOTS.length-REAL_SHOTS} illustrative recreation${SHOTS.length-REAL_SHOTS===1?'':'s'}) · `
+  + `analytical judgement, not a vendor datasheet`;
+</script>
+</body>
+</html>

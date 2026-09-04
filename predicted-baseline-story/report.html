@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Predicted Baseline Quantity — CPM Story</title>
+<style>
+  :root{
+    --brand:#0176d3; --brand-dark:#032d60; --ink:#181818; --muted:#5c5c5c;
+    --line:#e5e5e5; --green:#2e844a; --amber:#fe9339; --red:#ba0517; --bg:#f3f6f9;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{font-family:"Salesforce Sans","Segoe UI",Helvetica,Arial,sans-serif;color:var(--ink);-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  .page{
+    width:1280px;height:905px;position:relative;overflow:hidden;background:#fff;
+    page-break-after:always;padding:52px 60px;
+  }
+  .page:last-child{page-break-after:auto;}
+  .kicker{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--brand);}
+  h1{font-size:52px;line-height:1.05;font-weight:800;color:var(--brand-dark);margin:18px 0 14px;}
+  h2{font-size:30px;font-weight:800;color:var(--brand-dark);margin-bottom:4px;}
+  .sub{font-size:17px;color:var(--muted);line-height:1.5;}
+  .star{color:var(--brand);font-weight:800;}
+  .foot{position:absolute;left:60px;right:60px;bottom:26px;display:flex;justify-content:space-between;font-size:12px;color:#98a3ad;border-top:1px solid var(--line);padding-top:10px;}
+  .shot{border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 8px 30px rgba(3,45,96,.10);}
+  .shot img{display:block;width:100%;}
+  .cap{font-size:13px;color:var(--muted);margin-top:10px;}
+  .two{display:grid;grid-template-columns:1.15fr .85fr;gap:34px;align-items:start;}
+  .card{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:18px 20px;}
+  .card h3{font-size:15px;color:var(--brand-dark);margin-bottom:8px;font-weight:800;}
+  .card p{font-size:14px;color:#3b3b3b;line-height:1.55;}
+  ul.clean{list-style:none;margin-top:10px;}
+  ul.clean li{position:relative;padding-left:22px;margin-bottom:11px;font-size:15px;line-height:1.5;color:#2b2b2b;}
+  ul.clean li::before{content:"";position:absolute;left:0;top:7px;width:9px;height:9px;border-radius:50%;background:var(--brand);}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;border-radius:999px;padding:4px 11px;}
+  .pill.up{background:#eafaf1;color:var(--green);}
+  .pill.flat{background:#eef2f6;color:#54698d;}
+  .pill.low{background:#fef1ee;color:var(--red);}
+  .agent{display:flex;gap:14px;align-items:flex-start;background:linear-gradient(135deg,#eef4ff,#f6f9ff);border:1px solid #cfe0ff;border-radius:14px;padding:20px 22px;}
+  .agent .glyph{font-size:26px;color:var(--brand);line-height:1;}
+  .agent h3{font-size:16px;color:var(--brand-dark);margin-bottom:6px;}
+  .agent p{font-size:14.5px;color:#2b2b2b;line-height:1.55;}
+  .legend{display:flex;gap:18px;margin-top:12px;font-size:13px;color:#3b3b3b;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .swatch{width:14px;height:4px;border-radius:2px;display:inline-block;}
+  .metric-row{display:flex;gap:16px;margin-top:16px;}
+  .metric{flex:1;background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
+  .metric .n{font-size:26px;font-weight:800;color:var(--brand-dark);}
+  .metric .l{font-size:12.5px;color:var(--muted);margin-top:2px;}
+  .chart-wrap{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;}
+  .chart-title{font-size:14px;font-weight:800;color:var(--brand-dark);margin-bottom:6px;}
+</style>
+</head>
+<body>
+
+<!-- ───────────────────────── PAGE 1 · COVER ───────────────────────── -->
+<section class="page" style="background:radial-gradient(1200px 500px at 80% -10%, #e8f1ff 0%, #fff 60%);">
+  <div class="kicker">Manufacturing Cloud · Planning &amp; Forecasting FY26</div>
+  <h1><span class="star">✦</span> Predicted Baseline Quantity</h1>
+  <p class="sub" style="max-width:820px;">
+    A committed forecast tells you where you are today. The AI-generated <b>Predicted Baseline</b>
+    tells you where demand is <i>heading</i> — projecting each account and program forward from
+    curated history, floored by committed agreements and lifted by stage-weighted pipeline.
+  </p>
+
+  <div class="metric-row" style="margin-top:34px;max-width:1000px;">
+    <div class="metric"><div class="n">14.73M</div><div class="l">✦ Predicted Baseline Qty (FY26)</div></div>
+    <div class="metric"><div class="n">13.84M</div><div class="l">Forecast Qty — committed (FY26)</div></div>
+    <div class="metric"><div class="n">+26%</div><div class="l">Midwest Assembly · Jan → Dec</div></div>
+    <div class="metric"><div class="n">+1%</div><div class="l">Southwest Stamping · Jan → Dec</div></div>
+  </div>
+
+  <div class="agent" style="margin-top:40px;max-width:1000px;">
+    <div class="glyph">✦</div>
+    <div>
+      <h3>Agentforce · Forecast &amp; Risk Agent</h3>
+      <p>Generates the Predicted Baseline curve and a confidence band, then flags that the Midwest
+      e-motor housing ramp is trending well above committed agreement volume — a risk a manual sum
+      would hide. <b>It recommends; the Key Account Manager decides.</b></p>
+    </div>
+  </div>
+
+  <div class="foot"><span>Acme Partners — FY26 Commercial Plan</span><span>Grid: /home/manufacturing-acme</span></div>
+</section>
+
+<!-- ───────────────────────── PAGE 2 · THE MEASURE ───────────────────────── -->
+<section class="page">
+  <div class="kicker">01 · The measure in the grid</div>
+  <h2>A calculated sum, and next to it an AI projection</h2>
+  <p class="sub" style="margin-bottom:22px;max-width:1080px;">
+    <b>Forecast Quantity</b> is a calculated measure — the sum of Sales Agreement, Opportunity and
+    Order Quantity — updating as the underlying data changes. Directly beneath it sits
+    <b><span class="star">✦</span> Predicted Baseline Quantity</b>: an AI model projects demand forward
+    from the historical order data Admins curated in Data Cloud through DPE transforms, capturing
+    trend and seasonality.
+  </p>
+  <div class="shot"><img src="./shots/01-grid-measures.png" alt="Grid measures" /></div>
+  <p class="cap">The FY26 grid for Acme Partners. The <b>✦ Predicted Baseline Quantity</b> row sits directly under Forecast Quantity — 14.73M vs the committed 13.84M.</p>
+  <div class="foot"><span>Acme Partners — FY26 Commercial Plan</span><span>2</span></div>
+</section>
+
+<!-- ───────────────────────── PAGE 3 · DIVERGENCE ───────────────────────── -->
+<section class="page">
+  <div class="kicker">02 · Watch the two curves diverge</div>
+  <h2>Midwest bends upward. Southwest stays flat.</h2>
+  <div class="two" style="margin-top:18px;">
+    <div>
+      <div class="shot"><img src="./shots/02-plants-divergence.png" alt="Plant divergence" /></div>
+      <p class="cap">Same account hierarchy, expanded on the Predicted Baseline measure: North America → Light Trucks → the two agreement plants.</p>
+    </div>
+    <div>
+      <div class="chart-wrap">
+        <div class="chart-title">Predicted Baseline — monthly, by plant</div>
+        <svg id="chartPlants" viewBox="0 0 420 240" width="100%" height="240"></svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:#0176d3"></i>Midwest Assembly</span>
+          <span><i class="swatch" style="background:#54698d"></i>Southwest Stamping</span>
+        </div>
+      </div>
+      <ul class="clean" style="margin-top:18px;">
+        <li><span class="pill up">▲ EV ramp building</span> &nbsp;At Midwest, the model bends sharply upward — <b>46.8K → 58.9K (+26%)</b>.</li>
+        <li><span class="pill flat">— Steady legacy</span> &nbsp;At Southwest, it stays flat — <b>~21.2K all year (+1%)</b>.</li>
+        <li>A simple committed sum could never show that difference in trajectory.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Acme Partners — FY26 Commercial Plan</span><span>3</span></div>
+</section>
+
+<!-- ───────────────────────── PAGE 4 · CONFIDENCE ───────────────────────── -->
+<section class="page">
+  <div class="kicker">03 · Drill into the ramp</div>
+  <h2>The e-motor housing program is the sharpest — and the riskiest</h2>
+  <div class="two" style="margin-top:18px;">
+    <div>
+      <div class="shot"><img src="./shots/04-emotor-ramp.png" alt="Midwest programs" /></div>
+      <p class="cap">Midwest Assembly expanded to programs. Powertrain and Electronics lift moderately; <b>E-Motor Housing</b> ramps the steepest.</p>
+    </div>
+    <div>
+      <div class="chart-wrap">
+        <div class="chart-title">Predicted Baseline — monthly, Midwest programs</div>
+        <svg id="chartPrograms" viewBox="0 0 420 240" width="100%" height="240"></svg>
+        <div class="legend">
+          <span><i class="swatch" style="background:#ba0517"></i>E-Motor Housing</span>
+          <span><i class="swatch" style="background:#0176d3"></i>Powertrain</span>
+        </div>
+      </div>
+      <ul class="clean" style="margin-top:18px;">
+        <li><span class="pill up">▲ +50%</span> &nbsp;E-Motor Housing climbs <b>10.1K → 15.1K</b> across FY26.</li>
+        <li><span class="pill low">! Low confidence</span> &nbsp;It's a brand-new program with little history, so the model flags its band as low confidence.</li>
+        <li>That single flag is what sets up the next move for the account team.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot"><span>Acme Partners — FY26 Commercial Plan</span><span>4</span></div>
+</section>
+
+<!-- ───────────────────────── PAGE 5 · TAKEAWAY ───────────────────────── -->
+<section class="page" style="background:radial-gradient(1200px 600px at 15% 120%, #eef4ff 0%, #fff 55%);">
+  <div class="kicker">The takeaway</div>
+  <h2>From "where am I" to "where is this heading — and what's at risk"</h2>
+  <div class="two" style="margin-top:26px;">
+    <div>
+      <div class="card" style="margin-bottom:18px;">
+        <h3>What the Predicted Baseline adds</h3>
+        <p>A committed sum is a snapshot of today. The Predicted Baseline projects each node forward —
+        exposing which parts of the book are accelerating (Midwest EV) and which are steady (Southwest
+        legacy) — so the plan reflects momentum, not just commitments.</p>
+      </div>
+      <div class="card">
+        <h3>How the numbers are built</h3>
+        <p>The baseline is derived off the committed forecast for every SKU, lifted by a plant-level
+        ramp learned from history, then rolled up bottom-up. It never drops below the committed floor,
+        and rolls to <b>14.73M</b> for FY26 vs the committed <b>13.84M</b>.</p>
+      </div>
+    </div>
+    <div class="agent" style="align-self:start;">
+      <div class="glyph">✦</div>
+      <div>
+        <h3>Agentforce · Forecast &amp; Risk Agent</h3>
+        <p>Generates the Predicted Baseline curve and confidence band, then flags that the Midwest
+        e-motor ramp is trending <b>well above committed agreement volume</b> — a risk a manual sum
+        would hide. It recommends; David decides.</p>
+      </div>
+    </div>
+  </div>
+  <div class="foot"><span>Acme Partners — FY26 Commercial Plan</span><span>5</span></div>
+</section>
+
+<script>
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const SERIES = {
+    midwest:   [46835,47945,49056,50166,51276,52385,53496,54609,55717,56829,57838,58947],
+    southwest: [21111,21129,21150,21168,21188,21207,21226,21244,21265,21283,21303,21322],
+    emotor:    [10088,10546,11005,11464,11923,12380,12839,13298,13757,14216,14627,15084],
+    powertrain:[6758,6856,6954,7052,7150,7248,7346,7445,7543,7642,7741,7840],
+  };
+
+  function drawChart(svgId, lines){
+    const svg = document.getElementById(svgId);
+    const W=420,H=240, pad={l:44,r:14,t:14,b:26};
+    const all = lines.flatMap(l=>l.data);
+    const min = Math.min(...all)*0.9, max = Math.max(...all)*1.05;
+    const x = i => pad.l + (i/(MONTHS.length-1))*(W-pad.l-pad.r);
+    const y = v => H-pad.b - ((v-min)/(max-min))*(H-pad.t-pad.b);
+    const NS="http://www.w3.org/2000/svg";
+    const mk=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+    // gridlines + y labels
+    for(let g=0;g<=4;g++){
+      const gy = pad.t + g*((H-pad.t-pad.b)/4);
+      svg.appendChild(mk('line',{x1:pad.l,y1:gy,x2:W-pad.r,y2:gy,stroke:'#eef1f4','stroke-width':1}));
+      const val = Math.round((max-(g/4)*(max-min))/1000);
+      const lbl = mk('text',{x:pad.l-6,y:gy+3,'text-anchor':'end','font-size':8,fill:'#98a3ad'});
+      lbl.textContent = val+'K'; svg.appendChild(lbl);
+    }
+    // x labels (every other month)
+    MONTHS.forEach((m,i)=>{ if(i%2===0){const t=mk('text',{x:x(i),y:H-8,'text-anchor':'middle','font-size':8,fill:'#98a3ad'});t.textContent=m;svg.appendChild(t);} });
+    // lines
+    lines.forEach(l=>{
+      const pts = l.data.map((v,i)=>x(i).toFixed(1)+','+y(v).toFixed(1)).join(' ');
+      svg.appendChild(mk('polyline',{points:pts,fill:'none',stroke:l.color,'stroke-width':2.5,'stroke-linecap':'round','stroke-linejoin':'round'}));
+      l.data.forEach((v,i)=>svg.appendChild(mk('circle',{cx:x(i),cy:y(v),r:2.2,fill:l.color})));
+    });
+  }
+  drawChart('chartPlants',[
+    {data:SERIES.midwest,color:'#0176d3'},
+    {data:SERIES.southwest,color:'#54698d'},
+  ]);
+  drawChart('chartPrograms',[
+    {data:SERIES.emotor,color:'#ba0517'},
+    {data:SERIES.powertrain,color:'#0176d3'},
+  ]);
+</script>
+</body>
+</html>

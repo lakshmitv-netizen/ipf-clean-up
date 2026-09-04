@@ -226,6 +226,7 @@ interface GridRowProps {
   // Independent of the Arc-5 riskCellKeys path (different narrative + hover-not-click behaviour).
   agreementRiskCellKeys?: Set<string>;
   dismissedAgreementWarningKeys?: Set<string>;
+  agreementAssociatedTooltip?: string;
   onAgreementRiskExpand?: (rowId: string) => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
@@ -1265,6 +1266,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   onViewNextBestAction,
   agreementRiskCellKeys,
   dismissedAgreementWarningKeys,
+  agreementAssociatedTooltip,
   onAgreementRiskExpand,
   onAskAgentforce,
   savedImpactedCells = new Set<string>(),
@@ -1567,6 +1569,27 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       agreementTipCloseTimerRef.current = null;
     }
   }, []);
+  // DF demo: click popover for an associated cell's outline warning icon.
+  const [associatedTip, setAssociatedTip] = useState<{ top: number; left: number } | null>(null);
+  const openAssociatedTip = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setAssociatedTip({ top: r.bottom + 9, left: r.left + r.width / 2 - 26 });
+  }, []);
+  useEffect(() => {
+    if (!associatedTip) return;
+    const onDown = (ev: MouseEvent) => {
+      const t = ev.target as HTMLElement;
+      if (t.closest('.cell-associated-risk-tooltip') || t.closest('.cell-risk-warning--associated')) return;
+      setAssociatedTip(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAssociatedTip(null); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [associatedTip]);
   const [isGroupDropdownOpen, setIsGroupDropdownOpen] = useState(false);
   const [showMeasureMenu, setShowMeasureMenu] = useState(false);
   const [measureMenuPosition, setMeasureMenuPosition] = useState<{ top: number; left: number } | null>(null);
@@ -2631,6 +2654,10 @@ const GridRowComponent: React.FC<GridRowProps> = ({
     // styling stays — it is driven separately from agreementRiskCellKeys below.
     const isAgreementRiskCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey)
       && !dismissedAgreementWarningKeys?.has(cellKey);
+    // Associated cell: revealed via "Show Associated Cells". It keeps the red chrome and shows an
+    // OUTLINE (unfilled) red warning icon whose hover tooltip names the anchor cell it's affected by.
+    const isAgreementAssociatedCell = !!agreementRiskCellKeys && agreementRiskCellKeys.has(cellKey)
+      && !!dismissedAgreementWarningKeys?.has(cellKey);
     const runAgreementExpand = () => { setAgreementTip(null); onAgreementRiskExpand?.(row.id); };
     // Level-aware popover: the root cause lives in the children, so the "expand" CTA only
     // makes sense while the row still has a level below it. At the leaf (product) level there
@@ -2690,9 +2717,58 @@ const GridRowComponent: React.FC<GridRowProps> = ({
         )}
       </>
     );
+    // Outline (unfilled) red warning icon for associated cells — red stroke, no fill.
+    const agreementOutlineWarningSvg = (
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 3 L21.5 19.5 H2.5 Z" fill="none" stroke="#ba0517" strokeWidth="1.6" strokeLinejoin="round" />
+        <rect x="11.1" y="9" width="1.8" height="5.5" rx="0.9" fill="#ba0517" />
+        <rect x="11.1" y="16" width="1.8" height="1.8" rx="0.9" fill="#ba0517" />
+      </svg>
+    );
+    const agreementAssociatedMarker = (
+      <>
+        <span
+          className="cell-risk-warning cell-risk-warning--associated"
+          role="button"
+          tabIndex={0}
+          aria-label={agreementAssociatedTooltip ? `Affected — ${agreementAssociatedTooltip}` : 'Affected cell'}
+          onClick={(e) => { e.stopPropagation(); openAssociatedTip(e); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAssociatedTip(e as unknown as React.MouseEvent<HTMLElement>); } }}
+        >
+          {agreementOutlineWarningSvg}
+        </span>
+        {isAgreementAssociatedCell && associatedTip && createPortal(
+          <div
+            className="cell-risk-tooltip cell-agreement-risk-tooltip cell-associated-risk-tooltip"
+            style={{ position: 'fixed', top: associatedTip.top, left: associatedTip.left, zIndex: 10001 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="cell-risk-tooltip-nubbin" />
+            <div className="cell-risk-tooltip-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 3 L21.5 19.5 H2.5 Z" fill="none" stroke="#ba0517" strokeWidth="1.8" strokeLinejoin="round" />
+                <rect x="11.1" y="9" width="1.8" height="5.5" rx="0.9" fill="#ba0517" />
+                <rect x="11.1" y="16" width="1.8" height="1.8" rx="0.9" fill="#ba0517" />
+              </svg>
+              Affected cell
+            </div>
+            <div className="cell-risk-tooltip-body">
+              {agreementAssociatedTooltip
+                ? `Affected by ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}.`
+                : 'This value contributes to a sales-agreement shortfall flagged on a parent cell.'}
+            </div>
+          </div>,
+          document.body,
+        )}
+      </>
+    );
     // Which marker (if any) to place in the cell's left-icon slot, and whether to place one at all.
-    const showLeftRiskMarker = isRiskActive || isRiskResolved || isAgreementRiskCell;
-    const placedRiskMarker = isAgreementRiskCell ? agreementRiskMarker : riskMarker;
+    const showLeftRiskMarker = isRiskActive || isRiskResolved || isAgreementRiskCell || isAgreementAssociatedCell;
+    const placedRiskMarker = isAgreementRiskCell
+      ? agreementRiskMarker
+      : isAgreementAssociatedCell
+        ? agreementAssociatedMarker
+        : riskMarker;
 
     // Filtered-out aggregate rows (visible-only totals): read-only cell chrome
     if (isFilterSummaryReadonly) {
@@ -6012,6 +6088,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 onViewNextBestAction={onViewNextBestAction}
                 agreementRiskCellKeys={agreementRiskCellKeys}
                 dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
+                agreementAssociatedTooltip={agreementAssociatedTooltip}
                 onAgreementRiskExpand={onAgreementRiskExpand}
                 onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}

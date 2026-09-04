@@ -1,0 +1,1073 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scenario Planning — Competitive &amp; Persona Analysis</title>
+<style>
+  :root{
+    --bg:#f6f7f9;
+    --surface:#ffffff;
+    --ink:#12141a;
+    --ink-2:#43485a;
+    --ink-3:#767b8c;
+    --line:#e3e6ec;
+    --line-2:#eef0f4;
+    --accent:#6b3fd4;
+    --accent-soft:#f1ebfd;
+    --strong:#0b7a5a;
+    --strong-bg:#e3f5ee;
+    --partial:#9a6b00;
+    --partial-bg:#fdf3dc;
+    --weak:#8a2f3a;
+    --weak-bg:#fbe9eb;
+    --white-space:#1b5fd9;
+    --white-space-bg:#eaf1fe;
+    --ours:#0c6f80;
+    --ours-deep:#075565;
+    --ours-bg:#dff2f6;
+    --ours-tint:#f2fafc;
+    --ours-line:#9ed3de;
+    --radius:12px;
+    --shadow:0 1px 2px rgba(18,20,26,.06), 0 8px 24px rgba(18,20,26,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font:15px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent)}
+
+  header.top{
+    position:sticky; top:0; z-index:40;
+    background:rgba(255,255,255,.92); backdrop-filter:saturate(180%) blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .top-inner{max-width:1400px;margin:0 auto;padding:14px 24px 0}
+  .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:650}
+  h1{margin:6px 0 2px;font-size:22px;letter-spacing:-.02em}
+  .sub{color:var(--ink-2);font-size:13.5px;margin:0 0 12px;max-width:920px}
+  .toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap}
+  .tab{
+    appearance:none;border:0;background:transparent;cursor:pointer;
+    padding:9px 14px;border-radius:8px 8px 0 0;font:inherit;font-size:13.5px;font-weight:600;
+    color:var(--ink-2);border-bottom:2px solid transparent;
+  }
+  .tab:hover{background:var(--line-2);color:var(--ink)}
+  .tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);background:var(--accent-soft)}
+  .search{
+    margin-left:auto;display:flex;align-items:center;gap:8px;
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:7px 12px;min-width:250px;
+  }
+  .search input{border:0;outline:0;font:inherit;font-size:13.5px;width:100%;background:transparent;color:var(--ink)}
+  .search svg{flex:0 0 auto;opacity:.5}
+
+  main{max-width:1400px;margin:0 auto;padding:22px 24px 80px}
+  .panel[hidden]{display:none}
+  section.block{margin:0 0 26px}
+  h2.blk{font-size:15px;letter-spacing:-.01em;margin:0 0 4px;display:flex;align-items:center;gap:9px}
+  h2.blk .n{
+    font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);
+    border-radius:6px;padding:2px 7px;letter-spacing:.04em;
+  }
+  p.lead{color:var(--ink-2);margin:0 0 14px;max-width:1000px;font-size:14px}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(420px,1fr))}
+
+  .chips{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px;align-items:center}
+  .chip{
+    appearance:none;cursor:pointer;font:inherit;font-size:12.5px;font-weight:600;
+    background:var(--surface);color:var(--ink-2);border:1px solid var(--line);
+    border-radius:999px;padding:6px 13px;
+  }
+  .chip:hover{border-color:#c9cedb;color:var(--ink)}
+  .chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip .cnt{opacity:.6;font-weight:500;margin-left:5px}
+  .filternote{
+    font-size:11.8px;font-weight:650;color:var(--ours-deep);background:var(--ours-bg);
+    border:1px solid var(--ours-line);border-radius:999px;padding:5px 12px;
+  }
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);font-weight:600;cursor:pointer;user-select:none}
+  .switch input{accent-color:var(--accent);width:15px;height:15px;cursor:pointer}
+
+  .classes{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .cls{padding:14px 16px;border-radius:var(--radius);border:1px solid var(--line);background:var(--surface)}
+  .cls h3{margin:0 0 5px;font-size:13.5px}
+  .cls p{margin:0;font-size:12.8px;color:var(--ink-2)}
+  .cls .who{margin-top:8px;font-size:12px;color:var(--ink-3);font-weight:600}
+  .cls.k-plan{border-top:3px solid #6b3fd4}
+  .cls.k-di{border-top:3px solid #b3268a}
+  .cls.k-ri{border-top:3px solid #0b7a5a}
+  .cls.k-crm{border-top:3px solid #9a6b00}
+
+  .take{padding:16px 18px}
+  .take .num{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--accent)}
+  .take h3{margin:7px 0 6px;font-size:14.5px;letter-spacing:-.01em}
+  .take p{margin:0;color:var(--ink-2);font-size:13.3px}
+
+  .vcard{padding:15px 17px;display:flex;flex-direction:column;gap:9px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .vcard:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(18,20,26,.08),0 14px 34px rgba(18,20,26,.09)}
+  .vcard .vhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .vcard h3{margin:0;font-size:15px;letter-spacing:-.01em}
+  .badge{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .b-plan{background:var(--accent-soft);color:#5227b0}
+  .b-di{background:#fdeaf7;color:#96166f}
+  .b-ri{background:var(--strong-bg);color:#0b6b50}
+  .b-crm{background:var(--partial-bg);color:#8a5f00}
+  .b-ours{background:var(--ours-bg);color:var(--ours-deep);box-shadow:inset 0 0 0 1px var(--ours-line)}
+  .card.is-ours{border-color:var(--ours-line);box-shadow:0 0 0 3px rgba(12,111,128,.10),var(--shadow)}
+  .card.is-ours .sig{border-left-color:var(--ours)}
+  .sig{font-size:12.8px;color:var(--ink);background:var(--line-2);border-left:3px solid var(--accent);padding:8px 10px;border-radius:0 7px 7px 0}
+  .sig b{display:block;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}
+  .vcard p.tl{margin:0;font-size:13.2px;color:var(--ink-2)}
+  .mini{display:flex;gap:4px;margin-top:2px}
+  .mini i{height:5px;border-radius:3px;flex:1;background:var(--line)}
+  .mini i.l3{background:var(--strong)}
+  .mini i.l2{background:#e3b23c}
+  .mini i.l1{background:#dcdfe6}
+  .more{font-size:12px;color:var(--accent);font-weight:650}
+
+  /* ---------- screenshot gallery ---------- */
+  .shot{padding:15px 17px;display:flex;flex-direction:column;gap:10px;cursor:pointer;transition:transform .12s ease,box-shadow .12s ease}
+  .shot:hover{transform:translateY(-2px);box-shadow:0 4px 8px rgba(18,20,26,.08),0 14px 34px rgba(18,20,26,.09)}
+  .shot .vhead{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .shot h3{margin:0;font-size:15px;letter-spacing:-.01em}
+  .frame{
+    border:1px solid var(--line);border-radius:var(--radius);background:#fbfcfd;
+    padding:10px;display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .shot .frame{min-height:190px}
+  .frame img{display:block;max-width:100%;max-height:300px;object-fit:contain;border-radius:6px}
+  .frame svg{display:block;max-width:100%;height:auto}
+  .shotcap{margin:0;font-size:13px;color:var(--ink-2)}
+  .shotfoot{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:auto}
+  .srclink{font-size:12px;font-weight:650;text-decoration:none;border-bottom:1px solid transparent}
+  .srclink:hover{border-bottom-color:var(--accent)}
+  .pill{
+    font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+    padding:3px 8px;border-radius:999px;background:var(--partial-bg);color:var(--partial);white-space:nowrap;
+  }
+  .pill.real{background:var(--strong-bg);color:var(--strong)}
+  .pill.ourpill{background:var(--ours-bg);color:var(--ours-deep)}
+  .mshot{margin:8px 0 0}
+  .mshot .frame img{max-height:260px}
+  .mshot .meta{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:8px;font-size:12.2px;color:var(--ink-3)}
+
+  .scrim{position:fixed;inset:0;background:rgba(12,14,20,.5);z-index:60;display:none}
+  .scrim.on{display:block}
+  .modal{
+    position:fixed;z-index:61;right:0;top:0;height:100%;width:min(560px,100%);
+    background:var(--surface);box-shadow:-16px 0 50px rgba(0,0,0,.18);
+    display:none;flex-direction:column;
+  }
+  .modal.on{display:flex}
+  .mhead{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .mhead h3{margin:6px 0 0;font-size:18px;letter-spacing:-.02em}
+  .mbody{padding:18px 22px;overflow:auto}
+  .x{appearance:none;border:1px solid var(--line);background:var(--surface);border-radius:8px;width:30px;height:30px;font-size:17px;line-height:1;cursor:pointer;color:var(--ink-2)}
+  .x:hover{background:var(--line-2)}
+  .mbody h4{margin:16px 0 7px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .mbody ul{margin:0;padding-left:18px}
+  .mbody li{margin:0 0 6px;font-size:13.4px;color:var(--ink-2)}
+  .mrow{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line-2);font-size:13.2px}
+  .mrow:last-child{border-bottom:0}
+  .mrow span:first-child{color:var(--ink-2)}
+
+  .mwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.8px}
+  thead th{
+    position:sticky;top:0;z-index:3;background:#fafbfc;border-bottom:1px solid var(--line);
+    padding:11px 9px;text-align:center;font-size:11.5px;font-weight:700;color:var(--ink-2);white-space:nowrap;
+  }
+  thead th.cap{text-align:left;left:0;z-index:5;min-width:300px;background:#fafbfc}
+  tbody th.cap{
+    position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;font-weight:600;
+    padding:10px 12px;border-bottom:1px solid var(--line-2);border-right:1px solid var(--line);
+    font-size:12.9px;color:var(--ink);
+  }
+  tbody td{padding:8px 9px;text-align:center;border-bottom:1px solid var(--line-2)}
+  tbody tr:hover th.cap,tbody tr:hover td{background:#fbfcfe}
+  thead th.ours{
+    background:var(--ours-bg);color:var(--ours-deep);font-size:12.2px;font-weight:800;
+    border-left:2px solid var(--ours-line);border-right:2px solid var(--ours-line);
+    box-shadow:inset 0 3px 0 var(--ours);
+  }
+  thead th.ours .thtag{
+    display:block;margin-top:3px;font-size:9.5px;font-weight:800;
+    letter-spacing:.1em;text-transform:uppercase;color:var(--ours);
+  }
+  tbody td.ours,tbody tr:hover td.ours{
+    background:var(--ours-tint);
+    border-left:2px solid var(--ours-line);border-right:2px solid var(--ours-line);
+  }
+  tbody tr:last-child td.ours{border-bottom:2px solid var(--ours-line)}
+  .tag{font-size:9.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-left:7px;vertical-align:middle}
+  .t-stake{background:var(--line-2);color:var(--ink-3)}
+  .t-diff{background:var(--accent-soft);color:#5227b0}
+  .t-ws{background:var(--white-space-bg);color:#12489f}
+  .lvl{display:inline-flex;align-items:center;justify-content:center;min-width:74px;padding:4px 9px;border-radius:999px;font-size:11.2px;font-weight:700}
+  .lvl.l3{background:var(--strong-bg);color:var(--strong)}
+  .lvl.l2{background:var(--partial-bg);color:var(--partial)}
+  .lvl.l1{background:var(--weak-bg);color:var(--weak)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin:12px 0 0;font-size:12.4px;color:var(--ink-2)}
+  .legend b{font-weight:700}
+
+  .pcard{padding:15px 17px}
+  .pcard .ph{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:9px}
+  .pcard h3{margin:0;font-size:14.6px;letter-spacing:-.01em}
+  .dom{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);background:var(--line-2);padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .field{margin:0 0 9px}
+  .field .k{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3);font-weight:700;margin-bottom:3px}
+  .field .v{font-size:13.3px;color:var(--ink-2)}
+  .field.goal .v{color:var(--ink);font-weight:550}
+  .cbits{display:flex;gap:6px;flex-wrap:wrap}
+  .cbit{font-size:11.8px;background:var(--accent-soft);color:#5227b0;border-radius:6px;padding:3px 8px;font-weight:600}
+  .req{border-left:3px solid #e3b23c;background:#fffdf6;padding:8px 11px;border-radius:0 7px 7px 0;font-size:12.9px;color:var(--ink-2)}
+
+  .three{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr))}
+  .bucket{padding:15px 17px}
+  .bucket h3{margin:0 0 3px;font-size:14px}
+  .bucket .sub2{font-size:12.2px;color:var(--ink-3);margin:0 0 11px}
+  .bucket ul{margin:0;padding-left:17px}
+  .bucket li{font-size:13.1px;color:var(--ink-2);margin:0 0 6px}
+  .ourchip{
+    display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;
+    background:var(--ours-bg);color:var(--ours-deep);border:1px solid var(--ours-line);
+    font-size:10.6px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;
+  }
+  .bucket.stake{border-top:3px solid #a9b0c0}
+  .bucket.diff{border-top:3px solid var(--accent)}
+  .bucket.ws{border-top:3px solid var(--white-space)}
+
+  .note{
+    margin-top:22px;padding:13px 16px;border-radius:10px;background:#fffdf6;
+    border:1px solid #f0e2bd;font-size:12.8px;color:#6b5726;
+  }
+  .xref{
+    margin:0 0 18px;padding:11px 15px;border-radius:10px;background:var(--white-space-bg);
+    border:1px solid #cfe0fb;font-size:12.9px;color:#12489f;
+  }
+  .empty{padding:34px;text-align:center;color:var(--ink-3);font-size:13.5px}
+  footer{max-width:1400px;margin:0 auto;padding:0 24px 40px;color:var(--ink-3);font-size:12.2px}
+
+  @media (max-width:700px){
+    .search{min-width:100%;margin-left:0;order:3}
+    h1{font-size:19px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div class="eyebrow">Competitive &amp; Persona Analysis</div>
+    <h1>Scenario planning across planning &amp; forecasting platforms</h1>
+    <p class="sub">Our own solution set against eleven competitors on the scenario-planning capabilities that decide whether a what-if actually changes a plan — plus the personas who build and consume scenarios, and the job scenario planning does for each of them.</p>
+    <div class="toolbar">
+      <div class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab" role="tab" aria-selected="true"  data-tab="overview">Overview</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="vendors">Vendors <span class="cnt" id="vcount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="shots">Screenshots <span class="cnt" id="scount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="matrix">Capability matrix</button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="personas">Personas <span class="cnt" id="pcount"></span></button>
+        <button class="tab" role="tab" aria-selected="false" data-tab="win">Where to win</button>
+      </div>
+      <label class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>
+        <input id="q" type="search" placeholder="Search vendors, capabilities, personas…" autocomplete="off" />
+      </label>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <div class="panel" id="panel-overview">
+    <div class="xref">
+      <b>Companion analysis.</b> This page covers <b>scenario planning</b>. Chart and visualisation functionality is analysed separately in <a href="chart-competitive-analysis.html">chart-competitive-analysis.html</a>. Pigment is included here (but not there) because scenario planning is its central claim.
+    </div>
+
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Four classes, four definitions of “scenario”</h2>
+      <p class="lead">The word “scenario” means genuinely different things across these products, and conflating them produces nonsense comparisons. In a planning platform a scenario is a modelled version of the future with its own driver assumptions. In revenue intelligence it is usually a forecast <em>category</em> — commit versus best case — not a modelled alternative at all.</p>
+      <div class="classes" id="classes"></div>
+    </section>
+
+    <section class="block">
+      <h2 class="blk"><span class="n">02</span> The three findings that matter</h2>
+      <div class="grid g3" id="takeaways"></div>
+    </section>
+
+    <section class="block">
+      <h2 class="blk"><span class="n">03</span> How to read the matrix</h2>
+      <p class="lead">Capabilities are labelled by competitive status rather than counted. <span class="tag t-stake">table stakes</span> means every serious planning platform has it. <span class="tag t-diff">differentiator</span> means it separates leaders today. <span class="tag t-ws">white space</span> means no competitor has convincingly solved it. Status is judged on the competitor field alone; our own column sits alongside as the reference, not as evidence.</p>
+      <div class="card" style="padding:15px 17px">
+        <div class="legend">
+          <span><span class="lvl l3">Strong</span> &nbsp;first-class, a reason customers buy</span>
+          <span><span class="lvl l2">Partial</span> &nbsp;present but shallow, or needs a modeller / another tool</span>
+          <span><span class="lvl l1">Limited</span> &nbsp;absent or incidental</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-vendors" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Vendor profiles</h2>
+      <p class="lead">Our own solution is pinned first, then the eleven competitors. Filter by class, then open any entry for its signature scenario move, strengths and honest weaknesses. The coloured bar is its capability profile across all twelve scenario dimensions.</p>
+      <div class="chips" id="vfilters"></div>
+      <div class="grid g3" id="vendors"></div>
+      <div class="empty" id="vempty" hidden>No vendors match that search.</div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-shots" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> What scenario planning actually looks like</h2>
+      <p class="lead">Our own scenario drawer first, then one visual per competitor, each chosen to show that vendor's scenario mechanism rather than its prettiest dashboard — Oracle's goal-seek solving inside the account view, Pigment's two scenarios as adjacent columns, SAP's Promote control on a named scenario, Aviso's scenario buckets against plan. Where a vendor's scenario capability is genuinely thin, the picture says so. Click any tile for the full vendor profile.</p>
+      <div class="chips" id="sfilters"></div>
+      <div class="grid g2" id="shots"></div>
+      <div class="empty" id="sempty" hidden>No screenshots match that search.</div>
+      <div class="note" id="shotnote"></div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-matrix" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Capability matrix</h2>
+      <p class="lead">Twelve scenario-planning capabilities as rows; our own solution in the first, highlighted column, then eleven competitors. Strip out the table stakes to see what actually separates these products.</p>
+      <div class="chips">
+        <label class="switch"><input type="checkbox" id="onlyDiff" /> Differentiators &amp; white space only</label>
+        <label class="switch"><input type="checkbox" id="onlyStrong" /> Highlight only “Strong” ratings</label>
+      </div>
+      <div class="mwrap">
+        <table id="matrix">
+          <thead><tr id="mhead"></tr></thead>
+          <tbody id="mbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span><b>Legend:</b></span>
+        <span><span class="lvl l3">Strong</span></span>
+        <span><span class="lvl l2">Partial</span></span>
+        <span><span class="lvl l1">Limited</span></span>
+        <span style="color:var(--ink-3)">Click any capability name for what “good” looks like.</span>
+      </div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-personas" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Personas, goals, and what scenario planning does for them</h2>
+      <p class="lead">Twelve personas across the planning lifecycle. For each: the decision they own, the scenario capabilities that actually serve it, and the requirement that separates a useful scenario from an abandoned sandbox.</p>
+      <div class="chips" id="pfilters"></div>
+      <div class="grid g2" id="personas"></div>
+      <div class="empty" id="pempty" hidden>No personas match that search.</div>
+    </section>
+  </div>
+
+  <div class="panel" id="panel-win" hidden>
+    <section class="block">
+      <h2 class="blk"><span class="n">01</span> Table stakes, differentiators, white space</h2>
+      <p class="lead">The same twelve capabilities, sorted by what they are worth competitively. The “strong” list names competitors only; the teal chip on the right of each line is where we stand today.</p>
+      <div class="three" id="buckets"></div>
+    </section>
+    <section class="block">
+      <h2 class="blk"><span class="n">02</span> Implications</h2>
+      <div class="grid g3" id="implications"></div>
+    </section>
+    <div class="note" id="caveat"></div>
+  </div>
+
+</main>
+
+<footer><span id="foot"></span></footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="mtitle">
+  <div class="mhead">
+    <div>
+      <span class="badge" id="mbadge"></span>
+      <h3 id="mtitle"></h3>
+    </div>
+    <button class="x" id="mclose" aria-label="Close">×</button>
+  </div>
+  <div class="mbody" id="mcontent"></div>
+</aside>
+
+<script>
+/* =========================================================================
+   DATA — scenario planning
+   ========================================================================= */
+
+const CLASSES = [
+  { id:'plan', key:'k-plan', badge:'b-plan', name:'Enterprise planning platforms',
+    desc:'A scenario is a modelled version of the future with its own driver assumptions, recalculated through the model.',
+    who:'SAP · Anaplan · Oracle · o9 · Pigment' },
+  { id:'di', key:'k-di', badge:'b-di', name:'Decision intelligence',
+    desc:'A scenario is the simulated impact of accepting a recommended action — not a user-built alternative future.',
+    who:'Aera Technologies' },
+  { id:'ri', key:'k-ri', badge:'b-ri', name:'Revenue intelligence',
+    desc:'“Scenario” usually means a forecast category (commit / best case / worst case) or a win-rate what-if, not a driver model.',
+    who:'Clari · Aviso · BoostUp · Weflow' },
+  { id:'crm', key:'k-crm', badge:'b-crm', name:'CRM-native reporting',
+    desc:'Effectively no scenario modelling — goal versus forecast, and manual adjustment.',
+    who:'HubSpot' },
+];
+
+const CAPS = [
+  { id:'obj', name:'Named scenarios as first-class objects (versions)', status:'stake',
+    good:'Scenarios are persistent, named, permissioned objects you can return to and compare — not throwaway copies of a spreadsheet.' },
+  { id:'selfserve', name:'Self-service scenario creation (no modeller required)', status:'diff',
+    good:'A business user creates a new scenario in seconds without a model change, an admin ticket, or a consultant.' },
+  { id:'drivers', name:'Driver-based, business-semantic assumption levers', status:'diff',
+    good:'You change “EV ramp rate” or “price increase”, not cell F27. The lever is named in business language and propagates through the model.' },
+  { id:'compare', name:'Side-by-side scenario comparison with deltas', status:'diff',
+    good:'Two or more scenarios shown together with the delta as a first-class column or series, so the trade-off is visible without mental arithmetic.' },
+  { id:'kpimatrix', name:'KPI comparison matrix across scenarios', status:'diff',
+    good:'A compact grid of the KPIs that matter — revenue, margin, service level, cash — by scenario, so the decision is one glance rather than four dashboards.' },
+  { id:'goalseek', name:'Goal-seek / back-solve to a target', status:'diff',
+    good:'Invert the question: type the outcome you need and let the system solve which drivers must move, with feasibility bounds respected.' },
+  { id:'sens', name:'Sensitivity analysis (what matters most)', status:'diff',
+    good:'Ranks drivers by impact — a tornado view — so effort goes to the two assumptions that actually move the answer.' },
+  { id:'prob', name:'Probabilistic / Monte Carlo ranges', status:'ws',
+    good:'Distributions rather than three discrete cases, producing a likelihood-weighted range instead of false precision.' },
+  { id:'constrained', name:'Constrained / feasible-scenario optimisation', status:'diff',
+    good:'Respects real capacity, supply and cost constraints, so the chosen scenario is executable rather than merely arithmetically valid.' },
+  { id:'promote', name:'Promote a scenario into the committed plan (write-back)', status:'ws',
+    good:'One reviewable action turns the chosen scenario into edited plan values — as a preview/unsaved state with deltas and an audit trail — instead of retyping numbers.' },
+  { id:'gov', name:'Scenario governance (approval, audit, lock, lineage)', status:'diff',
+    good:'Who created it, what assumptions changed, who approved it, and can it be locked once decided. Prevents scenario sprawl.' },
+  { id:'ai', name:'AI-proposed scenarios / agent-recommended what-if', status:'ws',
+    good:'The system proposes the scenario worth examining — “demand is running 18% above agreement, here is that case” — instead of waiting to be asked.' },
+];
+
+const VENDORS = [
+  { id:'ours', name:'Salesforce CPM', cls:'plan', ours:true,
+    tagline:'Scenario, decision and write-back in a single loop — the what-if lands in the plan as reviewable edits, not an export.',
+    signature:'“Show in grid”: a scenario is promoted into the working plan as edited and impacted cells carrying deltas, a pre-written note and an explicit unsaved Save Changes bar — reviewable before it is committed.',
+    strengths:[
+      'Named scenarios — Baseline, Market Defender, Efficiency Maximizer, Growth Disruptor — sit as adjacent columns, and every outcome row carries each scenario’s value with a signed delta against baseline, so the trade-off is read rather than calculated.',
+      'Drivers are plain-language choices — Price Concession “Match Competitor (6%)”, Target Margin “Protect (24%)”, Rebate Tier — so a business user creates and tunes a case with the top-bar sliders, with no modeller and no model change.',
+      'Goal-seek is a casual act rather than a solver session: type the KPI outcome you need and the drivers back-solve to it.',
+      '“Show in grid” closes the loop nobody else closes — the chosen scenario lands in the working plan as edited and impacted cells with deltas, a pre-written note and an unsaved save bar, so promotion is cell-level and reviewable instead of an all-or-nothing version publish.'
+    ],
+    weaknesses:[
+      'Unproven at Anaplan-class model scale — nothing here has been exercised on a large multi-dimensional model, and recalculation behaviour at that size is an open question.',
+      'No probabilistic ranges: the confidence bands describe forecast uncertainty, not a distribution across scenarios, and there is no Monte Carlo.',
+      'The maths stops at arithmetic — no constrained optimisation against capacity or supply, so an infeasible case still balances, and no tornado view: the sliders give direction without ranking which driver matters most.',
+      'Scenario governance is lighter than SAP’s or Anaplan’s — approval routing and cell-level audit exist, but there is no versioned scenario object with lock and formal sign-off — and the agent recommends an action rather than generating a slate of named scenarios to weigh.'
+    ],
+    levels:{obj:3,selfserve:3,drivers:3,compare:3,kpimatrix:3,goalseek:3,sens:2,prob:1,constrained:1,promote:3,gov:2,ai:3},
+    shot:{ file:'shots/our-03-kpi-table.png', schematic:false,
+      source:'report.html',
+      sourceName:'Internal build — Manufacturing Cloud CPM prototype',
+      caption:'Four named scenarios as adjacent columns — <b>Baseline</b> (Current Trend), <b>Market Defender</b> (Conservative · Protective), <b>Efficiency Maximizer</b> (Profit-Led) and <b>Growth Disruptor</b> (Aggressive · Signal-Led), the last selected and highlighted. The DRIVERS block above states the levers in business language — Price Concession “Match Competitor (6%)” against “Aggressive (12%)”, Target Margin “Protect (24%)” against “Stretch (19%)”, Rebate Tier 1 through 3 — with the baseline’s own drivers greyed because it is the reference. Beneath it the OUTCOMES rows — quantity, revenue and margin down to cannibalisation — each carry a value and a signed delta, so the trade-off reads down a single column: Growth Disruptor buys 103,768 units (+22.1%) but takes net profit margin from 18.5% to <b>16.6%</b>, adds 24.5% of price-concession cost and pulls $3.8K out of the adjacent line. The Growth / Price / Volume sliders (+12%, −2%, +9%) retune the selected scenario in place.' } },
+
+  { id:'anaplan', name:'Anaplan', cls:'plan', tagline:'The reference implementation for enterprise scenario planning — versions and recalculation at real scale.',
+    signature:'Native versions plus Hyperblock recalculation: change a driver and a large multi-dimensional model responds immediately.',
+    strengths:[
+      'Versions are genuinely first-class, so multi-scenario comparison is native rather than bolted on.',
+      'Recalculation speed on very large models is still the benchmark others are measured against.',
+      'Optimizer handles constrained problems — feasible scenarios, not just arithmetic ones.',
+      'Strong governance: permissions, workflow and audit around who changed which assumption.'
+    ],
+    weaknesses:[
+      'Creating a genuinely new scenario often needs a model change, which means a modeller and a queue.',
+      'Comparison visuals are functional; the story usually gets rebuilt in a deck.',
+      'No native probabilistic or Monte Carlo capability.',
+      'Goal-seek exists only indirectly via Optimizer — not as a casual business-user act.'
+    ],
+    levels:{obj:3,selfserve:2,drivers:3,compare:3,kpimatrix:2,goalseek:2,sens:2,prob:1,constrained:3,promote:2,gov:3,ai:1},
+    shot:{ file:'scenario-shots/anaplan.png', schematic:false,
+      source:'https://help.anaplan.com/compare-data-8f273e26-5b54-4f5b-b75a-e7f2f57d010e',
+      sourceName:'help.anaplan.com — Compare data',
+      caption:'Anaplan’s <b>Compare</b> tool colour-coding every value in a module against a chosen base — green above, red below — so the delta reads without arithmetic. Anapedia’s example sets the base to a department; the same control accepts a previous or different <em>version</em> as the base, and versions are how Anaplan holds scenarios. Honest caveat: this is the comparison mechanism, not a scenario-manager screen — Anaplan publishes no public shot of one.' } },
+
+  { id:'pigment', name:'Pigment', cls:'plan', tagline:'Built its whole proposition on making scenario creation fast and pleasant for business users.',
+    signature:'Business-user scenario creation in seconds, with elegant side-by-side comparison — speed and clarity as the product.',
+    strengths:[
+      'Best-in-class time-to-scenario: a business user spins up and compares a case without a modeller.',
+      'Comparison and KPI-by-scenario views are the cleanest here — the trade-off is legible immediately.',
+      'Modern, fast interface with collaboration and commentary attached to the scenario itself.',
+      'Driver levers are expressed in business language, which keeps finance in control of its own analysis.'
+    ],
+    weaknesses:[
+      'Weak on constrained supply-side optimisation — not a substitute for a supply chain planning engine.',
+      'No meaningful probabilistic modelling.',
+      'Younger ecosystem; scale ceiling on very large models is less proven than Anaplan’s.',
+      'Governance and audit are lighter than the incumbents at enterprise scale.'
+    ],
+    levels:{obj:3,selfserve:3,drivers:3,compare:3,kpimatrix:3,goalseek:2,sens:2,prob:1,constrained:1,promote:2,gov:2,ai:2},
+    shot:{ file:'scenario-shots/pigment.jpg', schematic:false,
+      source:'https://www.pigment.com/blog/scenario-planning-guide',
+      sourceName:'pigment.com — Scenario planning guide',
+      caption:'Two scenarios in one Pigment view. The <i>Growth Rate by Product</i> grid carries <b>Default</b> and <b>Worst Case</b> as adjacent columns (6% against 2%), and the <i>Orders</i> metric plots both as separate series. Both blocks are stamped “Scenario: 2 Scenarios” — the driver change and its consequence on one screen, which is precisely the claim Pigment is built on.' } },
+
+  { id:'oracle', name:'Oracle', cls:'plan', tagline:'Scenario is literally a dimension — and Strategic Modeling is the one place goal-seek is genuinely first-class.',
+    signature:'Strategic Modeling: real goal-seek and sensitivity analysis over a financial model, with Scenario as a native dimension.',
+    strengths:[
+      'Scenario as a first-class dimension makes multi-scenario rigour structural rather than a convention.',
+      'Strategic Modeling offers genuine goal-seek and sensitivity — the rarest capability in this whole set.',
+      'Sandboxes let users test changes safely before committing to the plan.',
+      'Predictive Planning contributes statistical cases alongside user-built scenarios.'
+    ],
+    weaknesses:[
+      'Scenario creation and dimension maintenance are administrator-driven, not self-service.',
+      'Comparing scenarios visually is clunky next to Pigment; the interface shows its age.',
+      'Capability is split across Planning, Strategic Modeling and Analytics Cloud — separately licensed.',
+      'Long-range and operational scenarios live in different modules, which fragments the workflow.'
+    ],
+    levels:{obj:3,selfserve:2,drivers:3,compare:2,kpimatrix:2,goalseek:3,sens:3,prob:2,constrained:2,promote:2,gov:3,ai:2},
+    shot:{ file:'scenario-shots/oracle.png', schematic:false,
+      source:'https://docs.oracle.com/en/cloud/saas/planning-budgeting-cloud/planning-tutorial-setting-goals-strategic-modelling/index.html',
+      sourceName:'docs.oracle.com — Setting goals with Strategic Modeling',
+      caption:'Goal Seek solving inside Strategic Modeling. The target is set on the right — Product Sales of <b>1,100</b> in 2024 under the <b>Expansion</b> scenario — Unit Volume is nominated as the account to move across 2023–2026, and the solver returns the required adjustment of 17.26. Impacted cells turn yellow and a Goal Seek Results panel opens beneath the account view. Note the Scenario selector top-left: scenario is a dimension here, not a copy of the model.' } },
+
+  { id:'o9', name:'o9 Solutions', cls:'plan', tagline:'Scenarios that propagate across the whole demand-and-supply network, not just a P&amp;L.',
+    signature:'Graph-based simulation: a demand change ripples through supply, capacity and cost across the network in one scenario.',
+    strengths:[
+      'End-to-end network propagation — the only class of scenario that answers “can we actually serve it?”.',
+      'Strong sensitivity and driver decomposition thanks to the knowledge-graph foundation.',
+      'KPI-by-scenario comparison is built into the planning workbench.',
+      'Handles constrained, multi-echelon problems that finance-oriented tools cannot.'
+    ],
+    weaknesses:[
+      'Business-user self-service is limited; scenario setup is expert territory.',
+      'Implementation-heavy — scenario quality is a function of how well the model was built.',
+      'Governance is less mature than the finance-led incumbents.',
+      'Surface complexity discourages casual what-if exploration.'
+    ],
+    levels:{obj:3,selfserve:2,drivers:3,compare:3,kpimatrix:3,goalseek:2,sens:3,prob:2,constrained:3,promote:2,gov:2,ai:2},
+    shot:{ file:'scenario-shots/o9.jpg', schematic:false,
+      source:'https://o9solutions.com/solutions/integrated-business-planning/digital-ibp',
+      sourceName:'o9solutions.com — Digital IBP',
+      caption:'The o9 Demand Review workbench with risks and opportunities loaded into the simulation. The waterfall walks Outlook LY through Planned Growth and Target to the unconstrained outlook, then layers <b>Total Opportunity</b> and <b>Total Risk</b> to produce “Uncons Outlook with R&amp;O” and “Included Project”. Gap-to-target (−4.1%) sits above. This is what an o9 scenario is: modelled increments propagated across the network, not a separate copy of the plan.' } },
+
+  { id:'sap', name:'SAP', cls:'plan', tagline:'Deep supply-side simulation, but scenario work is spread across IBP, Analytics Cloud and Excel.',
+    signature:'IBP what-if simulation with full supply-chain feasibility, plus value driver trees in Analytics Cloud.',
+    strengths:[
+      'Serious constrained simulation — capacity, supply and cost feasibility are properly modelled.',
+      'Value driver trees make the assumption-to-outcome chain explicit.',
+      'IBCS-standard variance visuals make scenario-versus-plan differences instantly readable.',
+      'Enterprise-grade governance and auditability.'
+    ],
+    weaknesses:[
+      'Scenario creation is slow and typically involves IT — the opposite of self-service.',
+      'Fragmented across IBP, Analytics Cloud and the Excel add-in, so the workflow has seams.',
+      'Side-by-side comparison is less fluid than the modern entrants.',
+      'Casual what-if exploration is discouraged by the setup cost.'
+    ],
+    levels:{obj:3,selfserve:2,drivers:3,compare:2,kpimatrix:2,goalseek:2,sens:2,prob:2,constrained:3,promote:2,gov:3,ai:2},
+    shot:{ file:'scenario-shots/sap.png', schematic:false,
+      source:'https://blog.sap-press.com/exploring-the-excel-user-interface-of-sap-ibp',
+      sourceName:'blog.sap-press.com — Exploring the Excel UI of SAP IBP',
+      caption:'SAP IBP’s <b>Manage Scenarios</b> dialog in the Excel add-in: named user-defined scenarios (“Lost Key Account”, “New Customer Account”) held against the Base Version, each shared with specific users, each with explicit <b>Promote</b>, Reset, Delete and Duplicate controls. Promote is the write-back-into-the-plan step almost nobody else here exposes. Sourced from SAP Press rather than help.sap.com, whose scenario pages carry no screenshots.' } },
+
+  { id:'aera', name:'Aera Technologies', cls:'di', tagline:'Inverts the model: the system proposes the scenario, and simulates what happens if you accept it.',
+    signature:'Simulated impact of a recommended action, attached to the recommendation for human approval.',
+    strengths:[
+      'The only vendor here that proactively proposes the scenario rather than waiting to be asked.',
+      'Closes the loop from scenario to action — accepting a recommendation executes it.',
+      'Root-cause analysis explains why this scenario is the relevant one.',
+      'Strong explainability, which is what makes an agent-proposed scenario trustworthy.'
+    ],
+    weaknesses:[
+      'Not a scenario workbench — users cannot freely build and compare their own alternative futures.',
+      'No multi-scenario KPI comparison in the finance sense.',
+      'Scope is bounded by which decisions were modelled up front.',
+      'Unsuitable as an FP&A scenario modelling tool.'
+    ],
+    levels:{obj:2,selfserve:2,drivers:2,compare:2,kpimatrix:2,goalseek:1,sens:2,prob:1,constrained:2,promote:3,gov:2,ai:3},
+    shot:{ file:'scenario-shots/aera.png', schematic:false,
+      source:'https://www.aeratechnology.com/aera-inbox/',
+      sourceName:'aeratechnology.com — Aera Inbox',
+      caption:'Aera’s Decision Workbench — the prioritised recommendation queue. Said plainly: this is <em>not</em> a scenario screen, it is the only public product imagery Aera publishes. Aera’s actual scenario mechanism, the simulated impact of accepting a recommendation, sits one click inside a card and behind a login. The queue is still the right picture of the model: you approve a scenario the system proposed rather than building one.' } },
+
+  { id:'clari', name:'Clari', cls:'ri', tagline:'Scenarios are forecast categories and coverage what-ifs — powerful for revenue, but not driver modelling.',
+    signature:'Commit versus best case versus closed as parallel roll-ups, reconciled by the waterfall.',
+    strengths:[
+      'Multiple forecast categories function as practical scenarios for a revenue conversation.',
+      'The waterfall explains the movement between any two scenario states over time.',
+      'Coverage and win-rate what-ifs are quick and well-suited to pipeline reviews.',
+      'Snapshot history means scenario-versus-actual accuracy is measurable.'
+    ],
+    weaknesses:[
+      'Not driver-based: you cannot model a price change or a capacity constraint.',
+      'No goal-seek on drivers, no sensitivity ranking, no constrained optimisation.',
+      'Scenarios are sales-scoped — no link to supply, cost or margin.',
+      'Comparison is roll-up arithmetic rather than model recalculation.'
+    ],
+    levels:{obj:2,selfserve:2,drivers:1,compare:2,kpimatrix:2,goalseek:1,sens:1,prob:1,constrained:1,promote:2,gov:2,ai:2},
+    shot:{ file:'scenario-shots/clari.png', schematic:false,
+      source:'https://community.clari.com/beta-revamped-forecast-module-98/beta-introducing-a-refreshed-interface-for-forecast-1037',
+      sourceName:'community.clari.com — Refreshed interface for Forecast',
+      caption:'Clari’s Forecast module with the categories doing the work of scenarios: <b>Plan, Booked, Gap to Go, Commit, Upside, Pipeline</b> as parallel columns down the sales hierarchy. The right panel is the interesting part — a CRO Commit of $72.0M sitting against an Adjusted Rollup of $59.9M and a Team Rollup of $71.6M. A judgement case reconciled to the arithmetic case, which is as close to scenario modelling as revenue intelligence gets.' } },
+
+  { id:'aviso', name:'Aviso AI', cls:'ri', tagline:'What-if levers over an AI forecast, with ranges standing in for discrete scenarios.',
+    signature:'What-if modelling on win rates and deal outcomes, wrapped in a confidence range.',
+    strengths:[
+      'What-if levers on win rate and deal movement are genuinely useful in a pipeline review.',
+      'Confidence ranges give a probabilistic flavour that most revenue tools lack.',
+      'Conversational querying lowers the cost of asking a what-if question.',
+      'Deal-level scoring makes the scenario roll-up explainable.'
+    ],
+    weaknesses:[
+      'Shallow driver modelling — sales levers only, no operational or cost drivers.',
+      'No multi-dimensional scenario objects or KPI matrix in the planning sense.',
+      'No constrained optimisation or goal-seek.',
+      'Quality degrades quickly with poor CRM hygiene.'
+    ],
+    levels:{obj:2,selfserve:2,drivers:2,compare:2,kpimatrix:2,goalseek:1,sens:2,prob:2,constrained:1,promote:2,gov:2,ai:2},
+    shot:{ file:'scenario-shots/aviso.png', schematic:false,
+      source:'https://www.aviso.com/blog/aviso-scenario-forecasting',
+      sourceName:'aviso.com — Aviso Scenario Forecasting',
+      caption:'Aviso’s Scenarios workspace, and the most literal scenario UI in the revenue-intelligence class: “Best Case Scenario”, <b>2 of 5</b> saved scenarios, measured against a $100M plan with Scenario Total $82.3M, <b>Gap to Plan $17.7M</b> and a star-rated Scenario Health. Deals move between Won / DLF / Commit / Best Case / Most Likely buckets and the roll-up re-totals, with Aviso recommendations attached to each bucket.' } },
+
+  { id:'boostup', name:'BoostUp.ai', cls:'ri', tagline:'Forecast adjustments and pipeline what-ifs; scenario depth is not the point.',
+    signature:'Adjusted forecast submissions compared against the system number.',
+    strengths:[
+      'Submission-versus-system comparison behaves as a lightweight two-scenario view.',
+      'Pipeline change analysis explains movement between states.',
+      'Forecast accuracy tracking makes scenario bias visible over time.'
+    ],
+    weaknesses:[
+      'No driver-based modelling, goal-seek, sensitivity or constrained optimisation.',
+      'Scenarios are adjustments rather than modelled alternatives.',
+      'Sales-scoped only.'
+    ],
+    levels:{obj:2,selfserve:2,drivers:1,compare:2,kpimatrix:2,goalseek:1,sens:1,prob:1,constrained:1,promote:2,gov:2,ai:1},
+    shot:{ file:'scenario-shots/boostup.png', schematic:false,
+      source:'https://support.boostup.ai/hc/en-us/articles/8245482883348-Forecast-Overview',
+      sourceName:'support.boostup.ai — Forecast Overview',
+      caption:'BoostUp’s Opportunities view with the <b>Forecast Category</b> column open for override — the system value struck through and the human call (“Most Likely” over “Best”, “Commit” over “Upside”) written above it, deal by deal. That adjustment layer against the system number <em>is</em> BoostUp’s scenario. Reproduced at the modest resolution BoostUp’s help centre publishes.' } },
+
+  { id:'weflow', name:'Weflow', cls:'ri', tagline:'Effectively no scenario planning — roll-up adjustments and hygiene.',
+    signature:'Manual forecast roll-up adjustment against the CRM number.',
+    strengths:[
+      'Fast, low-friction forecast adjustment for frontline sellers.',
+      'Hygiene workflows improve the data any downstream scenario would depend on.'
+    ],
+    weaknesses:[
+      'No scenario objects, driver levers, comparison, sensitivity or optimisation.',
+      'Not a planning or scenario tool in any meaningful sense.',
+      'Adjustments are not persistent, comparable scenarios.'
+    ],
+    levels:{obj:1,selfserve:1,drivers:1,compare:1,kpimatrix:1,goalseek:1,sens:1,prob:1,constrained:1,promote:1,gov:1,ai:1},
+    shot:{ schematic:true,
+      source:'https://www.weflow.ai/product/deal-intelligence-forecasting',
+      sourceName:'weflow.ai — Deal Intelligence & Forecasting (product page, unreachable)',
+      caption:'Weflow’s domain does not resolve and no product screenshot is retrievable, so this is a recreation of the roll-up its documentation describes: the CRM number per team, the manager’s adjustment beside it, and the submitted call. There is no scenario object, no driver lever and nothing to compare — which is the finding, not an omission. Deliberately plain, because the product is.',
+      svg:'<svg viewBox="0 0 660 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Illustrative recreation of a Weflow forecast roll-up: CRM number, manager adjustment and submitted call per region, with no scenario object.">'
+        +'<rect width="660" height="300" fill="#ffffff"/>'
+        +'<g font-family="-apple-system,BlinkMacSystemFont,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif">'
+        +'<text x="16" y="24" font-size="13" font-weight="700" fill="#12141a">Forecast roll-up — Q3</text>'
+        +'<text x="16" y="41" font-size="10.5" fill="#767b8c">One number, adjusted. No saved scenario, no comparison view.</text>'
+        +'<g font-size="10" fill="#767b8c" font-weight="700" letter-spacing="0.6">'
+        +'<text x="16" y="70">TEAM</text><text x="150" y="70">CRM ROLL-UP</text><text x="290" y="70">ADJUSTMENT</text><text x="430" y="70">SUBMITTED CALL</text><text x="570" y="70">QUOTA</text></g>'
+        +'<path d="M16 78H644" stroke="#e3e6ec" stroke-width="1"/>'
+        +'<g font-size="11.5" fill="#43485a">'
+        +'<g><text x="16" y="104" font-weight="600" fill="#12141a">EMEA</text><text x="150" y="104">$5.8M</text>'
+        +'<text x="290" y="104" fill="#6b3fd4" font-weight="650">+$0.3M</text>'
+        +'<rect x="426" y="92" width="62" height="17" rx="4" fill="#f1ebfd"/><text x="432" y="104.5" fill="#5227b0" font-weight="700">$6.1M</text>'
+        +'<text x="570" y="104">$6.5M</text></g>'
+        +'<path d="M16 116H644" stroke="#eef0f4"/>'
+        +'<g><text x="16" y="142" font-weight="600" fill="#12141a">AMER</text><text x="150" y="142">$9.1M</text>'
+        +'<text x="290" y="142" fill="#8a2f3a" font-weight="650">−$0.4M</text>'
+        +'<rect x="426" y="130" width="62" height="17" rx="4" fill="#f1ebfd"/><text x="432" y="142.5" fill="#5227b0" font-weight="700">$8.7M</text>'
+        +'<text x="570" y="142">$9.0M</text></g>'
+        +'<path d="M16 154H644" stroke="#eef0f4"/>'
+        +'<g><text x="16" y="180" font-weight="600" fill="#12141a">APAC</text><text x="150" y="180">$3.0M</text>'
+        +'<text x="290" y="180" fill="#6b3fd4" font-weight="650">+$0.2M</text>'
+        +'<rect x="426" y="168" width="62" height="17" rx="4" fill="#f1ebfd"/><text x="432" y="180.5" fill="#5227b0" font-weight="700">$3.2M</text>'
+        +'<text x="570" y="180">$3.4M</text></g>'
+        +'<path d="M16 192H644" stroke="#e3e6ec" stroke-width="1"/>'
+        +'<g font-weight="700" fill="#12141a"><text x="16" y="218">Total</text><text x="150" y="218">$17.9M</text>'
+        +'<text x="290" y="218" fill="#43485a">+$0.1M</text><text x="432" y="218" fill="#5227b0">$18.0M</text><text x="570" y="218">$18.9M</text></g>'
+        +'</g>'
+        +'<rect x="16" y="238" width="628" height="46" rx="8" fill="#fbfcfd" stroke="#e3e6ec"/>'
+        +'<text x="30" y="257" font-size="10.5" font-weight="700" fill="#767b8c" letter-spacing="0.6">PIPELINE HYGIENE</text>'
+        +'<text x="30" y="273" font-size="11" fill="#43485a">92% complete · 4 deals missing a next step · 2 close dates in the past</text>'
+        +'</g></svg>' } },
+
+  { id:'hubspot', name:'HubSpot', cls:'crm', tagline:'Goal versus forecast, and little else — deliberately not a scenario platform.',
+    signature:'Forecast against goal, with manual category adjustment.',
+    strengths:[
+      'Easy for a business user to compare forecast against goal without help.',
+      'Adequate for SMB revenue conversations where modelling is not expected.'
+    ],
+    weaknesses:[
+      'No scenario objects, driver-based math, sensitivity or optimisation.',
+      'No mechanism to model an alternative future and compare it.',
+      'Not competing in this category.'
+    ],
+    levels:{obj:1,selfserve:2,drivers:1,compare:1,kpimatrix:1,goalseek:1,sens:1,prob:1,constrained:1,promote:1,gov:1,ai:1},
+    shot:{ file:'scenario-shots/hubspot.png', schematic:false,
+      source:'https://www.hubspot.com/products/sales/forecasting',
+      sourceName:'hubspot.com — Sales forecasting software',
+      caption:'HubSpot’s Forecast tool on the <b>Forecast category</b> tab: goal attainment, coverage ratio, total, pipeline, best case, commit and forecast submission, per rep. Amounts are masked in HubSpot’s own published asset, so the bars are placeholders. The point stands regardless — the categories are labels applied to deals, not modelled cases, and forecast-against-goal is the entirety of HubSpot’s scenario story.' } },
+];
+
+const PERSONAS = [
+  { name:'FP&amp;A Analyst', dom:'Finance', uc:'Build and compare the cases',
+    goal:'Produce two or three defensible cases quickly and explain the trade-off between them.',
+    charts:['Self-service scenario creation','Driver levers','Side-by-side comparison with deltas','Sensitivity ranking'],
+    req:'Time-to-scenario is everything. If a new case needs a modeller and a two-day queue, the analysis happens in Excel instead and the platform loses the workflow.' },
+  { name:'CFO / Finance Leader', dom:'Finance', uc:'Choose a case and protect the downside',
+    goal:'Pick a case to commit to, knowing the downside and what would have to be true.',
+    charts:['KPI comparison matrix','Scenario range (base / upside / downside)','Goal-seek to a target','Cash and margin bridges'],
+    req:'One screen with the KPIs that matter by scenario. Three cases and the gap — not forty measures spread across dashboards.' },
+  { name:'Corporate Strategy / LRP', dom:'Strategy', uc:'Long-range and structural cases',
+    goal:'Evaluate market entry, capacity investment or M&amp;A over a multi-year horizon.',
+    charts:['Long-range scenario modelling','Sensitivity / tornado','Probabilistic range','Driver trees'],
+    req:'Must handle structural change — new entities, step-function capacity — not just percentage tweaks to existing drivers.' },
+  { name:'S&amp;OP / IBP Lead', dom:'S&amp;OP', uc:'Monthly consensus scenario',
+    goal:'Land one reconciled cross-functional case with an auditable decision log.',
+    charts:['Scenario comparison with deltas','Constrained feasibility check','Bridge from prior cycle','Governance / approval trail'],
+    req:'Governance is the job. The cycle needs to end with one locked, approved scenario and a record of who agreed to what.' },
+  { name:'Demand Planner', dom:'Supply chain', uc:'Demand upside and downside',
+    goal:'Quantify plausible demand cases and flag where the range is widest.',
+    charts:['Statistical forecast with interval','Driver levers (promo, ramp, seasonality)','Scenario vs baseline overlay'],
+    req:'Must separate the statistical baseline from human scenario overrides so each override stays auditable.' },
+  { name:'Supply / Production Planner', dom:'Supply chain', uc:'Feasibility under constraints',
+    goal:'Establish whether a demand case can actually be produced and shipped.',
+    charts:['Constrained optimisation','Capacity utilisation by scenario','Inventory projection vs target','Exception alerts'],
+    req:'Constraints must be enforced inside the scenario. An infeasible scenario that still balances arithmetically is worse than no scenario.' },
+  { name:'Key Account Manager / Seller', dom:'Sales', uc:'Account-level what-if',
+    goal:'Test what a customer programme change does to the account commitment.',
+    charts:['Driver levers at account level','Side-by-side vs current plan','Promote scenario into the plan'],
+    req:'Must run at the row being edited and be promotable into the plan as a reviewable, unsaved change — not a disconnected sandbox.' },
+  { name:'Sales VP / CRO', dom:'Sales', uc:'Commit, upside and risk case',
+    goal:'Submit a number with an explicit upside and downside case behind it.',
+    charts:['Multi-category roll-up as scenarios','Coverage / win-rate what-if','Forecast waterfall between states'],
+    req:'Each case needs a named owner and a reconciliation to the last one, or the range reads as hedging rather than analysis.' },
+  { name:'Sales / Revenue Operations', dom:'RevOps', uc:'Capacity, quota and territory cases',
+    goal:'Model hiring ramp, quota and territory options and their coverage effect.',
+    charts:['Driver-based capacity model','Scenario comparison','Sensitivity on ramp and attrition'],
+    req:'Needs headcount and ramp as real drivers with lag, not a flat percentage applied to a total.' },
+  { name:'Business Unit GM / P&amp;L owner', dom:'Commercial', uc:'Own the trade-off',
+    goal:'Decide between growth and margin options for the unit and defend the choice.',
+    charts:['KPI comparison matrix','Goal-seek to a margin target','Contribution by driver'],
+    req:'Comparison must span both revenue and cost consequences; a revenue-only scenario hides the decision being made.' },
+  { name:'Data / Platform Admin', dom:'Platform', uc:'Scenario hygiene and sprawl',
+    goal:'Keep scenarios governed, performant and trustworthy as they multiply.',
+    charts:['Scenario inventory and lineage','Version audit','Recalculation performance'],
+    req:'Needs lifecycle control — archive, lock, expire — or scenario sprawl quietly destroys trust in every number.' },
+  { name:'Executive / Board', dom:'Executive', uc:'Range and downside oversight',
+    goal:'Understand the range of outcomes and the trigger points between cases.',
+    charts:['Scenario range summary','Trigger / threshold markers','Plan attainment by scenario'],
+    req:'Wants the decision and its triggers — “if orders fall below X we move to the downside case” — not the underlying model.' },
+];
+
+const TAKEAWAYS = [
+  { n:'FINDING 01', h:'Time-to-scenario is the real battleground',
+    p:'Pigment’s rise is largely explained by one thing: a business user creates and compares a case in seconds. At most incumbents a genuinely new scenario needs a model change, a modeller and a queue — which pushes the analysis back into Excel and costs the platform the workflow it was bought for.' },
+  { n:'FINDING 02', h:'Goal-seek is rare, and it inverts the question',
+    p:'Among the competitors only Oracle’s Strategic Modeling treats back-solving as first-class. It changes the user’s question from “what happens if I move this driver” to “what must be true to hit my target”, which is what executives actually ask. Almost nobody else offers it as a casual act.' },
+  { n:'FINDING 03', h:'Scenarios die in the sandbox',
+    p:'The path from a chosen scenario back into the committed plan — as a reviewable, unsaved change with deltas and an audit trail — is unsolved across the competitor field. So is having an agent propose the scenario worth looking at. Aera is the only competitor pointing at either, and both are where our own build is rated strong. That is the wedge.' },
+];
+
+const IMPLICATIONS = [
+  { n:'DO THIS', h:'Make a scenario a seconds-long act',
+    p:'Named business-semantic levers a planner can move without a model change. If creating a case requires anyone else’s help, it will not happen during the review meeting where it matters.' },
+  { n:'DO THIS', h:'Ship goal-seek as a first-class inversion',
+    p:'Let a user type the outcome they need and back-solve the drivers within feasible bounds. It is the rarest capability in the set, it maps to how leadership actually asks the question, and it is a demonstrable wedge against everyone except Oracle.' },
+  { n:'DO THIS', h:'Close the loop into the plan',
+    p:'Promote the chosen scenario into the grid as edited and impacted cells with visible deltas, a note, and an explicit save step. That single move converts scenario planning from an analysis side-quest into the way the plan actually gets changed — no competitor here has done it, and it is the one thing our own build already does end to end.' },
+];
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const LVL = {3:['l3','Strong'],2:['l2','Partial'],1:['l1','Limited']};
+const STATUS = {stake:['t-stake','table stakes'],diff:['t-diff','differentiator'],ws:['t-ws','white space']};
+const clsOf = id => CLASSES.find(c=>c.id===id);
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const clsShort = id => id==='di'?'Decision intel':id==='ri'?'Revenue intel':id==='crm'?'CRM':'Planning';
+/* Our own entry is the reference point, not a competitor: every competitive
+   count, leader list and attribution claim is computed over RIVALS only. */
+const OURS   = VENDORS.find(v=>v.ours);
+const RIVALS = VENDORS.filter(v=>!v.ours);
+const badgeOf = v => v.ours ? 'b-ours' : clsOf(v.cls).badge;
+const badgeText = v => v.ours ? 'Ours' : clsShort(v.cls);
+
+let state = { tab:'overview', q:'', vcls:'all', scls:'all', pdom:'all' };
+
+function renderOverview(){
+  $('#classes').innerHTML = CLASSES.map(c=>`
+    <div class="cls ${c.key}">
+      <h3>${c.name}</h3>
+      <p>${c.desc}</p>
+      <div class="who">${c.who}</div>
+    </div>`).join('');
+  $('#takeaways').innerHTML = TAKEAWAYS.map(t=>`
+    <div class="card take"><div class="num">${t.n}</div><h3>${t.h}</h3><p>${t.p}</p></div>`).join('');
+}
+
+function vendorMatches(v){
+  /* Ours ignores the class filter — it is the reference point for every class. */
+  if(state.vcls!=='all' && !v.ours && v.cls!==state.vcls) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  return [v.name,v.tagline,v.signature,...v.strengths,...v.weaknesses,clsOf(v.cls).name].join(' ').toLowerCase().includes(q);
+}
+function renderVendorFilters(){
+  const counts = {all:RIVALS.length};
+  CLASSES.forEach(c=>counts[c.id]=RIVALS.filter(v=>v.cls===c.id).length);
+  const items = [{id:'all',name:'All classes'}].concat(CLASSES.map(c=>({id:c.id,name:c.name})));
+  $('#vfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-vcls="${i.id}" aria-pressed="${state.vcls===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span></button>`).join('')
+    + `<span class="filternote">Counts are competitors; ${esc(OURS.name)} is pinned first and always shown</span>`;
+}
+function renderVendors(){
+  const list = VENDORS.filter(vendorMatches);
+  $('#vempty').hidden = list.length>0;
+  $('#vendors').innerHTML = list.map(v=>{
+    const bars = CAPS.map(cp=>`<i class="l${v.levels[cp.id]}"></i>`).join('');
+    return `<article class="card vcard${v.ours?' is-ours':''}" data-vendor="${v.id}" tabindex="0" role="button" aria-label="Open ${esc(v.name)} detail">
+      <div class="vhead"><h3>${esc(v.name)}</h3><span class="badge ${badgeOf(v)}">${badgeText(v)}</span></div>
+      <p class="tl">${v.tagline}</p>
+      <div class="sig"><b>Signature scenario move</b>${v.signature}</div>
+      <div class="mini" title="Capability profile across 12 scenario dimensions">${bars}</div>
+      <span class="more">Open profile →</span>
+    </article>`;
+  }).join('');
+}
+
+/* ---- screenshots ---- */
+function shotFigure(v){
+  return v.shot.schematic
+    ? v.shot.svg
+    : `<img src="${v.shot.file}" alt="${esc(v.name)} — product screenshot showing its scenario-planning capability" loading="lazy" />`;
+}
+function shotMatches(v){
+  if(!v.shot) return false;
+  if(state.scls!=='all' && !v.ours && v.cls!==state.scls) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  return [v.name,v.shot.caption,v.shot.sourceName,v.tagline,v.signature,clsOf(v.cls).name].join(' ').toLowerCase().includes(q);
+}
+function renderShotFilters(){
+  const withShot = RIVALS.filter(v=>v.shot);
+  const counts = {all:withShot.length};
+  CLASSES.forEach(c=>counts[c.id]=withShot.filter(v=>v.cls===c.id).length);
+  const items = [{id:'all',name:'All classes'}].concat(CLASSES.map(c=>({id:c.id,name:c.name})));
+  $('#sfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-scls="${i.id}" aria-pressed="${state.scls===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span></button>`).join('')
+    + `<span class="filternote">Counts are competitors; ${esc(OURS.name)} is pinned first and always shown</span>`;
+}
+function shotPill(v){
+  if(v.ours) return `<span class="pill ourpill">Our own product — internal screenshot</span>`;
+  return v.shot.schematic
+    ? `<span class="pill">Illustrative recreation — not a vendor screenshot</span>`
+    : `<span class="pill real">Vendor screenshot</span>`;
+}
+function renderShots(){
+  const list = VENDORS.filter(shotMatches);
+  $('#sempty').hidden = list.length>0;
+  $('#shots').innerHTML = list.map(v=>`
+    <article class="card shot${v.ours?' is-ours':''}" data-vendor="${v.id}" tabindex="0" role="button" aria-label="Open ${esc(v.name)} detail">
+      <div class="vhead"><h3>${esc(v.name)}</h3><span class="badge ${badgeOf(v)}">${badgeText(v)}</span></div>
+      <div class="frame">${shotFigure(v)}</div>
+      <p class="shotcap">${v.shot.caption}</p>
+      <div class="shotfoot">${shotPill(v)}
+        <a class="srclink" href="${v.shot.source}" target="_blank" rel="noopener noreferrer">${v.ours?'Internal report ↗':'Source ↗'}</a>
+      </div>
+    </article>`).join('');
+  const shots = RIVALS.filter(v=>v.shot);
+  const genuine = shots.filter(v=>!v.shot.schematic).length;
+  const recreated = shots.length - genuine;
+  $('#shotnote').innerHTML = `<b>Attribution and fair use.</b> The first tile is our own product — an internal screenshot of the ${esc(OURS.name)} prototype, not a published vendor image — and it is there as the reference the rest are read against. Of the ${shots.length} competitor visuals that follow, ${genuine} are genuine product screenshots published by the vendors themselves — on their documentation, help centres, community sites or product pages — and every tile links back to the exact public page it came from. They remain the property of their respective owners and are reproduced here purely as illustration for internal competitive commentary. The remaining ${recreated===1?'one is an illustrative recreation':recreated+' are illustrative recreations'}, labelled as such, drawn from the vendor’s own written description because no public screenshot was obtainable. Where an image shows something other than scenario functionality, the caption says so rather than implying otherwise.`;
+}
+
+function renderMatrix(){
+  const onlyDiff = $('#onlyDiff').checked;
+  const onlyStrong = $('#onlyStrong').checked;
+  const q = state.q.trim().toLowerCase();
+
+  $('#mhead').innerHTML = `<th class="cap">Scenario capability</th>` +
+    VENDORS.map(v=>v.ours
+      ? `<th class="ours">${esc(v.name)}<span class="thtag">Ours</span></th>`
+      : `<th>${esc(v.name)}</th>`).join('');
+
+  const rows = CAPS.filter(cp=>{
+    if(onlyDiff && cp.status==='stake') return false;
+    if(!q) return true;
+    return (cp.name+' '+cp.good).toLowerCase().includes(q);
+  });
+
+  $('#mbody').innerHTML = rows.map(cp=>{
+    const [sc,sl] = STATUS[cp.status];
+    const cells = VENDORS.map(v=>{
+      const td = v.ours ? '<td class="ours">' : '<td>';
+      const lv = v.levels[cp.id];
+      if(onlyStrong && lv<3) return `${td}<span style="color:#c9cedb">·</span></td>`;
+      const [lc,ll] = LVL[lv];
+      return `${td}<span class="lvl ${lc}">${ll}</span></td>`;
+    }).join('');
+    return `<tr>
+      <th class="cap"><span data-cap="${cp.id}" style="cursor:pointer">${cp.name}</span><span class="tag ${sc}">${sl}</span></th>
+      ${cells}</tr>`;
+  }).join('') || `<tr><td colspan="${VENDORS.length+1}" class="empty">No capabilities match that search.</td></tr>`;
+}
+
+function personaMatches(p){
+  if(state.pdom!=='all' && p.dom!==state.pdom) return false;
+  const q = state.q.trim().toLowerCase();
+  if(!q) return true;
+  return [p.name,p.goal,p.req,p.uc,p.dom,...p.charts].join(' ').toLowerCase().includes(q);
+}
+function renderPersonaFilters(){
+  const doms = Array.from(new Set(PERSONAS.map(p=>p.dom)));
+  const counts = {all:PERSONAS.length};
+  doms.forEach(d=>counts[d]=PERSONAS.filter(p=>p.dom===d).length);
+  const items = [{id:'all',name:'All personas'}].concat(doms.map(d=>({id:d,name:d})));
+  $('#pfilters').innerHTML = items.map(i=>`
+    <button class="chip" data-pdom="${i.id}" aria-pressed="${state.pdom===i.id}">
+      ${i.name}<span class="cnt">${counts[i.id]}</span></button>`).join('');
+}
+function renderPersonas(){
+  const list = PERSONAS.filter(personaMatches);
+  $('#pempty').hidden = list.length>0;
+  $('#personas').innerHTML = list.map(p=>`
+    <article class="card pcard">
+      <div class="ph"><h3>${p.name}</h3><span class="dom">${p.dom}</span></div>
+      <div class="field"><div class="k">Use case</div><div class="v">${p.uc}</div></div>
+      <div class="field goal"><div class="k">Goal</div><div class="v">${p.goal}</div></div>
+      <div class="field"><div class="k">Scenario capabilities that serve it</div>
+        <div class="cbits">${p.charts.map(c=>`<span class="cbit">${c}</span>`).join('')}</div></div>
+      <div class="field"><div class="k">What makes it work</div><div class="req">${p.req}</div></div>
+    </article>`).join('');
+}
+
+function renderWin(){
+  const buckets = [
+    {k:'stake', cls:'stake', h:'Table stakes', sub:'Every serious planning platform has it.'},
+    {k:'diff',  cls:'diff',  h:'Differentiators', sub:'Separates leaders from followers today.'},
+    {k:'ws',    cls:'ws',    h:'White space', sub:'No competitor has convincingly solved it.'},
+  ];
+  $('#buckets').innerHTML = buckets.map(b=>{
+    const items = CAPS.filter(c=>c.status===b.k);
+    return `<div class="card bucket ${b.cls}">
+      <h3>${b.h} <span style="color:var(--ink-3);font-weight:600">(${items.length})</span></h3>
+      <p class="sub2">${b.sub}</p>
+      <ul>${items.map(c=>{
+        const leaders = RIVALS.filter(v=>v.levels[c.id]===3).map(v=>v.name);
+        const lead = leaders.length ? ` <span style="color:var(--ink-3)">— strong: ${leaders.join(', ')}</span>`
+                                    : ` <span style="color:var(--ink-3)">— no vendor rated strong</span>`;
+        const mine = ` <span class="ourchip">Ours: ${LVL[OURS.levels[c.id]][1]}</span>`;
+        return `<li>${c.name}${lead}${mine}</li>`;
+      }).join('')}</ul></div>`;
+  }).join('');
+  $('#implications').innerHTML = IMPLICATIONS.map(t=>`
+    <div class="card take"><div class="num">${t.n}</div><h3>${t.h}</h3><p>${t.p}</p></div>`).join('');
+  $('#caveat').innerHTML = `<b>Read this with care.</b> Leader lists and “no vendor rated strong” count competitors only; the teal chip beside each capability is our own rating, and it is a self-assessment of a working prototype rather than a shipped, scaled product — treat it as the least independent number on the page. Ratings are an analytical judgement from working product knowledge, not a vendor datasheet. Scenario capability is especially sensitive to module and licence tier — Oracle’s goal-seek lives in Strategic Modeling, SAP’s simulation in IBP with visuals in Analytics Cloud, and Anaplan’s constrained solving in Optimizer, each licensed and implemented separately. The revenue-intelligence vendors use “scenario” to mean forecast categories rather than modelled alternatives, so their ratings should be read as “good at what they claim”, not “weak planning tools”.`;
+}
+
+function openVendor(id){
+  const v = VENDORS.find(x=>x.id===id); if(!v) return;
+  $('#mbadge').className = 'badge '+badgeOf(v);
+  $('#mbadge').textContent = v.ours ? 'Ours — our own solution' : clsOf(v.cls).name;
+  $('#mtitle').textContent = v.name;
+  const ranked = CAPS.slice().sort((a,b)=>v.levels[b.id]-v.levels[a.id]);
+  const shot = v.shot ? `
+    <h4>${v.ours ? 'Product screenshot — our own build' : 'Product screenshot'}</h4>
+    <div class="mshot">
+      <div class="frame">${v.shot.schematic ? v.shot.svg
+        : `<a href="${v.shot.file}" target="_blank" rel="noopener noreferrer" title="Open full size">${shotFigure(v)}</a>`}</div>
+      <div class="meta">
+        ${shotPill(v)}
+        <a class="srclink" href="${v.shot.source}" target="_blank" rel="noopener noreferrer">${esc(v.shot.sourceName)} ↗</a>
+      </div>
+      <p style="margin:9px 0 0;font-size:13px;color:var(--ink-2)">${v.shot.caption}</p>
+    </div>` : '';
+  $('#mcontent').innerHTML = `
+    <p style="margin:0;color:var(--ink-2);font-size:13.6px">${v.tagline}</p>
+    ${shot}
+    <h4>Signature scenario move</h4>
+    <div class="sig">${v.signature}</div>
+    <h4>Strengths</h4><ul>${v.strengths.map(s=>`<li>${s}</li>`).join('')}</ul>
+    <h4>Weaknesses &amp; caveats</h4><ul>${v.weaknesses.map(s=>`<li>${s}</li>`).join('')}</ul>
+    <h4>Capability ratings</h4>
+    <div>${ranked.map(cp=>{
+      const [lc,ll]=LVL[v.levels[cp.id]];
+      return `<div class="mrow"><span>${cp.name}</span><span class="lvl ${lc}">${ll}</span></div>`;
+    }).join('')}</div>`;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+}
+function openCap(id){
+  const cp = CAPS.find(c=>c.id===id); if(!cp) return;
+  const [sc,sl]=STATUS[cp.status];
+  $('#mbadge').className='badge '+(cp.status==='ws'?'b-crm':cp.status==='diff'?'b-plan':'b-ri');
+  $('#mbadge').textContent = sl;
+  $('#mtitle').innerHTML = cp.name;
+  const sorted = VENDORS.slice().sort((a,b)=>b.levels[cp.id]-a.levels[cp.id]);
+  $('#mcontent').innerHTML = `
+    <h4>What “good” looks like</h4>
+    <div class="sig">${cp.good}</div>
+    <h4>Who does it well</h4>
+    <div>${sorted.map(v=>{
+      const [lc,ll]=LVL[v.levels[cp.id]];
+      return `<div class="mrow"><span>${v.name}${v.ours?' <span class="ourchip">Ours</span>':''}</span><span class="lvl ${lc}">${ll}</span></div>`;
+    }).join('')}</div>`;
+  $('#scrim').classList.add('on'); $('#modal').classList.add('on');
+}
+function closeModal(){ $('#scrim').classList.remove('on'); $('#modal').classList.remove('on'); }
+
+function setTab(t){
+  state.tab=t;
+  $$('.tab').forEach(b=>b.setAttribute('aria-selected', String(b.dataset.tab===t)));
+  ['overview','vendors','shots','matrix','personas','win'].forEach(k=>{ $('#panel-'+k).hidden = (k!==t); });
+}
+function renderAll(){
+  renderVendorFilters(); renderVendors();
+  renderShotFilters(); renderShots();
+  renderPersonaFilters(); renderPersonas();
+  renderMatrix();
+  $('#vcount').textContent = VENDORS.filter(vendorMatches).length;
+  $('#scount').textContent = VENDORS.filter(shotMatches).length;
+  $('#pcount').textContent = PERSONAS.filter(personaMatches).length;
+}
+
+document.addEventListener('click', e=>{
+  const tab = e.target.closest('.tab');           if(tab){ setTab(tab.dataset.tab); return; }
+  if(e.target.closest('a[href]')) return;         /* let source / full-size links through */
+  const vc  = e.target.closest('[data-vcls]');    if(vc){ state.vcls=vc.dataset.vcls; renderAll(); return; }
+  const sc  = e.target.closest('[data-scls]');    if(sc){ state.scls=sc.dataset.scls; renderAll(); return; }
+  const pd  = e.target.closest('[data-pdom]');    if(pd){ state.pdom=pd.dataset.pdom; renderAll(); return; }
+  const cap = e.target.closest('[data-cap]');     if(cap){ openCap(cap.dataset.cap); return; }
+  const ven = e.target.closest('[data-vendor]');  if(ven){ openVendor(ven.dataset.vendor); return; }
+  if(e.target.id==='mclose' || e.target.id==='scrim'){ closeModal(); }
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeModal();
+  if(e.key==='Enter'){ const v=e.target.closest?.('[data-vendor]'); if(v) openVendor(v.dataset.vendor); }
+});
+$('#q').addEventListener('input', e=>{
+  state.q = e.target.value;
+  renderAll();
+  if(state.q && state.tab==='overview') setTab('vendors');
+});
+$('#onlyDiff').addEventListener('change', renderMatrix);
+$('#onlyStrong').addEventListener('change', renderMatrix);
+
+renderOverview(); renderWin(); renderAll(); setTab('overview');
+const SHOTS = RIVALS.filter(v=>v.shot);
+const REAL_SHOTS = SHOTS.filter(v=>!v.shot.schematic).length;
+$('#foot').textContent = `Our own solution against ${RIVALS.length} competitors · ${CAPS.length} scenario capability dimensions · ${PERSONAS.length} personas · `
+  + `${SHOTS.length} competitor screenshots (${REAL_SHOTS} genuine, ${SHOTS.length-REAL_SHOTS} illustrative recreation${SHOTS.length-REAL_SHOTS===1?'':'s'}) plus one internal screenshot of our own build · `
+  + `analytical judgement, not a vendor datasheet`;
+</script>
+</body>
+</html>

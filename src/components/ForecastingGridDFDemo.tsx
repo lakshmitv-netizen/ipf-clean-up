@@ -4444,6 +4444,8 @@ const ForecastingGridDFDemo: React.FC = () => {
   // the associated red cells are revealed and *their* warning icons are cleared. The clicked
   // (anchor) cell keeps its warning icon. Holds the cell keys whose warning is suppressed.
   const [dismissedAgreementWarningKeys, setDismissedAgreementWarningKeys] = useState<Set<string>>(new Set());
+  // Hover text for the associated cells' outline warning icon — names the anchor cell they're affected by.
+  const [agreementAssociatedTooltip, setAgreementAssociatedTooltip] = useState<string | undefined>(undefined);
 
   // Clipboard state for context menu
   const [clipboardValue, setClipboardValue] = useState<number | null>(null);
@@ -4514,15 +4516,27 @@ const ForecastingGridDFDemo: React.FC = () => {
     const cm = contextMenuRef.current;
     if (cm?.cellKey) {
       const parts = cm.cellKey.split('-');
+      const monthKey = parts[parts.length - 1];
       const rowId = parts.slice(0, -1).join('-');
       const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
       if (ids.length) expandRowsRef.current?.(ids);
-      // Suppress warnings on every agreement-risk cell except the clicked anchor.
+      // Suppress the filled warning on every agreement-risk cell except the clicked anchor; those
+      // become "associated" cells (outline icon + affected-by tooltip).
       setDismissedAgreementWarningKeys(() => {
         const next = new Set<string>(agreementRiskCellKeys);
         next.delete(cm.cellKey);
         return next;
       });
+      // Build the "affected by" descriptor from the anchor cell: row · measure · month.
+      const anchorRow = findRowById(rowId, data);
+      const anchorMeasure = data.find((m) => !!findRowById(rowId, [m]));
+      const monthLabel = MONTH_SORT_COLUMN_OPTIONS.find((c) => c.key === monthKey)?.label ?? monthKey;
+      const year = (monthKey.match(/\d{4}/) ?? [''])[0];
+      const rowName = anchorRow?.name ?? 'this row';
+      const measureName = (anchorMeasure?.name ?? 'Order Quantity').replace(/^✦\s*/, '');
+      setAgreementAssociatedTooltip(
+        `Affected by ${rowName} — ${measureName}, ${monthLabel}${year ? ' ' + year : ''}`,
+      );
     }
     setContextMenu(null);
   }, [data, agreementRiskCellKeys]);
@@ -6684,6 +6698,7 @@ const ForecastingGridDFDemo: React.FC = () => {
             }}
             agreementRiskCellKeys={agreementRiskCellKeys}
             dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
+            agreementAssociatedTooltip={agreementAssociatedTooltip}
             onAgreementRiskExpand={(rowId) => {
               // Anchored to the clicked red cell: open one level to its children, then follow only
               // the red-warning children downward until the last red parent with a red child.
