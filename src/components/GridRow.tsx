@@ -2740,7 +2740,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
           className="cell-risk-warning cell-risk-warning--associated"
           role="button"
           tabIndex={0}
-          aria-label={agreementAssociatedTooltip ? `Affected — ${agreementAssociatedTooltip}` : 'Affected cell'}
+          aria-label={agreementAssociatedTooltip ? `Associated — ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}` : 'Associated cell'}
           onMouseEnter={(e) => openAssociatedTip(e)}
           onMouseLeave={closeAssociatedTipDeferred}
           onFocus={(e) => openAssociatedTip(e as unknown as React.MouseEvent<HTMLElement>)}
@@ -2765,12 +2765,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 <rect x="11.1" y="9" width="1.8" height="5.5" rx="0.9" fill="#ba0517" />
                 <rect x="11.1" y="16" width="1.8" height="1.8" rx="0.9" fill="#ba0517" />
               </svg>
-              Affected cell
+              Associated cell
             </div>
             <div className="cell-risk-tooltip-body">
               {agreementAssociatedTooltip
-                ? `Affected by ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}.`
-                : 'This value contributes to a sales-agreement shortfall flagged on a parent cell.'}
+                ? `Associated with the flagged cell — ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}.`
+                : 'This cell is associated with a flagged sales-agreement shortfall.'}
             </div>
           </div>,
           document.body,
