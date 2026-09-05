@@ -2785,6 +2785,20 @@ button.chevron-icon {
 .cell-associated-risk-tooltip .cell-risk-tooltip-body {
   margin-bottom: 0;
 }
+.cell-associated-risk-tooltip .cell-risk-tooltip-cta {
+  margin-top: 11px;
+}
+/* DF demo: brief flash when "Go to flagged cell" scrolls the anchor cell into view. */
+@keyframes cell-flash-highlight {
+  0%   { box-shadow: inset 0 0 0 2px #ba0517, 0 0 0 2px rgba(186, 5, 23, 0.45); }
+  60%  { box-shadow: inset 0 0 0 2px #ba0517, 0 0 0 6px rgba(186, 5, 23, 0.18); }
+  100% { box-shadow: inset 0 0 0 2px #ba0517, 0 0 0 2px rgba(186, 5, 23, 0); }
+}
+.cell-value-cell.cell-flash-highlight {
+  animation: cell-flash-highlight 0.9s ease-out 2;
+  position: relative;
+  z-index: 3;
+}
 
 .cell-value-cell.impacted-cell {
   background: var(--slds-g-color-palette-yellow-95) !important;

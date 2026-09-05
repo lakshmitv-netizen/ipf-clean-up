@@ -227,6 +227,7 @@ interface GridRowProps {
   agreementRiskCellKeys?: Set<string>;
   dismissedAgreementWarningKeys?: Set<string>;
   agreementAssociatedTooltip?: string;
+  agreementAnchorCellKey?: string;
   onAgreementRiskExpand?: (rowId: string) => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
@@ -1267,6 +1268,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   agreementRiskCellKeys,
   dismissedAgreementWarningKeys,
   agreementAssociatedTooltip,
+  agreementAnchorCellKey,
   onAgreementRiskExpand,
   onAskAgentforce,
   savedImpactedCells = new Set<string>(),
@@ -1584,6 +1586,16 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   const keepAssociatedTipOpen = useCallback(() => {
     if (associatedTipCloseTimer.current) { clearTimeout(associatedTipCloseTimer.current); associatedTipCloseTimer.current = null; }
   }, []);
+  // DF demo: CTA on the associated-cell popover — scroll to the flagged (anchor) cell and flash it.
+  const goToFlaggedCell = useCallback(() => {
+    setAssociatedTip(null);
+    if (!agreementAnchorCellKey) return;
+    const el = document.querySelector(`[data-cell-key="${(window.CSS && CSS.escape) ? CSS.escape(agreementAnchorCellKey) : agreementAnchorCellKey}"]`) as HTMLElement | null;
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+    el.classList.add('cell-flash-highlight');
+    setTimeout(() => el.classList.remove('cell-flash-highlight'), 1800);
+  }, [agreementAnchorCellKey]);
   useEffect(() => {
     if (!associatedTip) return;
     const onDown = (ev: MouseEvent) => {
@@ -2772,6 +2784,15 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 ? `Associated with the flagged cell — ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}.`
                 : 'This cell is associated with a flagged sales-agreement shortfall.'}
             </div>
+            {agreementAnchorCellKey && (
+              <button type="button" className="cell-risk-tooltip-cta" onClick={goToFlaggedCell}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M12 2 C8 2 5 5 5 9 c0 5 7 13 7 13 s7-8 7-13 c0-4-3-7-7-7 z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                  <circle cx="12" cy="9" r="2.4" fill="currentColor" />
+                </svg>
+                Go to flagged cell
+              </button>
+            )}
           </div>,
           document.body,
         )}
@@ -6104,6 +6125,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 agreementRiskCellKeys={agreementRiskCellKeys}
                 dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
                 agreementAssociatedTooltip={agreementAssociatedTooltip}
+                agreementAnchorCellKey={agreementAnchorCellKey}
                 onAgreementRiskExpand={onAgreementRiskExpand}
                 onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}

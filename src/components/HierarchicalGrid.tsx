@@ -320,6 +320,7 @@ interface HierarchicalGridProps {
   agreementRiskCellKeys?: Set<string>; // DF demo: Order Quantity cells below the committed sales agreement — red bar + warning icon + hover popover
   dismissedAgreementWarningKeys?: Set<string>; // DF demo: associated cells — outline warning icon + affected-by tooltip instead of the filled anchor marker
   agreementAssociatedTooltip?: string; // DF demo: hover text on associated cells naming the anchor (row · measure · month)
+  agreementAnchorCellKey?: string; // DF demo: the flagged anchor cell's key, so associated-cell popovers can scroll to it
   onAgreementRiskExpand?: () => void; // DF demo: CTA on the agreement-risk popover — expand all rows to reveal the product-level root cause
   onAskAgentforce?: (payload: { question: string; answer: string; bullets: string[]; apply?: { label: string; run: () => void } }) => void; // Cell edit popover: ask Agentforce for a recommendation in the side panel
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
@@ -465,6 +466,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   agreementRiskCellKeys,
   dismissedAgreementWarningKeys,
   agreementAssociatedTooltip,
+  agreementAnchorCellKey,
   onAgreementRiskExpand,
   onAskAgentforce,
   onResetColumnWidths,
@@ -5526,6 +5528,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     agreementRiskCellKeys={agreementRiskCellKeys}
                     dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
                     agreementAssociatedTooltip={agreementAssociatedTooltip}
+                  agreementAnchorCellKey={agreementAnchorCellKey}
                     onAgreementRiskExpand={onAgreementRiskExpand}
                     onAskAgentforce={onAskAgentforce}
                     savedImpactedCells={savedImpactedCells}
@@ -5641,6 +5644,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                   agreementRiskCellKeys={agreementRiskCellKeys}
                   dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
                   agreementAssociatedTooltip={agreementAssociatedTooltip}
+                  agreementAnchorCellKey={agreementAnchorCellKey}
                   onAgreementRiskExpand={onAgreementRiskExpand}
                   onAskAgentforce={onAskAgentforce}
                   savedImpactedCells={savedImpactedCells}

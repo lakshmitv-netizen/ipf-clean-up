@@ -4446,6 +4446,7 @@ const ForecastingGridDFDemo: React.FC = () => {
   const [dismissedAgreementWarningKeys, setDismissedAgreementWarningKeys] = useState<Set<string>>(new Set());
   // Hover text for the associated cells' outline warning icon — names the anchor cell they're affected by.
   const [agreementAssociatedTooltip, setAgreementAssociatedTooltip] = useState<string | undefined>(undefined);
+  const [agreementAnchorCellKey, setAgreementAnchorCellKey] = useState<string | undefined>(undefined);
 
   // Clipboard state for context menu
   const [clipboardValue, setClipboardValue] = useState<number | null>(null);
@@ -4523,6 +4524,7 @@ const ForecastingGridDFDemo: React.FC = () => {
       }
       setDismissedAgreementWarningKeys(new Set());
       setAgreementAssociatedTooltip(undefined);
+      setAgreementAnchorCellKey(undefined);
       setContextMenu(null);
       return;
     }
@@ -4533,6 +4535,7 @@ const ForecastingGridDFDemo: React.FC = () => {
       const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
       if (ids.length) expandRowsRef.current?.(ids);
       associatedExpandedIdsRef.current = ids;
+      setAgreementAnchorCellKey(cm.cellKey);
       // Suppress the filled warning on every agreement-risk cell except the clicked anchor; those
       // become "associated" cells (outline icon + affected-by tooltip).
       setDismissedAgreementWarningKeys(() => {
@@ -6716,6 +6719,7 @@ const ForecastingGridDFDemo: React.FC = () => {
             agreementRiskCellKeys={agreementRiskCellKeys}
             dismissedAgreementWarningKeys={dismissedAgreementWarningKeys}
             agreementAssociatedTooltip={agreementAssociatedTooltip}
+            agreementAnchorCellKey={agreementAnchorCellKey}
             onAgreementRiskExpand={(rowId) => {
               // Anchored to the clicked red cell: open one level to its children, then follow only
               // the red-warning children downward until the last red parent with a red child.
