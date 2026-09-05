@@ -4514,12 +4514,25 @@ const ForecastingGridDFDemo: React.FC = () => {
   // its warning icon. All the red cells stay red so the shortfall is still visible.
   const handleContextShowAssociatedCells = useCallback(() => {
     const cm = contextMenuRef.current;
+    // Toggle: if associated cells are already showing, hide them (restore the filled anchor
+    // markers, drop the outline icons, and collapse the rows this action expanded).
+    if (dismissedAgreementWarningKeys.size > 0) {
+      if (associatedExpandedIdsRef.current.length) {
+        collapseRowsRef.current?.(associatedExpandedIdsRef.current);
+        associatedExpandedIdsRef.current = [];
+      }
+      setDismissedAgreementWarningKeys(new Set());
+      setAgreementAssociatedTooltip(undefined);
+      setContextMenu(null);
+      return;
+    }
     if (cm?.cellKey) {
       const parts = cm.cellKey.split('-');
       const monthKey = parts[parts.length - 1];
       const rowId = parts.slice(0, -1).join('-');
       const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
       if (ids.length) expandRowsRef.current?.(ids);
+      associatedExpandedIdsRef.current = ids;
       // Suppress the filled warning on every agreement-risk cell except the clicked anchor; those
       // become "associated" cells (outline icon + affected-by tooltip).
       setDismissedAgreementWarningKeys(() => {
@@ -4539,7 +4552,7 @@ const ForecastingGridDFDemo: React.FC = () => {
       );
     }
     setContextMenu(null);
-  }, [data, agreementRiskCellKeys]);
+  }, [data, agreementRiskCellKeys, dismissedAgreementWarningKeys]);
 
   const handleContextCopy = useCallback(() => {
     if (contextMenu) {
@@ -5390,6 +5403,9 @@ const ForecastingGridDFDemo: React.FC = () => {
   const expandToCategoriesRef = useRef<(() => void) | null>(null);
   const expandMeasureRowRef = useRef<((measureId: string, maxDepth?: number) => void) | null>(null);
   const expandRowsRef = useRef<((rowIds: string[]) => void) | null>(null);
+  const collapseRowsRef = useRef<((rowIds: string[]) => void) | null>(null);
+  // DF demo: the red-chain row ids most recently expanded by "Show Associated Cells", so "Hide" can collapse exactly them.
+  const associatedExpandedIdsRef = useRef<string[]>([]);
   const resetColumnWidthsRef = useRef<(() => void) | null>(null);
   const clearAllFiltersRef = useRef<(() => void) | null>(null);
   // Registered by FiltersPanel so we can reset its filter cards from the grid hint.
@@ -6605,6 +6621,7 @@ const ForecastingGridDFDemo: React.FC = () => {
             onExpandToCategories={(handler) => { expandToCategoriesRef.current = handler; }}
             onExpandMeasureRow={(handler) => { expandMeasureRowRef.current = handler; }}
             onExpandRows={(handler) => { expandRowsRef.current = handler; }}
+            onCollapseRows={(handler) => { collapseRowsRef.current = handler; }}
             onResetColumnWidths={(handler) => { resetColumnWidthsRef.current = handler; }}
             onClearAllFilters={(handler) => { clearAllFiltersRef.current = handler; }}
             onSettingsClick={() => setIsSettingsOpen(true)}
@@ -7199,7 +7216,8 @@ const ForecastingGridDFDemo: React.FC = () => {
             onRequestApproval={handleContextRequestApproval}
             onCellActions={handleContextCellActions}
             onShowAssociatedCells={handleContextShowAssociatedCells}
-            showAssociatedCells={!!agreementRiskCellKeys?.has(contextMenu.cellKey) && !dismissedAgreementWarningKeys.has(contextMenu.cellKey)}
+            showAssociatedCells={!!agreementRiskCellKeys?.has(contextMenu.cellKey)}
+            associatedCellsShown={dismissedAgreementWarningKeys.size > 0}
           />
         )}
 

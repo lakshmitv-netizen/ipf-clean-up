@@ -312,6 +312,7 @@ interface HierarchicalGridProps {
   onExpandToCategories?: (handler: () => void) => void; // Register handler that expands measures + accounts (categories collapsed)
   onExpandMeasureRow?: (handler: (measureId: string, maxDepth?: number) => void) => void; // Register handler that expands a measure row's chevron; maxDepth expands its branch that many tiers deep (default 1)
   onExpandRows?: (handler: (rowIds: string[]) => void) => void; // Register handler that additively expands an explicit set of row ids (leaves others untouched)
+  onCollapseRows?: (handler: (rowIds: string[]) => void) => void; // Register handler that collapses an explicit set of row ids (leaves others untouched)
   riskCellKeys?: Set<string>; // Arc 5: the E-Motor Housing June lineage flagged as above committed agreement (red warning cells cascading down to the origin)
   chartActiveRowId?: string | null; // Optional: row whose chart is open in the Charts panel — gets a faint translucent-blue background.
   riskResolved?: boolean; // Arc 5: amendment approved (pre-save) — show a green checkmark instead of the red warning
@@ -456,6 +457,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   onExpandToCategories,
   onExpandMeasureRow,
   onExpandRows,
+  onCollapseRows,
   riskCellKeys,
   chartActiveRowId,
   riskResolved,
@@ -1982,6 +1984,15 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     setExpandedRows(prev => {
       const next = new Set(prev);
       rowIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
+
+  const handleCollapseRows = useCallback((rowIds: string[]) => {
+    if (!rowIds || !rowIds.length) return;
+    setExpandedRows(prev => {
+      const next = new Set(prev);
+      rowIds.forEach(id => next.delete(id));
       return next;
     });
   }, []);
@@ -3780,6 +3791,9 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
     if (onExpandRows) {
       onExpandRows(handleExpandRows);
     }
+    if (onCollapseRows) {
+      onCollapseRows(handleCollapseRows);
+    }
     if (onClearAllFilters) {
       onClearAllFilters(handleClearAllFilters);
     }
@@ -3795,7 +3809,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
         setColumnWidths(new Map());
       });
     }
-  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleExpandMeasureRow, handleExpandRows, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onExpandMeasureRow, onExpandRows, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
+  }, [handleExpandAll, handleCollapseAll, handleExpandMeasuresOnly, handleExpandToCategories, handleExpandMeasureRow, handleExpandRows, handleCollapseRows, handleClearAllFilters, onExpandAllRows, onCollapseAllRows, onExpandMeasuresOnly, onExpandToCategories, onExpandMeasureRow, onExpandRows, onCollapseRows, onClearAllFilters, onGetVisibleRowsReady, onGetVisibleTimeKeysReady, getAllVisibleRows, getVisibleTimeKeys, onResetColumnWidths]);
 
   // Handle keyboard navigation
   // Note: handleSave is defined later, so we'll use a ref or move this callback after handleSave

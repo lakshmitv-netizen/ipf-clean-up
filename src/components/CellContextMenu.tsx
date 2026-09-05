@@ -26,6 +26,7 @@ interface CellContextMenuProps {
   onCellActions?: () => void;
   onShowAssociatedCells?: () => void;
   showAssociatedCells?: boolean;
+  associatedCellsShown?: boolean;
 }
 
 const CellContextMenu: React.FC<CellContextMenuProps> = ({
@@ -53,6 +54,7 @@ const CellContextMenu: React.FC<CellContextMenuProps> = ({
   onCellActions,
   onShowAssociatedCells,
   showAssociatedCells = false,
+  associatedCellsShown = false,
 }) => {
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -148,8 +150,8 @@ const CellContextMenu: React.FC<CellContextMenuProps> = ({
 
       <div className="cell-context-menu-separator" />
 
-      {/* Show Associated Cells — only for red "below committed agreement" warning cells.
-          Reveals the rest of the associated red cells and clears the warning icons. */}
+      {/* Show / Hide Associated Cells — only for red "below committed agreement" warning cells.
+          Toggles the rest of the associated red cells (outline warning icons) in and out of view. */}
       {showAssociatedCells && onShowAssociatedCells && (
         <>
           <button
@@ -161,10 +163,17 @@ const CellContextMenu: React.FC<CellContextMenuProps> = ({
               handleAction(onShowAssociatedCells);
             }}
           >
-            <svg className="cell-context-menu-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0-7a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/>
-            </svg>
-            <span className="cell-context-menu-label">Show Associated Cells</span>
+            {associatedCellsShown ? (
+              <svg className="cell-context-menu-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 6.5c-3.79 0-7.17 2.13-8.82 5.5.69 1.41 1.71 2.62 2.96 3.54l-2.1 2.1 1.06 1.06L20.02 3.86l-1.06-1.06-2.6 2.6A9.77 9.77 0 0012 6.5zm0 3a2.5 2.5 0 012.5 2.5c0 .38-.09.74-.24 1.06l-3.32-3.32c.32-.15.68-.24 1.06-.24zM4.71 5.55l2.48 2.48A2.49 2.49 0 006.5 12 2.5 2.5 0 009.97 14.3l1.4 1.4c-.7.19-1.43.3-2.37.3-.16 0 .35 0 .5 0-3.79 0-2.4 0-3-.05z"/>
+                <path d="M12 17.5c3.79 0 7.17-2.13 8.82-5.5a10.05 10.05 0 00-2.42-3.09l-1.42 1.42c.51.47.96 1.02 1.32 1.67-1.28 2.6-3.9 4.5-6.3 4.5-.7 0-1.38-.11-2.02-.31l-1.6 1.13c1.08.44 2.24.68 3.62.68z"/>
+              </svg>
+            ) : (
+              <svg className="cell-context-menu-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zm0 12a4.5 4.5 0 110-9 4.5 4.5 0 010 9zm0-7a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/>
+              </svg>
+            )}
+            <span className="cell-context-menu-label">{associatedCellsShown ? 'Hide Associated Cells' : 'Show Associated Cells'}</span>
           </button>
           <div className="cell-context-menu-separator" />
         </>
