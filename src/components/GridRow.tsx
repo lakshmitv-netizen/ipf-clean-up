@@ -1571,9 +1571,18 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   }, []);
   // DF demo: click popover for an associated cell's outline warning icon.
   const [associatedTip, setAssociatedTip] = useState<{ top: number; left: number } | null>(null);
+  const associatedTipCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openAssociatedTip = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    if (associatedTipCloseTimer.current) { clearTimeout(associatedTipCloseTimer.current); associatedTipCloseTimer.current = null; }
     const r = e.currentTarget.getBoundingClientRect();
     setAssociatedTip({ top: r.bottom + 9, left: r.left + r.width / 2 - 26 });
+  }, []);
+  const closeAssociatedTipDeferred = useCallback(() => {
+    if (associatedTipCloseTimer.current) clearTimeout(associatedTipCloseTimer.current);
+    associatedTipCloseTimer.current = setTimeout(() => setAssociatedTip(null), 140);
+  }, []);
+  const keepAssociatedTipOpen = useCallback(() => {
+    if (associatedTipCloseTimer.current) { clearTimeout(associatedTipCloseTimer.current); associatedTipCloseTimer.current = null; }
   }, []);
   useEffect(() => {
     if (!associatedTip) return;
@@ -2732,6 +2741,10 @@ const GridRowComponent: React.FC<GridRowProps> = ({
           role="button"
           tabIndex={0}
           aria-label={agreementAssociatedTooltip ? `Affected — ${agreementAssociatedTooltip}` : 'Affected cell'}
+          onMouseEnter={(e) => openAssociatedTip(e)}
+          onMouseLeave={closeAssociatedTipDeferred}
+          onFocus={(e) => openAssociatedTip(e as unknown as React.MouseEvent<HTMLElement>)}
+          onBlur={closeAssociatedTipDeferred}
           onClick={(e) => { e.stopPropagation(); openAssociatedTip(e); }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openAssociatedTip(e as unknown as React.MouseEvent<HTMLElement>); } }}
         >
@@ -2741,6 +2754,8 @@ const GridRowComponent: React.FC<GridRowProps> = ({
           <div
             className="cell-risk-tooltip cell-agreement-risk-tooltip cell-associated-risk-tooltip"
             style={{ position: 'fixed', top: associatedTip.top, left: associatedTip.left, zIndex: 10001 }}
+            onMouseEnter={keepAssociatedTipOpen}
+            onMouseLeave={closeAssociatedTipDeferred}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="cell-risk-tooltip-nubbin" />
