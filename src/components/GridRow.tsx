@@ -2787,8 +2787,12 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             {agreementAnchorCellKey && (
               <button type="button" className="cell-risk-tooltip-cta" onClick={goToFlaggedCell}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M12 2 C8 2 5 5 5 9 c0 5 7 13 7 13 s7-8 7-13 c0-4-3-7-7-7 z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
-                  <circle cx="12" cy="9" r="2.4" fill="currentColor" />
+                  <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" strokeWidth="1.8" />
+                  <line x1="12" y1="2.5" x2="12" y2="6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <line x1="12" y1="18" x2="12" y2="21.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <line x1="2.5" y1="12" x2="6" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <line x1="18" y1="12" x2="21.5" y2="12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <circle cx="12" cy="12" r="2.1" fill="currentColor" />
                 </svg>
                 Go to flagged cell
               </button>
