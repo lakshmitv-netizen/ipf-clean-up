@@ -2816,6 +2816,24 @@ button.chevron-icon {
 .cell-associated-risk-tooltip .cell-risk-tooltip-body {
   margin-bottom: 0;
 }
+/* DF demo: shared-context band tying the associated cell to the flagged cell's root cause. */
+.cell-associated-reason {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 4px 9px 4px 8px;
+  border-radius: 5px;
+  background: rgba(186, 5, 23, 0.08);
+  border-left: 3px solid #ba0517;
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #ba0517;
+}
+.cell-associated-reason svg {
+  flex-shrink: 0;
+}
 .cell-associated-risk-tooltip .cell-risk-tooltip-cta {
   margin-top: 11px;
 }

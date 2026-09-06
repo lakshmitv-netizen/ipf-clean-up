@@ -2789,6 +2789,14 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 ? `Associated with the flagged cell — ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '')}.`
                 : 'This cell is associated with a flagged sales-agreement shortfall.'}
             </div>
+            <div className="cell-associated-reason">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2 L22 20 H2 Z" fill="#ba0517" />
+                <rect x="11" y="9" width="2" height="6" rx="1" fill="#fff" />
+                <rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff" />
+              </svg>
+              <span>Below committed agreement</span>
+            </div>
             {agreementAnchorCellKey && (
               <button type="button" className="cell-risk-tooltip-cta" onClick={goToFlaggedCell}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
