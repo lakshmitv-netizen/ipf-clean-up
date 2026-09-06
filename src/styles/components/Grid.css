@@ -2,10 +2,10 @@
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  /* Reserve the collapsed scenario-drawer strip height at the bottom so the persistent
-     drawer never overlays grid content — including the sticky edit/save footer, which must
-     stay visible alongside the drawer strip. Keep in sync with SNAP_PX.collapsed (66px). */
-  padding: var(--spacing-2) 0 var(--scenario-strip-height, 66px) 0;
+  /* Reservation for the collapsed scenario-drawer strip is applied to .grid-wrapper only (see
+     below) — not here — because the drawer stops at the grid's right edge and no longer extends
+     under the Agentforce panel, so the panel column must reach the viewport bottom. */
+  padding: var(--spacing-2) 0 0 0;
   background-color: var(--color-surface-white);
   overflow: hidden;
   min-height: 0; /* Important for flex children to respect container bounds */
@@ -1128,7 +1128,11 @@
   min-width: 0; /* Allow flex item to shrink below content size */
   gap: 0;
   overflow: visible; /* Allow notification to be visible outside bounds */
-  padding: 0;
+  /* Reserve the collapsed scenario-drawer strip height at the bottom so the persistent drawer
+     never overlays grid content — including the sticky edit/save footer, which must stay visible
+     alongside the drawer strip. Applied here (not on .forecasting-container) so the sibling
+     Agentforce panel column reaches the viewport bottom. Keep in sync with SNAP_PX.collapsed. */
+  padding: 0 0 var(--scenario-strip-height, 66px) 0;
   background: var(--slds-g-color-neutral-base-95);
   z-index: 1002;
 }
