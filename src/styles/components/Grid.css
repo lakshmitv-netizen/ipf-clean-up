@@ -2796,6 +2796,12 @@ button.chevron-icon {
 .cell-risk-tooltip-nba-link svg {
   flex-shrink: 0;
 }
+.cell-risk-tooltip-nba-sparkle {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--slds-g-link-color, #0176d3);
+}
 
 /* DF demo: associated cells carry an outline (unfilled) red warning icon. Clicking it opens a
    styled popover naming the anchor cell they're affected by. */
