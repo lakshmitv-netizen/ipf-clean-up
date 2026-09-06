@@ -2771,6 +2771,31 @@ button.chevron-icon {
   color: #ffffff !important;
   text-decoration: none !important;
 }
+/* DF demo: agentic "View Next Best Actions" link (sparkle + brand-colored link, no button chrome). */
+.cell-risk-tooltip-nba-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 0 !important;
+  margin-top: 4px !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--slds-g-link-color, #0176d3) !important;
+  font-family: inherit !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  width: auto !important;
+}
+.cell-risk-tooltip-nba-link:hover {
+  text-decoration: underline !important;
+}
+.cell-risk-tooltip-nba-link svg {
+  flex-shrink: 0;
+}
 
 /* DF demo: associated cells carry an outline (unfilled) red warning icon. Clicking it opens a
    styled popover naming the anchor cell they're affected by. */

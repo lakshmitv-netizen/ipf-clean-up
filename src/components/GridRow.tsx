@@ -2728,11 +2728,16 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             <div className="cell-risk-tooltip-body">
               {agreementBody}
             </div>
-            {agreementHasChildren && (
-              <button type="button" className="cell-risk-tooltip-cta" onClick={runAgreementExpand}>
-                Show Associated Cells
-              </button>
-            )}
+            <button
+              type="button"
+              className="cell-risk-tooltip-nba-link"
+              onClick={() => { setAgreementTip(null); onViewNextBestAction?.(); }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 2 C12 7 12.6 11.4 17 12 C12.6 12.6 12 17 12 22 C12 17 11.4 12.6 7 12 C11.4 11.4 12 7 12 2 Z" fill="currentColor" />
+              </svg>
+              View Next Best Actions
+            </button>
           </div>,
           document.body,
         )}
