@@ -52,7 +52,7 @@ import MiniChart from './MiniChart';
 import GlobalSortPanel, { GlobalSortConfig } from './GlobalSortPanel';
 import AlertsPanel, { FocusGridParams } from './AlertsPanel';
 import AgentforcePanel from './AgentforcePanel';
-import { hasPredictedBaseline, ARC5_START_PROMPT, ARC3_REVEAL_MEASURE_ID } from '../utils/agentforceEngine';
+import { hasPredictedBaseline, ARC5_START_PROMPT, DF_NBA_START_PROMPT, ARC3_REVEAL_MEASURE_ID } from '../utils/agentforceEngine';
 import type { AgentScenario } from '../utils/agentforceEngine';
 import { useAgentforce } from '../contexts/AgentforceContext';
 import { ColumnFilter } from './ColumnFilterPopover';
@@ -6726,6 +6726,11 @@ const ForecastingGridDFDemo: React.FC = () => {
               // Non-red branches stay collapsed, so the page never expands the whole hierarchy.
               const ids = computeRedChainExpandIds(rowId, data, agreementRiskCellKeys);
               if (ids.length) expandRowsRef.current?.(ids);
+            }}
+            onAgreementViewNextBestActions={() => {
+              setIsAlertsOpen(false);
+              setArc5AutoStart(DF_NBA_START_PROMPT);
+              openAgentforce();
             }}
             onAskAgentforce={(payload) => {
               setIsAlertsOpen(false);

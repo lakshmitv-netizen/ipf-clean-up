@@ -2798,7 +2798,7 @@ button.chevron-icon {
 }
 .cell-risk-tooltip-nba-sparkle {
   flex-shrink: 0;
-  font-size: 20px;
+  font-size: 1em;
   line-height: 1;
   color: var(--slds-g-link-color, #0176d3);
 }

@@ -322,6 +322,7 @@ interface HierarchicalGridProps {
   agreementAssociatedTooltip?: string; // DF demo: hover text on associated cells naming the anchor (row · measure · month)
   agreementAnchorCellKey?: string; // DF demo: the flagged anchor cell's key, so associated-cell popovers can scroll to it
   onAgreementRiskExpand?: () => void; // DF demo: CTA on the agreement-risk popover — expand all rows to reveal the product-level root cause
+  onAgreementViewNextBestActions?: () => void; // DF demo: "View Next Best Actions" link on the below-agreement popover — opens Agentforce with the shortfall NBA
   onAskAgentforce?: (payload: { question: string; answer: string; bullets: string[]; apply?: { label: string; run: () => void } }) => void; // Cell edit popover: ask Agentforce for a recommendation in the side panel
   onResetColumnWidths?: (handler: () => void) => void; // Callback to register column-width reset handler
   onClearAllFilters?: (handler: () => void) => void; // Callback to register clear all filters handler
@@ -468,6 +469,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   agreementAssociatedTooltip,
   agreementAnchorCellKey,
   onAgreementRiskExpand,
+  onAgreementViewNextBestActions,
   onAskAgentforce,
   onResetColumnWidths,
   onClearAllFilters,
@@ -5530,6 +5532,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                     agreementAssociatedTooltip={agreementAssociatedTooltip}
                   agreementAnchorCellKey={agreementAnchorCellKey}
                     onAgreementRiskExpand={onAgreementRiskExpand}
+                  onAgreementViewNextBestActions={onAgreementViewNextBestActions}
                     onAskAgentforce={onAskAgentforce}
                     savedImpactedCells={savedImpactedCells}
                     columnWidth={columnWidth}
@@ -5646,6 +5649,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
                   agreementAssociatedTooltip={agreementAssociatedTooltip}
                   agreementAnchorCellKey={agreementAnchorCellKey}
                   onAgreementRiskExpand={onAgreementRiskExpand}
+                  onAgreementViewNextBestActions={onAgreementViewNextBestActions}
                   onAskAgentforce={onAskAgentforce}
                   savedImpactedCells={savedImpactedCells}
                   columnWidth={columnWidth}

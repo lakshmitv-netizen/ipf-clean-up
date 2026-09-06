@@ -1077,8 +1077,104 @@ function buildArc5(beat: keyof typeof ARC5, data: MeasureData[]): AgentResponse 
   }
 }
 
+/**
+ * DF demo · Next-Best-Action for a *shortfall*: order quantities across MagnaDrive – Georgia Plant
+ * are pacing BELOW the committed sales agreement. Consistent with the red "Below committed
+ * agreement" cell popover — the agent recommends a recovery play and drafts a Slack heads-up to
+ * Sales Ops (distinct wording from Arc-5 so the two flows never cross-match).
+ */
+export const DF_NBA = {
+  start: 'Order quantities across MagnaDrive – Georgia Plant are tracking below the committed sales agreement — what’s the next best action?',
+  draft: 'Draft the recovery Slack message',
+  post: 'Post the recovery message to Slack',
+} as const;
+
+export const DF_NBA_START_PROMPT = DF_NBA.start;
+
+const DF_NBA_CHANNEL = 'magnadrive-sales-ops';
+const DF_NBA_REQUESTER = 'David Chen';
+const DF_NBA_APPROVER = 'Rita Menon';
+
+/** Match a typed/clicked question to a DF-NBA beat key, or null. Runs before Arc-5. */
+function matchDfNba(question: string): keyof typeof DF_NBA | null {
+  const s = question.trim().toLowerCase();
+  const eq = (v: string) => s === v.trim().toLowerCase();
+  if (eq(DF_NBA.start) || /order quantit.*below.*(committed|agreement)/.test(s)) return 'start';
+  if (eq(DF_NBA.draft) || /draft.*recovery.*(slack|message)/.test(s)) return 'draft';
+  if (eq(DF_NBA.post) || /post.*recovery.*slack/.test(s)) return 'post';
+  return null;
+}
+
+function buildDfNba(beat: keyof typeof DF_NBA, data: MeasureData[]): AgentResponse {
+  const orderQty = data.find((m) => /^order quantity/i.test(m.name));
+  const salesAgr = data.find((m) => /sales agreement quantity/i.test(m.name));
+  const orderNode = findFirstNode(orderQty, 'Georgia Plant');
+  const agrNode = findFirstNode(salesAgr, 'Georgia Plant');
+  const ordered = orderNode ? rollupColumn(orderNode, 'year') : 9_454;
+  const committedRaw = agrNode ? rollupColumn(agrNode, 'year') : 10_400;
+  // Ensure the story reads as a genuine shortfall even if seeded data nets flat.
+  const committed = committedRaw > ordered ? committedRaw : Math.round(ordered * 1.09);
+  const gap = committed - ordered;
+  const gapPct = committed ? Math.round((gap / committed) * 100) : 9;
+
+  const account = 'MagnaDrive · Georgia Plant';
+  const slackMessage = (posted: boolean): AgentSlackMessage => ({
+    channel: DF_NBA_CHANNEL,
+    author: 'Agentforce',
+    time: posted ? 'Just now' : 'Draft',
+    headline: '⚠️ Shortfall vs committed agreement — MagnaDrive · Georgia Plant',
+    lines: [
+      `*Account* — ${account}`,
+      `*Committed* — ${fmtNumber(committed)} units`,
+      `*Ordered to date* — ${fmtNumber(ordered)} units (*−${gapPct}%*)`,
+      `*Why* — order quantities across this region are pacing well below what was committed in the sales agreement.`,
+    ],
+    footer: 'Drafted from the FY26 plan · recovery play for the committed shortfall',
+    routedTo: DF_NBA_APPROVER,
+    posted,
+  });
+
+  switch (beat) {
+    case 'start':
+      return {
+        ...arc3Base(),
+        answer:
+          `Several MagnaDrive · Georgia Plant lines are pacing **below the committed sales agreement** — a **~${gapPct}% shortfall** against contracted volume that puts the agreement at risk.\n` +
+          `The move is to rally the account team to recover the gap before quarter-end and give **Sales Ops** a heads-up. Want me to **draft a Slack message** to #${DF_NBA_CHANNEL}?`,
+        bullets: [
+          `Committed — ${fmtNumber(committed)} units`,
+          `Ordered to date — ${fmtNumber(ordered)} units (−${gapPct}%)`,
+        ],
+        followUps: [DF_NBA.draft],
+      };
+    case 'draft':
+      return {
+        ...arc3Base(),
+        answer:
+          `Drafted. Here's the recovery message I'll post to **#${DF_NBA_CHANNEL}**, flagging the shortfall to **${DF_NBA_APPROVER}**. Review it — I'll post when you're ready.`,
+        bullets: [],
+        slackMessage: slackMessage(false),
+        followUps: [DF_NBA.post],
+      };
+    case 'post':
+    default:
+      return {
+        ...arc3Base(),
+        answer:
+          `Posted to **#${DF_NBA_CHANNEL}** — the committed-agreement shortfall is now with **${DF_NBA_APPROVER}** and the account team to recover.\n` +
+          `The agents **flagged the shortfall, recommended a recovery play, and drafted the heads-up** — but the decision stayed yours.`,
+        bullets: [],
+        slackMessage: slackMessage(true),
+        followUps: [],
+      };
+  }
+}
+
 // ── Entry point ──────────────────────────────────────────────────────────────
 export function runAgentQuery(question: string, data: MeasureData[]): AgentResponse {
+  const dfNbaBeat = matchDfNba(question);
+  if (dfNbaBeat) return buildDfNba(dfNbaBeat, data);
+
   const arc5Beat = matchArc5(question);
   if (arc5Beat) return buildArc5(arc5Beat, data);
 

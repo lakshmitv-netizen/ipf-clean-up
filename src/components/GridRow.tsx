@@ -229,6 +229,7 @@ interface GridRowProps {
   agreementAssociatedTooltip?: string;
   agreementAnchorCellKey?: string;
   onAgreementRiskExpand?: (rowId: string) => void;
+  onAgreementViewNextBestActions?: () => void;
   // Cell edit popover: ask Agentforce for a recommendation, surfaced as Q&A in the right-side panel.
   // `apply` (optional) surfaces a recommended action in the panel that writes the value into the cell.
   onAskAgentforce?: (payload: {
@@ -1270,6 +1271,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
   agreementAssociatedTooltip,
   agreementAnchorCellKey,
   onAgreementRiskExpand,
+  onAgreementViewNextBestActions,
   onAskAgentforce,
   savedImpactedCells = new Set<string>(),
   columnWidth = 100,
@@ -2731,7 +2733,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             <button
               type="button"
               className="cell-risk-tooltip-nba-link"
-              onClick={() => { setAgreementTip(null); onViewNextBestAction?.(); }}
+              onClick={() => { setAgreementTip(null); onAgreementViewNextBestActions?.(); }}
             >
               <span className="cell-risk-tooltip-nba-sparkle" aria-hidden="true">✦</span>
               View Next Best Actions
@@ -6134,6 +6136,7 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                 agreementAssociatedTooltip={agreementAssociatedTooltip}
                 agreementAnchorCellKey={agreementAnchorCellKey}
                 onAgreementRiskExpand={onAgreementRiskExpand}
+                onAgreementViewNextBestActions={onAgreementViewNextBestActions}
                 onAskAgentforce={onAskAgentforce}
                 savedImpactedCells={savedImpactedCells}
                 columnWidth={columnWidth}
