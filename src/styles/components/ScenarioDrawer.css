@@ -112,7 +112,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 2px 12px 8px;
+  padding: 6px 12px 18px;
   min-height: 34px;
 }
 .scenario-rail-left {
@@ -227,7 +227,8 @@
   margin-left: auto;
 }
 
-/* Show in grid button — primary CTA, filled and prominent.
+/* Show in grid button — SLDS neutral button: white fill, neutral border,
+   brand-blue label; full pill radius.
    !important + class beats App.css `:where(button:not(.fill-handle))` reset. */
 .scenario-showgrid-btn {
   display: inline-flex;
@@ -235,22 +236,22 @@
   gap: 7px;
   height: 36px;
   padding: 0 22px;
-  border-radius: 8px;
-  border: 1px solid #0176d3 !important;
-  background: #0176d3 !important;
-  color: #fff !important;
+  border-radius: 999px;
+  border: 1px solid #c9c9c9 !important;
+  background: #fff !important;
+  color: #0176d3 !important;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0.01em;
   white-space: nowrap;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(1, 118, 211, 0.35);
+  box-shadow: none;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.1s ease;
 }
 .scenario-showgrid-btn:hover:not(:disabled) {
-  background: #015fac !important;
-  border-color: #015fac !important;
-  box-shadow: 0 3px 10px rgba(1, 118, 211, 0.45);
+  background: #f4f6f9 !important;
+  border-color: #0176d3 !important;
+  color: #015fac !important;
 }
 .scenario-showgrid-btn:active:not(:disabled) {
   transform: translateY(1px);
@@ -266,8 +267,8 @@
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.35);
+  background: #0176d3;
+  box-shadow: 0 0 0 3px rgba(1, 118, 211, 0.2);
   animation: scenario-pulse 1.6s ease-in-out infinite;
 }
 @keyframes scenario-pulse {
