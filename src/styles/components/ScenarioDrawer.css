@@ -852,7 +852,7 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
-  padding: 9px 10px 9px 13px;
+  padding: 9px 10px;
   border: 1px solid #c9c9c9 !important;
   background: #fff;
   cursor: pointer;
@@ -871,14 +871,6 @@
   border-color: #0176d3 !important;
   background: #f3f8fe;
   z-index: 2;
-}
-/* Left color accent bar keyed to the scenario color */
-.scenario-select-card-accent {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
 }
 .scenario-select-card-head {
   display: flex;

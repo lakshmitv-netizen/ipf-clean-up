@@ -1003,7 +1003,6 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
                         onClick={() => setActiveId(s.id)}
                         title={`Focus ${s.name}`}
                       >
-                        <span className="scenario-select-card-accent" style={{ background: s.color }} aria-hidden="true" />
                         <span className="scenario-select-card-head">
                           <span className="scenario-dot" style={{ backgroundColor: s.color }} aria-hidden="true" />
                           <span className="scenario-select-card-name">{s.name}</span>
