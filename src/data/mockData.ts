@@ -891,34 +891,71 @@ const dfDemoData: MeasureData[] = (() => {
   };
   clone.forEach((mm) => dfSwapMarOct(mm as unknown as GridRow));
 
-  // ── 7. Uplift Sales Agreement Quantity + Predictive Forecasted Quantity ──────
-  // Scale these two measures up uniformly (every row, every month) so the committed
-  // agreement line and the model-forecast line sit ABOVE Order Quantity at the top
-  // line — matching the charts and the "orders below committed agreement" story.
-  // Order Quantity is untouched, and the red "below committed agreement" cells are
-  // keyed off Order Quantity vs fixed thresholds (see computeAgreementRiskCellKeys),
-  // so this uplift does not change which cells are flagged.
+  // ── 7. Re-derive Sales Agreement Quantity + Predictive Forecasted Quantity ───
+  // from Order Quantity so the three lines hug each other WITHIN VARIANCE (±5%)
+  // every month EXCEPT March, where they fan out significantly.
   //
-  // REVERT: set both factors to 1 (or revert the commit that introduced this block)
-  // to return to the pre-uplift numbers.
-  const SA_QTY_UPLIFT = 1.3;   // Sales Agreement Quantity  (68,746 → ~89,370 FY26)
-  const PRED_QTY_UPLIFT = 1.3; // Predictive Forecasted Qty (62,843 → ~81,700 FY26)
-  const dfScaleRowTreeInPlace = (row: GridRow, factor: number): void => {
-    const v = row.values as Record<string, number>;
-    DF_MONTH_KEYS.forEach((mk) => { v[mk] = r(Number(v[mk] ?? 0) * factor); });
-    dfRederiveAggregates(v);
-    if (row.children && row.children.length) {
-      row.children.forEach((c) => dfScaleRowTreeInPlace(c, factor));
-    }
+  //   • Non-March months: each leaf = its matching Order Quantity leaf × a small
+  //     in-band factor (Sales Agreement sits just above order; Predictive within ±5%).
+  //   • March: each leaf is pinned to the *expected* level (the mean of that leaf's
+  //     Feb & Apr order) × a larger factor. Where order actually dropped (the flagged
+  //     Georgia cells) the gap vs the low March order is dramatic; everywhere else
+  //     March simply reads clearly above the (normal) order — so March is the one
+  //     month with a significant deviation and the rest of the year stays in band.
+  //
+  // Order Quantity is untouched, so the red "below committed agreement" cells (keyed
+  // off Order Quantity vs fixed thresholds in computeAgreementRiskCellKeys) are
+  // unchanged. REVERT: delete this block (or revert its commit) to restore prior data.
+  const DEV_MONTH = 'mar2026';
+  const DEV_LO = 'feb2026';
+  const DEV_HI = 'apr2026';
+  // Deterministic factor in [lo, hi] from a string seed (FNV-1a hash) — stable across reloads.
+  const dfSeedFactor = (seed: string, lo: number, hi: number): number => {
+    let h = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return lo + (((h >>> 0) % 1001) / 1000) * (hi - lo);
   };
-  const saQtyMeasure = clone.find((mm) => mm.id === 'measure-sa-qty');
-  if (saQtyMeasure && SA_QTY_UPLIFT !== 1) {
-    dfScaleRowTreeInPlace(saQtyMeasure as unknown as GridRow, SA_QTY_UPLIFT);
-  }
-  const predQtyMeasure = clone.find((mm) => mm.id === 'measure-pred-forecast-qty');
-  if (predQtyMeasure && PRED_QTY_UPLIFT !== 1) {
-    dfScaleRowTreeInPlace(predQtyMeasure as unknown as GridRow, PRED_QTY_UPLIFT);
-  }
+  // Index every Order Quantity LEAF by a structural key (id with the measure id stripped).
+  const orderQtyMeasure = clone.find((mm) => mm.id === 'measure-order-qty');
+  const orderLeafByKey = new Map<string, Record<string, number>>();
+  const indexOrderLeaves = (row: GridRow): void => {
+    if (row.children && row.children.length) { row.children.forEach(indexOrderLeaves); return; }
+    const key = String(row.id).split('measure-order-qty').join('#');
+    orderLeafByKey.set(key, row.values as Record<string, number>);
+  };
+  (orderQtyMeasure?.children ?? []).forEach(indexOrderLeaves);
+  // Rewrite a measure's leaves from the matching order leaf; then roll up bottom-up.
+  const deriveFromOrder = (
+    measureId: string,
+    nonMarch: [number, number],  // in-band factor range for the 11 normal months
+    march: [number, number],     // factor applied to the expected (Feb/Apr mean) in March
+  ): void => {
+    const measure = clone.find((mm) => mm.id === measureId);
+    if (!measure) return;
+    const rewriteLeaf = (row: GridRow): void => {
+      if (row.children && row.children.length) { row.children.forEach(rewriteLeaf); return; }
+      const key = String(row.id).split(measureId).join('#');
+      const ov = orderLeafByKey.get(key);
+      const v = row.values as Record<string, number>;
+      if (!ov) return;
+      DF_MONTH_KEYS.forEach((mk) => {
+        if (mk === DEV_MONTH) {
+          const expected = (Number(ov[DEV_LO] ?? 0) + Number(ov[DEV_HI] ?? 0)) / 2;
+          v[mk] = r(expected * dfSeedFactor(`${row.id}|dev`, march[0], march[1]));
+        } else {
+          v[mk] = r(Number(ov[mk] ?? 0) * dfSeedFactor(`${row.id}|${mk}`, nonMarch[0], nonMarch[1]));
+        }
+      });
+      dfRederiveAggregates(v);
+    };
+    (measure.children ?? []).forEach(rewriteLeaf);
+    (measure.children ?? []).forEach((acc) => dfRecomputeSubtree(acc as GridRow));
+    dfRollupMeasureTotal(measure);
+  };
+  // Sales Agreement: committed target sits just above order in band; ~+42% in March.
+  deriveFromOrder('measure-sa-qty', [1.02, 1.05], [1.38, 1.46]);
+  // Predictive Forecasted: within ±5% of order in band; ~+30% in March (model didn't see the dip).
+  deriveFromOrder('measure-pred-forecast-qty', [0.97, 1.03], [1.26, 1.34]);
 
   return clone;
 })();
