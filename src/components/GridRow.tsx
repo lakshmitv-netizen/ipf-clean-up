@@ -2778,9 +2778,9 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             <div className="cell-risk-tooltip-nubbin" />
             <div className="cell-risk-tooltip-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path d="M12 2 L22 20 H2 Z" fill="#ba0517" />
-                <rect x="11" y="9" width="2" height="6" rx="1" fill="#fff" />
-                <rect x="11" y="16.5" width="2" height="2" rx="1" fill="#fff" />
+                <path d="M12 3 L21.5 19.5 H2.5 Z" fill="none" stroke="#ba0517" strokeWidth="1.8" strokeLinejoin="round" />
+                <rect x="11.1" y="9" width="1.8" height="5.5" rx="0.9" fill="#ba0517" />
+                <rect x="11.1" y="16" width="1.8" height="1.8" rx="0.9" fill="#ba0517" />
               </svg>
               Below committed agreement
             </div>
