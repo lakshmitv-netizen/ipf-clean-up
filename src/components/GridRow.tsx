@@ -2785,10 +2785,10 @@ const GridRowComponent: React.FC<GridRowProps> = ({
               Below committed agreement
             </div>
             <div className="cell-associated-subtitle">
-              Associated cell
+              Associated to
               {agreementAssociatedTooltip
-                ? ` — ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '').split('—')[0].trim()}`
-                : ''}
+                ? ` ${agreementAssociatedTooltip.replace(/^Affected by\s*/i, '').split('—')[0].trim()}`
+                : ' the flagged cell'}
             </div>
             {agreementAnchorCellKey && (
               <button type="button" className="cell-risk-tooltip-cta" onClick={goToFlaggedCell}>
