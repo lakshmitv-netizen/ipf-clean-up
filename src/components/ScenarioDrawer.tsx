@@ -27,7 +27,7 @@ const SNAP_ORDER: SnapState[] = ['collapsed', 'peek', 'half', 'full'];
 
 /** Pixel heights for each snap detent (full is computed from the viewport). */
 const SNAP_PX: Record<Exclude<SnapState, 'full'>, number> = {
-  collapsed: 66,
+  collapsed: 94, // resizer (24) + rail incl. its 18px bottom padding (~68) so the footer isn't clipped
   peek: 440,
   half: 620,
 };
