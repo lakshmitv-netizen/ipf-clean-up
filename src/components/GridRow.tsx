@@ -1573,6 +1573,13 @@ const GridRowComponent: React.FC<GridRowProps> = ({
       agreementTipCloseTimerRef.current = null;
     }
   }, []);
+  // DF demo: styled hover tooltip (with nubbin) for the measure row-name provenance note.
+  const [nameTip, setNameTip] = useState<{ top: number; left: number } | null>(null);
+  const openNameTip = useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    setNameTip({ top: r.bottom + 8, left: r.left });
+  }, []);
+  const closeNameTip = useCallback(() => setNameTip(null), []);
   // DF demo: click popover for an associated cell's outline warning icon.
   const [associatedTip, setAssociatedTip] = useState<{ top: number; left: number } | null>(null);
   const associatedTipCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -4367,7 +4374,11 @@ const GridRowComponent: React.FC<GridRowProps> = ({
             {!hasExpandChevron && <span style={{ width: '16px', display: 'inline-block' }}></span>}
             {renderTypeIconWithFilterDot()}
             <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, flex: '1 1 0' }}>
-              <span className="cell-name" title={rowNameTooltip}>
+              <span
+                className="cell-name"
+                onMouseEnter={rowNameTooltip ? openNameTip : undefined}
+                onMouseLeave={rowNameTooltip ? closeNameTip : undefined}
+              >
                 {searchTerm && searchTerm.trim() ? (
                   <SearchHighlight
                     text={rowNameColumnDisplay}
@@ -4377,6 +4388,17 @@ const GridRowComponent: React.FC<GridRowProps> = ({
                   rowNameColumnDisplay
                 )}
               </span>
+              {rowNameTooltip && nameTip && createPortal(
+                <div
+                  className="grid-name-tooltip"
+                  style={{ position: 'fixed', top: nameTip.top, left: nameTip.left, zIndex: 10001 }}
+                  role="tooltip"
+                >
+                  <span className="grid-name-tooltip-nubbin" aria-hidden="true" />
+                  {rowNameTooltip}
+                </div>,
+                document.body,
+              )}
               {/* Show measure group name for measures with groupContext */}
               {row.type === 'measure' && row.groupContext && (
                 <span style={{ 
