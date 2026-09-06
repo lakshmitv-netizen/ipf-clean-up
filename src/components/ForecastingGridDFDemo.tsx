@@ -7269,6 +7269,7 @@ const ForecastingGridDFDemo: React.FC = () => {
         onApplyToGrid={applyScenarioToGrid}
         onPromote={(name) => console.log('Promote scenario to plan:', name)}
         incomingScenarios={agentScenarios}
+        agentPanelOpen={isAgentforceOpen}
       />
     </div>
   );

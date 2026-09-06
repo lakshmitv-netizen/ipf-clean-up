@@ -573,13 +573,21 @@ interface ScenarioDrawerProps {
    * color), the first is made active, and the drawer expands to at least the KPI-comparison state.
    */
   incomingScenarios?: Omit<Scenario, 'color'>[];
+  /**
+   * When the Agentforce panel is open it occupies the right 400px of the viewport. The drawer
+   * should stop at the grid's right edge rather than sliding under the panel, so we inset its
+   * right edge by the panel width while it's open.
+   */
+  agentPanelOpen?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromote, incomingScenarios }) => {
+const AGENT_PANEL_WIDTH = 400; // matches .agentforce-panel width in AgentforcePanel.css
+
+const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromote, incomingScenarios, agentPanelOpen }) => {
   // Persistent bottom strip: always mounted, starts collapsed. Users pull it up.
   const [snap, setSnap] = useState<SnapState>('collapsed');
   const [dragHeight, setDragHeight] = useState<number | null>(null);
@@ -851,7 +859,13 @@ const ScenarioDrawer: React.FC<ScenarioDrawerProps> = ({ onApplyToGrid, onPromot
   return (
     <div
       className={`scenario-drawer scenario-drawer--${snap}`}
-      style={{ height, transition: dragHeight != null ? 'none' : 'height 0.24s cubic-bezier(0.4,0,0.2,1)' }}
+      style={{
+        height,
+        right: agentPanelOpen ? AGENT_PANEL_WIDTH : 0,
+        transition: dragHeight != null
+          ? 'right 0.24s cubic-bezier(0.4,0,0.2,1)'
+          : 'height 0.24s cubic-bezier(0.4,0,0.2,1), right 0.24s cubic-bezier(0.4,0,0.2,1)',
+      }}
       role="dialog"
       aria-label="Scenario planning"
     >
