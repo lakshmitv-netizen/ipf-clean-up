@@ -2684,15 +2684,15 @@ button.chevron-icon {
 /* DF demo: styled hover tooltip (with nubbin) for the measure row-name provenance note. */
 .grid-name-tooltip {
   max-width: 320px;
-  background: #f3f3f3;
-  color: #1c1c1c;
-  border: 1px solid #d6d6d6;
+  background: #181818;
+  color: #ffffff;
+  border: 1px solid #181818;
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 13px;
   line-height: 1.4;
   font-weight: 400;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   pointer-events: none;
   font-family: var(--slds-g-font-family-base, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
 }
@@ -2702,9 +2702,9 @@ button.chevron-icon {
   left: 22px;
   width: 11px;
   height: 11px;
-  background: #f3f3f3;
-  border-left: 1px solid #d6d6d6;
-  border-top: 1px solid #d6d6d6;
+  background: #181818;
+  border-left: 1px solid #181818;
+  border-top: 1px solid #181818;
   transform: rotate(45deg);
 }
 .cell-risk-tooltip-nubbin {
