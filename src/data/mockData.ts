@@ -891,6 +891,35 @@ const dfDemoData: MeasureData[] = (() => {
   };
   clone.forEach((mm) => dfSwapMarOct(mm as unknown as GridRow));
 
+  // ── 7. Uplift Sales Agreement Quantity + Predictive Forecasted Quantity ──────
+  // Scale these two measures up uniformly (every row, every month) so the committed
+  // agreement line and the model-forecast line sit ABOVE Order Quantity at the top
+  // line — matching the charts and the "orders below committed agreement" story.
+  // Order Quantity is untouched, and the red "below committed agreement" cells are
+  // keyed off Order Quantity vs fixed thresholds (see computeAgreementRiskCellKeys),
+  // so this uplift does not change which cells are flagged.
+  //
+  // REVERT: set both factors to 1 (or revert the commit that introduced this block)
+  // to return to the pre-uplift numbers.
+  const SA_QTY_UPLIFT = 1.3;   // Sales Agreement Quantity  (68,746 → ~89,370 FY26)
+  const PRED_QTY_UPLIFT = 1.3; // Predictive Forecasted Qty (62,843 → ~81,700 FY26)
+  const dfScaleRowTreeInPlace = (row: GridRow, factor: number): void => {
+    const v = row.values as Record<string, number>;
+    DF_MONTH_KEYS.forEach((mk) => { v[mk] = r(Number(v[mk] ?? 0) * factor); });
+    dfRederiveAggregates(v);
+    if (row.children && row.children.length) {
+      row.children.forEach((c) => dfScaleRowTreeInPlace(c, factor));
+    }
+  };
+  const saQtyMeasure = clone.find((mm) => mm.id === 'measure-sa-qty');
+  if (saQtyMeasure && SA_QTY_UPLIFT !== 1) {
+    dfScaleRowTreeInPlace(saQtyMeasure as unknown as GridRow, SA_QTY_UPLIFT);
+  }
+  const predQtyMeasure = clone.find((mm) => mm.id === 'measure-pred-forecast-qty');
+  if (predQtyMeasure && PRED_QTY_UPLIFT !== 1) {
+    dfScaleRowTreeInPlace(predQtyMeasure as unknown as GridRow, PRED_QTY_UPLIFT);
+  }
+
   return clone;
 })();
 
