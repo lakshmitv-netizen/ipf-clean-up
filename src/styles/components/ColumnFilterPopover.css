@@ -290,7 +290,7 @@
   cursor: pointer;
   padding: 3px;
   border-radius: 4px;
-  color: #3a3a3a !important;
+  color: #2a2a2a !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
@@ -312,8 +312,8 @@
 
 .col-sort-icon-btn svg {
   display: block;
-  width: 15px !important;
-  height: 15px !important;
+  width: 13px !important;
+  height: 13px !important;
 }
 
 /* Column header layout */
