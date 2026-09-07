@@ -189,7 +189,7 @@ function ColHeaderSortGlyph({ dir, muted }: { dir: 'asc' | 'desc' | null; muted?
     );
   }
   return (
-    <svg width="11" height="11" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: muted ? 0.45 : 0.92, transition: 'opacity 0.2s' }}>
+    <svg width="11" height="11" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ opacity: muted ? 0.45 : 1, transition: 'opacity 0.2s' }}>
       <path fillRule="evenodd" clipRule="evenodd" d={COL_HEADER_SORT_ICON_NEUTRAL_PATH} fill="currentColor" />
     </svg>
   );
