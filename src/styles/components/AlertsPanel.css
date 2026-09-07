@@ -244,20 +244,20 @@
 .alerts-overview {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
 }
 
-/* SLDS expandable section: a grey chevron bar per section, content stacked below it.
-   Sections sit further apart than a header sits from its own cards, so the open
-   content reads as belonging to the bar above it. */
+/* SLDS2 expandable section: a flat disclosure row (chevron + title) separated by a
+   full-width rule, with content flowing directly beneath. No grey fill — the section
+   reads by its heading + divider, matching the SLDS 2 `slds-section` pattern. */
 .alerts-overview-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
 }
 
-.alerts-overview-card:has(.alerts-overview-card-body) {
-  margin-bottom: 6px;
+.alerts-overview-card:first-child {
+  border-top: none;
 }
 
 .alerts-overview-card-header {
@@ -265,20 +265,21 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 12px;
-  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
-  border-radius: 4px;
+  padding: 12px 4px;
+  background: transparent !important;
+  border: none;
+  border-radius: 0;
   cursor: pointer;
   text-align: left;
 }
 
-.alerts-overview-card-header:hover {
-  background: var(--slds-g-color-surface-container-3, #ecebea) !important;
+.alerts-overview-card-header:hover .alerts-overview-card-title {
+  color: var(--slds-g-color-accent-1, #0176d3);
 }
 
 .alerts-overview-card-chevron {
   flex-shrink: 0;
-  color: var(--slds-g-color-neutral-base-50);
+  color: var(--slds-g-color-neutral-base-30, #444);
   transition: transform 0.15s ease;
 }
 
@@ -289,13 +290,14 @@
 .alerts-overview-card-title {
   font-family: var(--font-family-base);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 18px;
   color: var(--slds-g-color-neutral-base-15);
+  transition: color 0.15s ease;
 }
 
 .alerts-overview-card-body {
-  padding: 0 0 2px 0;
+  padding: 0 0 12px 0;
 }
 
 .alerts-overview-list {
