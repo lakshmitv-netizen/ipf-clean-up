@@ -269,12 +269,9 @@
 
 .col-filter-icon-btn.active {
   color: var(--slds-g-color-accent-2-electric-blue-40) !important;
-  background-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 24%, transparent);
-  border-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 70%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 45%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 14%, transparent);
-  transform: translateY(-0.5px);
+  background-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 12%, transparent);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .col-filter-icon-btn.active::after {
@@ -319,12 +316,9 @@
 
 .col-sort-icon-btn.active {
   color: var(--slds-g-color-accent-2-electric-blue-40) !important;
-  background-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 24%, transparent);
-  border-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 70%, transparent);
-  box-shadow:
-    0 0 0 1px color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 45%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 14%, transparent);
-  transform: translateY(-0.5px);
+  background-color: color-mix(in srgb, var(--slds-g-color-accent-2-electric-blue-40) 12%, transparent);
+  border-color: transparent;
+  box-shadow: none;
 }
 
 .col-sort-icon-btn svg {
