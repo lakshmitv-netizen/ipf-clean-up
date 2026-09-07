@@ -254,7 +254,7 @@
   border-radius: 4px;
   /* !important + class beats App.css `:where(button:not(.fill-handle))` reset.
      Solid filled triangle reads heavier than the sort glyph, so it uses a lighter grey to match. */
-  color: #7a7a7a !important;
+  color: #4a4a4a !important;
   transition: color 0.15s, background-color 0.15s, box-shadow 0.15s, border-color 0.15s, transform 0.12s;
   vertical-align: middle;
   margin-left: 4px;
@@ -292,7 +292,7 @@
   border-radius: 4px;
   /* Thin double-arrow strokes read lighter than the solid filter triangle, so it uses a slightly
      darker grey than the filter to match perceived weight. */
-  color: #5a5a5a !important;
+  color: #4a4a4a !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
