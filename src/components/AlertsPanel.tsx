@@ -544,20 +544,6 @@ const BRIEF_SOURCES = [
 
 const BRIEF_SECTIONS: BriefSection[] = [
   {
-    id: 'brief-shape',
-    title: 'No category carries more than 32% of the plan',
-    label: 'Shape',
-    body: 'Orders to date are 73,414 units and $7.34M across 6 accounts and 4 categories. Transmission Assembly and Engine Components are the two largest, at 59% together, and Michigan Plant is the largest account at 22%. The plan averages $100 a unit.',
-    metrics: [
-      { name: 'Ordered to date', value: '73,414 units and $7.34M' },
-      { name: 'Largest of the 4 categories', value: '$2.35M', delta: '32%', deltaTone: 'flat' },
-      { name: 'Michigan Plant', value: '$1.64M', delta: '22%', deltaTone: 'up' },
-    ],
-    cta: 'Break it down',
-    agentPrompt: 'Break down the plan by category and account — which segments carry the most of the 73,414 ordered units?',
-    sourcesCount: 3,
-  },
-  {
     id: 'brief-coverage',
     title: '60% of the forecast rides on opportunity, not agreements',
     label: 'Coverage',
@@ -569,6 +555,20 @@ const BRIEF_SECTIONS: BriefSection[] = [
     ],
     cta: 'Show the gap',
     agentPrompt: 'Show the gap between signed agreements, unconverted opportunity, and orders — how much of the forecast is at risk?',
+    sourcesCount: 3,
+  },
+  {
+    id: 'brief-exposure',
+    title: '$669K of orders sit beyond what is signed',
+    label: 'Exposure',
+    body: 'Agreements cover $6.67M while orders stand at $7.34M — $669K beyond what is signed. 52% of the forecast — 80,994 units — has not been ordered yet, and Georgia Plant is the thinnest account at $881K.',
+    metrics: [
+      { name: 'Agreements vs orders', value: '$6.67M vs $7.34M', delta: 'orders +10%', deltaTone: 'flat' },
+      { name: 'Opportunity', value: '$9.27M', delta: '60% of forecast', deltaTone: 'down' },
+      { name: 'Forecast not yet ordered', value: '80,994 units', delta: '52%', deltaTone: 'down' },
+    ],
+    cta: 'Show exposure',
+    agentPrompt: 'Show the exposure between signed agreements and orders — where are we committed beyond what is signed?',
     sourcesCount: 3,
   },
   {
@@ -586,17 +586,17 @@ const BRIEF_SECTIONS: BriefSection[] = [
     sourcesCount: 3,
   },
   {
-    id: 'brief-exposure',
-    title: '$669K of orders sit beyond what is signed',
-    label: 'Exposure',
-    body: 'Agreements cover $6.67M while orders stand at $7.34M — $669K beyond what is signed. 52% of the forecast — 80,994 units — has not been ordered yet, and Georgia Plant is the thinnest account at $881K.',
+    id: 'brief-shape',
+    title: 'No category carries more than 32% of the plan',
+    label: 'Shape',
+    body: 'Orders to date are 73,414 units and $7.34M across 6 accounts and 4 categories. Transmission Assembly and Engine Components are the two largest, at 59% together, and Michigan Plant is the largest account at 22%. The plan averages $100 a unit.',
     metrics: [
-      { name: 'Agreements vs orders', value: '$6.67M vs $7.34M', delta: 'orders +10%', deltaTone: 'flat' },
-      { name: 'Opportunity', value: '$9.27M', delta: '60% of forecast', deltaTone: 'down' },
-      { name: 'Forecast not yet ordered', value: '80,994 units', delta: '52%', deltaTone: 'down' },
+      { name: 'Ordered to date', value: '73,414 units and $7.34M' },
+      { name: 'Largest of the 4 categories', value: '$2.35M', delta: '32%', deltaTone: 'flat' },
+      { name: 'Michigan Plant', value: '$1.64M', delta: '22%', deltaTone: 'up' },
     ],
-    cta: 'Show exposure',
-    agentPrompt: 'Show the exposure between signed agreements and orders — where are we committed beyond what is signed?',
+    cta: 'Break it down',
+    agentPrompt: 'Break down the plan by category and account — which segments carry the most of the 73,414 ordered units?',
     sourcesCount: 3,
   },
 ];
