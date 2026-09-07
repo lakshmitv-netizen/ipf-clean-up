@@ -290,7 +290,7 @@
   cursor: pointer;
   padding: 3px;
   border-radius: 4px;
-  color: #1c1c1c !important;
+  color: #000000 !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
