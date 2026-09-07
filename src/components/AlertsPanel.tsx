@@ -157,7 +157,7 @@ function approvalAgentPrompt(requester?: string, measureSummary?: string): strin
   return `Brief me on the approval waiting on me${from}${on} — what changed and should I approve it?`;
 }
 
-type TabType = 'all' | 'alerts' | 'tasks';
+type TabType = 'all' | 'alerts' | 'brief';
 
 type OverviewTone = 'neutral' | 'positive' | 'warning' | 'critical';
 
@@ -501,6 +501,68 @@ const OVERVIEW_SECTIONS: OverviewSection[] = [
   },
 ];
 
+// ── Plan Brief (Brief tab) ───────────────────────────────────────────────────
+// An AI-generated narrative summary of the plan. Each section reads a headline finding, the
+// numbers behind it, and offers a "dig deeper" CTA that hands the question to Agentforce.
+type BriefPctTone = 'positive' | 'critical' | 'neutral';
+
+interface BriefStat {
+  label: string;
+  value: string;
+  pct?: string;
+  pctTone?: BriefPctTone;
+}
+
+interface BriefSection {
+  id: string;
+  heading: string;
+  /** Small grey label above the body (e.g. "Shape", "Coverage"). */
+  kicker: string;
+  body: string;
+  stats: BriefStat[];
+  /** Primary CTA label; clicking hands `agentPrompt` to the Agentforce panel. */
+  cta: string;
+  agentPrompt: string;
+  sourcesCount?: number;
+}
+
+const BRIEF_META = {
+  agent: 'Plan Intelligence Agent',
+  timestamp: 'Today at 10:33 PM',
+  highlight: '26,504 units ordered so far in FY26 — this grid carries no forecast to measure that against.',
+};
+
+const BRIEF_SECTIONS: BriefSection[] = [
+  {
+    id: 'brief-shape',
+    heading: 'No 6-product-family carries more than 51% of the plan',
+    kicker: 'Shape',
+    body: 'Orders to date are 26,504 units across 2 5-business-units and 2 6-product-families. Transmission Family and Driveline Family are the two largest, at 100% together, and Powertrain BU is the largest 5-business-unit at 50%.',
+    stats: [
+      { label: 'Ordered to date', value: '26,504 units' },
+      { label: 'Largest of the 2 6-product-families', value: '13,444 units', pct: '51%', pctTone: 'positive' },
+      { label: 'Powertrain BU', value: '13,344 units', pct: '50%', pctTone: 'positive' },
+    ],
+    cta: 'Break it down',
+    agentPrompt: 'Break down the plan by 6-product-family and 5-business-unit — which segments carry the most of the 26,504 ordered units?',
+    sourcesCount: 2,
+  },
+  {
+    id: 'brief-coverage',
+    heading: "50% of the plan's coverage rides on opportunity, not agreements",
+    kicker: 'Coverage',
+    body: "Signed agreements back 27,506 units of the plan's coverage (50%); opportunity that has not converted accounts for 27,448 units (50%). Orders stand at 26,504 units, or 48%.",
+    stats: [
+      { label: 'Signed agreements', value: '27,506 units', pct: '50%', pctTone: 'positive' },
+      { label: 'Opportunity', value: '27,448 units', pct: '50%', pctTone: 'critical' },
+      { label: 'Ordered so far', value: '26,504 units', pct: '48%', pctTone: 'neutral' },
+    ],
+    cta: 'Show the gap',
+    agentPrompt: "Show the gap between signed agreements, unconverted opportunity, and orders — how much of the plan's coverage is at risk?",
+    sourcesCount: 2,
+  },
+];
+
 // ── Props ──────────────────────────────────────────────────────────────────────
 interface AlertsPanelProps {
   isOpen: boolean;
@@ -593,6 +655,18 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   );
   // Each item card inside a section discloses its own insight / breakdown / CTA.
   const [expandedOverviewItemIds, setExpandedOverviewItemIds] = useState<Set<string>>(new Set());
+  // ── Brief tab state ──────────────────────────────────────────────────────
+  const [briefOpen, setBriefOpen] = useState(true);
+  const [briefSourcesOpen, setBriefSourcesOpen] = useState<Set<string>>(new Set());
+  const [briefFeedback, setBriefFeedback] = useState<Record<string, 'up' | 'down'>>({});
+  const toggleBriefSources = (id: string) =>
+    setBriefSourcesOpen(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  const setSectionFeedback = (id: string, v: 'up' | 'down') =>
+    setBriefFeedback(prev => ({ ...prev, [id]: prev[id] === v ? undefined as unknown as 'up' : v }));
   const filterButtonRef = useRef<HTMLButtonElement>(null);
   const filterPopoverRef = useRef<HTMLDivElement>(null);
 
@@ -718,7 +792,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
   // ── Filter helpers ─────────────────────────────────────────────────────────
   const showAlertsGroup = activeTab === 'alerts';
-  const showTasksGroup = activeTab === 'tasks';
+  // Tasks no longer have their own tab — their cards (approvals, deadlines, SLA tracker) now render
+  // inside the Alerts tab alongside the alerts.
+  const showTasksGroup = activeTab === 'alerts';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -950,15 +1026,14 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
       {/* Tabs */}
       <div className="alerts-panel-tabs">
-        {(['all', 'alerts', 'tasks'] as TabType[]).map(tab => (
+        {(['all', 'alerts', 'brief'] as TabType[]).map(tab => (
           <button
             key={tab}
             className={`alerts-panel-tab ${activeTab === tab ? 'active' : ''}`}
             onClick={() => setActiveTab(tab)}
           >
-            {tab === 'all' ? 'Overview' : tab === 'alerts' ? 'Alerts' : 'Tasks'}
-            {tab === 'alerts' && alertsBadge > 0 && <span className="alerts-tab-badge alerts-tab-badge--red">{alertsBadge}</span>}
-            {tab === 'tasks'  && tasksBadge  > 0 && <span className="alerts-tab-badge alerts-tab-badge--blue">{tasksBadge}</span>}
+            {tab === 'all' ? 'Overview' : tab === 'alerts' ? 'Alerts' : 'Brief'}
+            {tab === 'alerts' && alertsBadge + tasksBadge > 0 && <span className="alerts-tab-badge alerts-tab-badge--red">{alertsBadge + tasksBadge}</span>}
           </button>
         ))}
       </div>
@@ -1078,6 +1153,149 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ── BRIEF (AI-generated plan narrative) ───────────────── */}
+        {activeTab === 'brief' && (
+          <div className="alerts-brief">
+            <div className="alerts-brief-card">
+              {/* Card header: collapse chevron · title · overflow menu */}
+              <div className="alerts-brief-card-header">
+                <button
+                  type="button"
+                  className="alerts-brief-collapse"
+                  onClick={() => setBriefOpen(o => !o)}
+                  aria-expanded={briefOpen}
+                  aria-label={briefOpen ? 'Collapse Plan Brief' : 'Expand Plan Brief'}
+                >
+                  <svg className={`alerts-brief-chevron${briefOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                  <span className="alerts-brief-card-title">Plan Brief</span>
+                </button>
+                <button type="button" className="alerts-brief-menu" aria-label="More options">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+                  </svg>
+                </button>
+              </div>
+
+              {briefOpen && (
+                <>
+                  {/* AI-generated pill + info */}
+                  <div className="alerts-brief-ai-row">
+                    <span className="alerts-brief-ai-pill">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                        <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+                      </svg>
+                      This content is AI generated
+                    </span>
+                    <span className="alerts-brief-info" aria-hidden>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a1.2 1.2 0 110 2.4A1.2 1.2 0 0112 7zm1.2 10h-2.4v-6h2.4z" />
+                      </svg>
+                    </span>
+                  </div>
+
+                  {/* Byline */}
+                  <div className="alerts-brief-byline">
+                    <span>{BRIEF_META.agent} · {BRIEF_META.timestamp}</span>
+                    <button type="button" className="alerts-brief-refresh" aria-label="Regenerate brief">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12a9 9 0 11-2.64-6.36" /><polyline points="21 3 21 9 15 9" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Highlights */}
+                  <h4 className="alerts-brief-heading">Highlights</h4>
+                  <p className="alerts-brief-body">{BRIEF_META.highlight}</p>
+
+                  {BRIEF_SECTIONS.map(section => {
+                    const sourcesOpen = briefSourcesOpen.has(section.id);
+                    const fb = briefFeedback[section.id];
+                    return (
+                      <div key={section.id} className="alerts-brief-section">
+                        <div className="alerts-brief-divider" />
+                        <h3 className="alerts-brief-section-heading">{section.heading}</h3>
+                        <div className="alerts-brief-kicker">{section.kicker}</div>
+                        <p className="alerts-brief-body">{section.body}</p>
+
+                        <div className="alerts-brief-stats">
+                          {section.stats.map((s, i) => (
+                            <div key={i} className="alerts-brief-stat-row">
+                              <span className="alerts-brief-stat-label">{s.label}</span>
+                              <span className="alerts-brief-stat-value">
+                                {s.value}
+                                {s.pct && (
+                                  <span className={`alerts-brief-stat-pct alerts-brief-stat-pct--${s.pctTone ?? 'neutral'}`}>{s.pct}</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="alerts-brief-actions">
+                          <button
+                            type="button"
+                            className="alerts-brief-cta"
+                            onClick={() => onAskAgentforce?.(section.agentPrompt)}
+                          >
+                            {section.cta}
+                          </button>
+                          <div className="alerts-brief-feedback">
+                            <button
+                              type="button"
+                              className={`alerts-brief-thumb${fb === 'up' ? ' active' : ''}`}
+                              onClick={() => setSectionFeedback(section.id, 'up')}
+                              aria-label="Helpful"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M7 10v11H4a1 1 0 01-1-1v-9a1 1 0 011-1h3zm4 0l3-7a2 2 0 012 2v4h4a2 2 0 012 2l-2 7a2 2 0 01-2 1.5H7" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              className={`alerts-brief-thumb${fb === 'down' ? ' active' : ''}`}
+                              onClick={() => setSectionFeedback(section.id, 'down')}
+                              aria-label="Not helpful"
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M17 14V3h3a1 1 0 011 1v9a1 1 0 01-1 1h-3zm-4 0l-3 7a2 2 0 01-2-2v-4H4a2 2 0 01-2-2l2-7a2 2 0 012-1.5h10" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {section.sourcesCount && (
+                          <>
+                            <button
+                              type="button"
+                              className="alerts-brief-sources"
+                              onClick={() => toggleBriefSources(section.id)}
+                              aria-expanded={sourcesOpen}
+                            >
+                              <svg className={`alerts-brief-sources-chevron${sourcesOpen ? ' open' : ''}`} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                                <polyline points="9 18 15 12 9 6" />
+                              </svg>
+                              Sources ({section.sourcesCount})
+                            </button>
+                            {sourcesOpen && (
+                              <ul className="alerts-brief-sources-list">
+                                <li>Order Quantity · FY26 · all plants</li>
+                                <li>Sales Agreement &amp; Opportunity Quantity · FY26</li>
+                              </ul>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
           </div>
         )}
 
@@ -1403,8 +1621,8 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
           </>
         )}
 
-        {/* ── SLA TRACKER (Tasks tab) ───────────────────────────── */}
-        {activeTab === 'tasks' && (
+        {/* ── SLA TRACKER (now under Alerts, with the Tasks cards) ─ */}
+        {activeTab === 'alerts' && (
           <>
             <div className="alerts-section-header">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -1448,18 +1666,11 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
         )}
 
         {/* ── Empty states ───────────────────────────────────────── */}
-        {activeTab === 'alerts' && alertsBadge === 0 && (
+        {activeTab === 'alerts' && alertsBadge + tasksBadge === 0 && (
           <div className="alerts-empty">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-            <p>No alerts</p>
+            <p>No alerts or tasks</p>
             <span>Nothing needs your attention right now</span>
-          </div>
-        )}
-        {activeTab === 'tasks' && tasksBadge === 0 && (
-          <div className="alerts-empty">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-            <p>No tasks</p>
-            <span>You're all caught up!</span>
           </div>
         )}
       </div>
