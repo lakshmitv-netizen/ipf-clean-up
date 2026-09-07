@@ -254,7 +254,7 @@
   border-radius: 4px;
   /* !important + class beats App.css `:where(button:not(.fill-handle))` reset.
      Solid filled triangle reads heavier than the sort glyph, so it uses a lighter grey to match. */
-  color: #4a4a4a !important;
+  color: #5c5c5c !important;
   transition: color 0.15s, background-color 0.15s, box-shadow 0.15s, border-color 0.15s, transform 0.12s;
   vertical-align: middle;
   margin-left: 4px;
@@ -290,7 +290,7 @@
   cursor: pointer;
   padding: 3px;
   border-radius: 4px;
-  color: #2a2a2a !important;
+  color: #1c1c1c !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
