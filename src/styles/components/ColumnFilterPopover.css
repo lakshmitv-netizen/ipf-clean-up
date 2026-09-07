@@ -290,9 +290,9 @@
   cursor: pointer;
   padding: 3px;
   border-radius: 4px;
-  /* The double-arrow glyph has thinner arms than the solid filter triangle, so at an equal hex it
-     reads lighter — use a darker grey here to match the filter's perceived darkness. */
-  color: #333333 !important;
+  /* Identical color to the filter; its lighter blob (thinner arms) is compensated with a slightly
+     larger glyph size below so the two icons read at the same weight. */
+  color: #4a4a4a !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
@@ -314,8 +314,10 @@
 
 .col-sort-icon-btn svg {
   display: block;
-  width: 14px !important;
-  height: 14px !important;
+  /* Slightly larger than the filter (14px) to make up for the double-arrow's thinner arms, so both
+     icons read at the same visual weight at the identical #4a4a4a color. */
+  width: 16px !important;
+  height: 16px !important;
 }
 
 /* Column header layout */
