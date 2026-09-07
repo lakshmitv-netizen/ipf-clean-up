@@ -290,9 +290,9 @@
   cursor: pointer;
   padding: 3px;
   border-radius: 4px;
-  /* Thin double-arrow strokes read lighter than the solid filter triangle, so it uses a slightly
-     darker grey than the filter to match perceived weight. */
-  color: #4a4a4a !important;
+  /* The double-arrow glyph has thinner arms than the solid filter triangle, so at an equal hex it
+     reads lighter — use a darker grey here to match the filter's perceived darkness. */
+  color: #333333 !important;
   transition: color 0.15s, background-color 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.12s, opacity 0.2s;
   vertical-align: middle;
   flex-shrink: 0;
