@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { ApprovalRequest, MeasureData } from '../types';
 import { CellEditHistoryEntry } from '../types/editHistory';
 import '../styles/components/AlertsPanel.css';
+import '../styles/components/PlanBrief.css';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 interface DeadlineTask {
@@ -504,62 +505,151 @@ const OVERVIEW_SECTIONS: OverviewSection[] = [
 // ── Plan Brief (Brief tab) ───────────────────────────────────────────────────
 // An AI-generated narrative summary of the plan. Each section reads a headline finding, the
 // numbers behind it, and offers a "dig deeper" CTA that hands the question to Agentforce.
-type BriefPctTone = 'positive' | 'critical' | 'neutral';
+type BriefDeltaTone = 'up' | 'down' | 'flat';
 
-interface BriefStat {
-  label: string;
+interface BriefMetric {
+  name: string;
   value: string;
-  pct?: string;
-  pctTone?: BriefPctTone;
+  /** Optional right-aligned delta chip (e.g. "32%", "+27%"). */
+  delta?: string;
+  deltaTone?: BriefDeltaTone;
 }
 
 interface BriefSection {
   id: string;
-  heading: string;
+  /** Bold headline finding. */
+  title: string;
   /** Small grey label above the body (e.g. "Shape", "Coverage"). */
-  kicker: string;
+  label: string;
   body: string;
-  stats: BriefStat[];
+  metrics: BriefMetric[];
   /** Primary CTA label; clicking hands `agentPrompt` to the Agentforce panel. */
   cta: string;
   agentPrompt: string;
-  sourcesCount?: number;
+  sourcesCount: number;
 }
 
 const BRIEF_META = {
   agent: 'Plan Intelligence Agent',
-  timestamp: 'Today at 10:33 PM',
-  highlight: '26,504 units ordered so far in FY26 — this grid carries no forecast to measure that against.',
+  timestamp: 'Today at 11:49 PM',
+  highlight: '48% of the FY26 forecast is on order — 73,414 units of 154,408, worth $7.34M.',
 };
+
+// Sources shown when a section's "Sources (N)" toggle is expanded.
+const BRIEF_SOURCES = [
+  'Order Quantity · FY26 · all plants',
+  'Sales Agreement Quantity · FY26',
+  'Opportunity Quantity · FY26',
+];
 
 const BRIEF_SECTIONS: BriefSection[] = [
   {
     id: 'brief-shape',
-    heading: 'No 6-product-family carries more than 51% of the plan',
-    kicker: 'Shape',
-    body: 'Orders to date are 26,504 units across 2 5-business-units and 2 6-product-families. Transmission Family and Driveline Family are the two largest, at 100% together, and Powertrain BU is the largest 5-business-unit at 50%.',
-    stats: [
-      { label: 'Ordered to date', value: '26,504 units' },
-      { label: 'Largest of the 2 6-product-families', value: '13,444 units', pct: '51%', pctTone: 'positive' },
-      { label: 'Powertrain BU', value: '13,344 units', pct: '50%', pctTone: 'positive' },
+    title: 'No category carries more than 32% of the plan',
+    label: 'Shape',
+    body: 'Orders to date are 73,414 units and $7.34M across 6 accounts and 4 categories. Transmission Assembly and Engine Components are the two largest, at 59% together, and Michigan Plant is the largest account at 22%. The plan averages $100 a unit.',
+    metrics: [
+      { name: 'Ordered to date', value: '73,414 units and $7.34M' },
+      { name: 'Largest of the 4 categories', value: '$2.35M', delta: '32%', deltaTone: 'flat' },
+      { name: 'Michigan Plant', value: '$1.64M', delta: '22%', deltaTone: 'up' },
     ],
     cta: 'Break it down',
-    agentPrompt: 'Break down the plan by 6-product-family and 5-business-unit — which segments carry the most of the 26,504 ordered units?',
-    sourcesCount: 2,
+    agentPrompt: 'Break down the plan by category and account — which segments carry the most of the 73,414 ordered units?',
+    sourcesCount: 3,
   },
   {
     id: 'brief-coverage',
-    heading: "50% of the plan's coverage rides on opportunity, not agreements",
-    kicker: 'Coverage',
-    body: "Signed agreements back 27,506 units of the plan's coverage (50%); opportunity that has not converted accounts for 27,448 units (50%). Orders stand at 26,504 units, or 48%.",
-    stats: [
-      { label: 'Signed agreements', value: '27,506 units', pct: '50%', pctTone: 'positive' },
-      { label: 'Opportunity', value: '27,448 units', pct: '50%', pctTone: 'critical' },
-      { label: 'Ordered so far', value: '26,504 units', pct: '48%', pctTone: 'neutral' },
+    title: '60% of the forecast rides on opportunity, not agreements',
+    label: 'Coverage',
+    body: 'The forecast of 154,408 units and $7.73M is Agreements plus Opportunity. Signed agreements back 61,775 units of it (40%); opportunity that has not converted accounts for 92,633 units (60%). Orders stand at 73,414 units, or 48%.',
+    metrics: [
+      { name: 'Signed agreements', value: '61,775 units', delta: '40%', deltaTone: 'flat' },
+      { name: 'Opportunity', value: '92,633 units', delta: '60%', deltaTone: 'down' },
+      { name: 'Ordered so far', value: '73,414 units', delta: '48%', deltaTone: 'up' },
     ],
     cta: 'Show the gap',
-    agentPrompt: "Show the gap between signed agreements, unconverted opportunity, and orders — how much of the plan's coverage is at risk?",
-    sourcesCount: 2,
+    agentPrompt: 'Show the gap between signed agreements, unconverted opportunity, and orders — how much of the forecast is at risk?',
+    sourcesCount: 3,
+  },
+  {
+    id: 'brief-momentum',
+    title: 'Up 27% on last year, evenly across all 4 categories',
+    label: 'Momentum',
+    body: 'Orders are $7.34M against $5.80M last year (+27%), on 73,414 units versus 58,135 units (+26%) — so the value moved with the volume. The move is broad rather than driven by one category: all 4 sit at +27%.',
+    metrics: [
+      { name: 'Orders vs last year', value: '$7.34M vs $5.80M', delta: '+27%', deltaTone: 'up' },
+      { name: 'Units vs last year', value: '73,414 units vs 58,135 units', delta: '+26%', deltaTone: 'up' },
+      { name: 'Spread across the 4 categories', value: '+27%', delta: 'no outlier', deltaTone: 'flat' },
+    ],
+    cta: 'Compare years',
+    agentPrompt: 'Compare this year to last year by category — where is the +27% coming from?',
+    sourcesCount: 3,
+  },
+  {
+    id: 'brief-exposure',
+    title: '$669K of orders sit beyond what is signed',
+    label: 'Exposure',
+    body: 'Agreements cover $6.67M while orders stand at $7.34M — $669K beyond what is signed. 52% of the forecast — 80,994 units — has not been ordered yet, and Georgia Plant is the thinnest account at $881K.',
+    metrics: [
+      { name: 'Agreements vs orders', value: '$6.67M vs $7.34M', delta: 'orders +10%', deltaTone: 'flat' },
+      { name: 'Opportunity', value: '$9.27M', delta: '60% of forecast', deltaTone: 'down' },
+      { name: 'Forecast not yet ordered', value: '80,994 units', delta: '52%', deltaTone: 'down' },
+    ],
+    cta: 'Show exposure',
+    agentPrompt: 'Show the exposure between signed agreements and orders — where are we committed beyond what is signed?',
+    sourcesCount: 3,
+  },
+];
+
+// ── Top 5 & bottom 5 (SKU ranking) card ─────────────────────────────────────────
+interface SkuRankRow {
+  code: string;
+  revenue: string;
+  program: string;
+  qty: string;
+  reason: string;
+}
+
+interface SkuRankGroup {
+  title: string;
+  method: string;
+  low?: boolean;
+  rows: SkuRankRow[];
+}
+
+const SKU_RANK_META = {
+  headline:
+    'The top five product rows carry 4% of order revenue on 4% of the units, the bottom five 1% on 1% — value tracks volume closely here, so the spread is size: the largest is 5.9× the smallest.',
+  collapsedDims: 'Ranked across all 222 product rows by FY26 order revenue',
+  cta: 'What to do about these',
+  agentPrompt: 'What should I do about the top 5 and bottom 5 product rows by FY26 order revenue?',
+  sourcesCount: 3,
+};
+
+const SKU_RANK_GROUPS: SkuRankGroup[] = [
+  {
+    title: 'Top 5',
+    method:
+      'Highest 5 of 222 product rows by FY26 order revenue — 4% of value, 4% of units. This grid carries no target measure, so the forecast is the plan number here.',
+    rows: [
+      { code: 'TRN 850 - A', revenue: '$67.6K', program: 'Michigan Plant · Transmission Assembly', qty: '681 units', reason: 'Biggest of the 9 Transmission Assembly rows, at $99 a unit.' },
+      { code: 'TRN 750 - A', revenue: '$66.1K', program: 'Michigan Plant · Transmission Assembly', qty: '670 units', reason: '2nd of the 9 Transmission Assembly rows, at $99 a unit.' },
+      { code: 'TRN 750 - B', revenue: '$62.7K', program: 'Michigan Plant · Transmission Assembly', qty: '625 units', reason: '3rd of the 9 Transmission Assembly rows, at $100 a unit.' },
+      { code: 'TRN 850 - B', revenue: '$61.6K', program: 'Michigan Plant · Transmission Assembly', qty: '622 units', reason: '4th of the 9 Transmission Assembly rows, at $99 a unit.' },
+      { code: 'TRN 750 - A', revenue: '$60.1K', program: 'Texas Plant · Transmission Assembly', qty: '595 units', reason: 'Biggest of the 9 Transmission Assembly rows, at $101 a unit.' },
+    ],
+  },
+  {
+    title: 'Bottom 5',
+    method: 'Lowest 5 of the same 222 — 1% of value, 1% of units.',
+    low: true,
+    rows: [
+      { code: 'O2 Sensor - Downstream', revenue: '$11.6K', program: 'Georgia Plant · Electrical Systems', qty: '120 units', reason: 'Smallest of the 9 Electrical Systems rows, at $96 a unit.' },
+      { code: 'O2 Sensor - Upstream', revenue: '$13.1K', program: 'Georgia Plant · Electrical Systems', qty: '132 units', reason: '8th of the 9 Electrical Systems rows, at $99 a unit.' },
+      { code: 'O2 Sensor - Downstream', revenue: '$13.2K', program: 'Illinois Plant · Electrical Systems', qty: '132 units', reason: 'Smallest of the 9 Electrical Systems rows, at $100 a unit.' },
+      { code: 'O2 Sensor - Downstream', revenue: '$14.0K', program: 'California Plant · Electrical Systems', qty: '144 units', reason: 'Smallest of the 9 Electrical Systems rows, at $97 a unit.' },
+      { code: 'Wiring Harness - Auxiliary', revenue: '$14.3K', program: 'Georgia Plant · Electrical Systems', qty: '144 units', reason: '7th of the 9 Electrical Systems rows, at $100 a unit.' },
+    ],
   },
 ];
 
@@ -657,6 +747,9 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   const [expandedOverviewItemIds, setExpandedOverviewItemIds] = useState<Set<string>>(new Set());
   // ── Brief tab state ──────────────────────────────────────────────────────
   const [briefOpen, setBriefOpen] = useState(true);
+  // The "Top 5 & bottom 5" ranking card starts collapsed, matching the source.
+  const [skuRankOpen, setSkuRankOpen] = useState(false);
+  const [skuRankBy, setSkuRankBy] = useState('product');
   const [briefSourcesOpen, setBriefSourcesOpen] = useState<Set<string>>(new Set());
   const [briefFeedback, setBriefFeedback] = useState<Record<string, 'up' | 'down'>>({});
   const toggleBriefSources = (id: string) =>
@@ -1159,141 +1252,303 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
         {/* ── BRIEF (AI-generated plan narrative) ───────────────── */}
         {activeTab === 'brief' && (
           <div className="alerts-brief">
-            <div className="alerts-brief-card">
-              {/* Card header: collapse chevron · title · overflow menu */}
-              <div className="alerts-brief-card-header">
+            {/* ── Plan Brief card (exact copy of @cpm/status-panel .plan-brief) ── */}
+            <div className="plan-brief" role="region" aria-label="Plan Brief">
+              <div className="plan-brief-header">
                 <button
                   type="button"
-                  className="alerts-brief-collapse"
-                  onClick={() => setBriefOpen(o => !o)}
+                  className="plan-brief-collapse"
                   aria-expanded={briefOpen}
-                  aria-label={briefOpen ? 'Collapse Plan Brief' : 'Expand Plan Brief'}
+                  onClick={() => setBriefOpen(o => !o)}
                 >
-                  <svg className={`alerts-brief-chevron${briefOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                    <polyline points="6 9 12 15 18 9" />
+                  <svg className={`plan-brief-collapse-chevron${briefOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                    <polyline points="9 18 15 12 9 6" />
                   </svg>
-                  <span className="alerts-brief-card-title">Plan Brief</span>
+                  <h2 className="plan-brief-title">Plan Brief</h2>
                 </button>
-                <button type="button" className="alerts-brief-menu" aria-label="More options">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+                <button type="button" className="plan-brief-icon-btn" aria-label="Plan Brief actions">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
                   </svg>
                 </button>
               </div>
 
               {briefOpen && (
                 <>
-                  {/* AI-generated pill + info */}
-                  <div className="alerts-brief-ai-row">
-                    <span className="alerts-brief-ai-pill">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <div className="plan-brief-badge-row">
+                    <span className="plan-brief-ai-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                         <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
                         <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
                       </svg>
                       This content is AI generated
                     </span>
-                    <span className="alerts-brief-info" aria-hidden>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 5a1.2 1.2 0 110 2.4A1.2 1.2 0 0112 7zm1.2 10h-2.4v-6h2.4z" />
-                      </svg>
-                    </span>
-                  </div>
-
-                  {/* Byline */}
-                  <div className="alerts-brief-byline">
-                    <span>{BRIEF_META.agent} · {BRIEF_META.timestamp}</span>
-                    <button type="button" className="alerts-brief-refresh" aria-label="Regenerate brief">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 12a9 9 0 11-2.64-6.36" /><polyline points="21 3 21 9 15 9" />
+                    <button type="button" className="plan-brief-info-btn" aria-label="About AI generated content">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 4.6a1.4 1.4 0 110 2.8 1.4 1.4 0 010-2.8zm1.3 10.9h-2.6v-6h2.6v6z" />
                       </svg>
                     </button>
                   </div>
 
-                  {/* Highlights */}
-                  <h4 className="alerts-brief-heading">Highlights</h4>
-                  <p className="alerts-brief-body">{BRIEF_META.highlight}</p>
+                  <div className="plan-brief-timestamp">
+                    <span>{BRIEF_META.agent} · {BRIEF_META.timestamp}</span>
+                    <button type="button" className="plan-brief-refresh-btn" aria-label="Regenerate brief">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                        <path d="M20 11a8 8 0 10-2.7 6" /><polyline points="20 4 20 11 13 11" />
+                      </svg>
+                    </button>
+                  </div>
 
-                  {BRIEF_SECTIONS.map(section => {
-                    const sourcesOpen = briefSourcesOpen.has(section.id);
-                    const fb = briefFeedback[section.id];
-                    return (
-                      <div key={section.id} className="alerts-brief-section">
-                        <div className="alerts-brief-divider" />
-                        <h3 className="alerts-brief-section-heading">{section.heading}</h3>
-                        <div className="alerts-brief-kicker">{section.kicker}</div>
-                        <p className="alerts-brief-body">{section.body}</p>
+                  {/* Highlights (standalone item) */}
+                  <div className="plan-brief-item">
+                    <div className="plan-brief-item-heading">
+                      <h3 className="plan-brief-item-title">Highlights</h3>
+                    </div>
+                    <p className="plan-brief-item-body">{BRIEF_META.highlight}</p>
+                    <div className="plan-brief-divider" />
+                  </div>
 
-                        <div className="alerts-brief-stats">
-                          {section.stats.map((s, i) => (
-                            <div key={i} className="alerts-brief-stat-row">
-                              <span className="alerts-brief-stat-label">{s.label}</span>
-                              <span className="alerts-brief-stat-value">
-                                {s.value}
-                                {s.pct && (
-                                  <span className={`alerts-brief-stat-pct alerts-brief-stat-pct--${s.pctTone ?? 'neutral'}`}>{s.pct}</span>
-                                )}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="alerts-brief-actions">
-                          <button
-                            type="button"
-                            className="alerts-brief-cta"
-                            onClick={() => onAskAgentforce?.(section.agentPrompt)}
-                          >
-                            {section.cta}
-                          </button>
-                          <div className="alerts-brief-feedback">
-                            <button
-                              type="button"
-                              className={`alerts-brief-thumb${fb === 'up' ? ' active' : ''}`}
-                              onClick={() => setSectionFeedback(section.id, 'up')}
-                              aria-label="Helpful"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M7 10v11H4a1 1 0 01-1-1v-9a1 1 0 011-1h3zm4 0l3-7a2 2 0 012 2v4h4a2 2 0 012 2l-2 7a2 2 0 01-2 1.5H7" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className={`alerts-brief-thumb${fb === 'down' ? ' active' : ''}`}
-                              onClick={() => setSectionFeedback(section.id, 'down')}
-                              aria-label="Not helpful"
-                            >
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M17 14V3h3a1 1 0 011 1v9a1 1 0 01-1 1h-3zm-4 0l-3 7a2 2 0 01-2-2v-4H4a2 2 0 01-2-2l2-7a2 2 0 012-1.5h10" />
-                              </svg>
-                            </button>
+                  <ul className="plan-brief-items">
+                    {BRIEF_SECTIONS.map(section => {
+                      const sourcesOpen = briefSourcesOpen.has(section.id);
+                      const fb = briefFeedback[section.id];
+                      return (
+                        <li key={section.id} className="plan-brief-item">
+                          <div className="plan-brief-item-heading">
+                            <h3 className="plan-brief-item-title">{section.title}</h3>
+                            <p className="plan-brief-item-label">{section.label}</p>
                           </div>
-                        </div>
+                          <p className="plan-brief-item-body">{section.body}</p>
 
-                        {section.sourcesCount && (
-                          <>
-                            <button
-                              type="button"
-                              className="alerts-brief-sources"
-                              onClick={() => toggleBriefSources(section.id)}
-                              aria-expanded={sourcesOpen}
-                            >
-                              <svg className={`alerts-brief-sources-chevron${sourcesOpen ? ' open' : ''}`} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
-                                <polyline points="9 18 15 12 9 6" />
-                              </svg>
-                              Sources ({section.sourcesCount})
-                            </button>
-                            {sourcesOpen && (
-                              <ul className="alerts-brief-sources-list">
-                                <li>Order Quantity · FY26 · all plants</li>
-                                <li>Sales Agreement &amp; Opportunity Quantity · FY26</li>
-                              </ul>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                          <div className="plan-brief-metrics">
+                            {section.metrics.map((m, i) => (
+                              <div key={i} className="plan-brief-metric-row">
+                                <span className="plan-brief-metric-name">{m.name}</span>
+                                <span className="plan-brief-metric-value">{m.value}</span>
+                                {m.delta && (
+                                  <span className={`plan-brief-metric-delta plan-brief-metric-delta--${m.deltaTone ?? 'flat'}`}>{m.delta}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="plan-brief-item-footer">
+                            <div className="plan-brief-item-buttons-sources">
+                              <div className="plan-brief-item-buttons">
+                                <button
+                                  type="button"
+                                  className="plan-brief-btn plan-brief-btn--brand"
+                                  onClick={() => onAskAgentforce?.(section.agentPrompt)}
+                                >
+                                  {section.cta}
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                className="plan-brief-sources-toggle"
+                                aria-expanded={sourcesOpen}
+                                onClick={() => toggleBriefSources(section.id)}
+                              >
+                                <svg className={`plan-brief-sources-chevron${sourcesOpen ? ' open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                                  <polyline points="9 18 15 12 9 6" />
+                                </svg>
+                                Sources ({section.sourcesCount})
+                              </button>
+                              {sourcesOpen && (
+                                <ul className="plan-brief-sources">
+                                  {BRIEF_SOURCES.map((src, i) => (
+                                    <li key={i} className="plan-brief-source">{src}</li>
+                                  ))}
+                                </ul>
+                              )}
+                            </div>
+                            <div className="plan-brief-feedback">
+                              <button
+                                type="button"
+                                className="plan-brief-icon-btn"
+                                aria-label={`Helpful: ${section.label}`}
+                                aria-pressed={fb === 'up'}
+                                onClick={() => setSectionFeedback(section.id, 'up')}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                  <path d="M9 21h8.3a2 2 0 001.95-1.55l1.7-7.4A1.6 1.6 0 0019.4 10H14l.9-4.3A2.1 2.1 0 0012.85 3a1.3 1.3 0 00-1.2.8L9 10.4V21zM3 10.6h3.4V21H3z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                className="plan-brief-icon-btn"
+                                aria-label={`Not helpful: ${section.label}`}
+                                aria-pressed={fb === 'down'}
+                                onClick={() => setSectionFeedback(section.id, 'down')}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                                  <path d="M15 3H6.7a2 2 0 00-1.95 1.55l-1.7 7.4A1.6 1.6 0 004.6 14H10l-.9 4.3A2.1 2.1 0 0011.15 21a1.3 1.3 0 001.2-.8L15 13.6V3zm2.6 0H21v10.4h-3.4z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          <div className="plan-brief-divider" />
+                        </li>
+                      );
+                    })}
+                  </ul>
                 </>
+              )}
+            </div>
+
+            {/* ── Top 5 & bottom 5 card (exact copy of .plan-brief.sku-rank) ── */}
+            <div className="plan-brief sku-rank" role="region" aria-label={`Top 5 & bottom 5, ranked by ${skuRankBy.charAt(0).toUpperCase() + skuRankBy.slice(1)}`}>
+              <div className="plan-brief-header">
+                <button
+                  type="button"
+                  className="plan-brief-collapse"
+                  aria-expanded={skuRankOpen}
+                  onClick={() => setSkuRankOpen(o => !o)}
+                >
+                  <svg className={`plan-brief-collapse-chevron${skuRankOpen ? ' open' : ''}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  <h2 className="plan-brief-title">Top 5 &amp; bottom 5</h2>
+                </button>
+                <button type="button" className="plan-brief-icon-btn" aria-label="Ranking actions">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="plan-brief-badge-row">
+                <span className="plan-brief-ai-badge">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                    <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+                  </svg>
+                  This content is AI generated
+                </span>
+                <button type="button" className="plan-brief-info-btn" aria-label="About AI generated content">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                    <path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 4.6a1.4 1.4 0 110 2.8 1.4 1.4 0 010-2.8zm1.3 10.9h-2.6v-6h2.6v6z" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="plan-brief-timestamp">
+                <span>{BRIEF_META.agent} · ranked just now</span>
+                <button type="button" className="plan-brief-refresh-btn" aria-label="Re-rank">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                    <path d="M20 11a8 8 0 10-2.7 6" /><polyline points="20 4 20 11 13 11" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="plan-brief-headline">{SKU_RANK_META.headline}</p>
+
+              {skuRankOpen ? (
+                <>
+                  <div className="sku-rank-input">
+                    <div className="sku-rank-field">
+                      <label className="sku-rank-field-label" htmlFor="rank-level">Rank by</label>
+                      <div className="sku-rank-combobox">
+                        <select
+                          id="rank-level"
+                          className="sku-rank-select"
+                          value={skuRankBy}
+                          onChange={e => setSkuRankBy(e.target.value)}
+                        >
+                          <option value="product">Product</option>
+                          <option value="category">Category</option>
+                          <option value="account">Account</option>
+                        </select>
+                        <svg className="sku-rank-select-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden>
+                          <polyline points="6 9 12 15 18 9" />
+                        </svg>
+                      </div>
+                    </div>
+                    <button type="button" className="sku-rank-generate">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                        <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6L12 3z" />
+                        <path d="M18.5 13.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8.8-2.2z" />
+                      </svg>
+                      Generate
+                    </button>
+                  </div>
+
+                  {SKU_RANK_GROUPS.map(group => (
+                    <div key={group.title} className="sku-rank-group">
+                      <div className="sku-rank-group-head">
+                        <h3 className="sku-rank-group-title">{group.title}</h3>
+                        <p className="sku-rank-method">{group.method}</p>
+                      </div>
+                      {group.rows.map((row, i) => (
+                        <div key={i} className="sku-rank-row">
+                          <span className="sku-rank-code">{row.code}</span>
+                          <span className={`sku-rank-revenue${group.low ? ' sku-rank-revenue--low' : ''}`}>{row.revenue}</span>
+                          <span className="sku-rank-program">{row.program}</span>
+                          <span className="sku-rank-qty">{row.qty}</span>
+                          <p className="sku-rank-reason">{row.reason}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+
+                  <div className="plan-brief-item-footer">
+                    <div className="plan-brief-item-buttons-sources">
+                      <div className="plan-brief-item-buttons">
+                        <button
+                          type="button"
+                          className="plan-brief-btn plan-brief-btn--brand"
+                          onClick={() => onAskAgentforce?.(SKU_RANK_META.agentPrompt)}
+                        >
+                          {SKU_RANK_META.cta}
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="plan-brief-sources-toggle"
+                        aria-expanded={briefSourcesOpen.has('sku-rank')}
+                        onClick={() => toggleBriefSources('sku-rank')}
+                      >
+                        <svg className={`plan-brief-sources-chevron${briefSourcesOpen.has('sku-rank') ? ' open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                        Sources ({SKU_RANK_META.sourcesCount})
+                      </button>
+                      {briefSourcesOpen.has('sku-rank') && (
+                        <ul className="plan-brief-sources">
+                          {BRIEF_SOURCES.map((src, i) => (
+                            <li key={i} className="plan-brief-source">{src}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <div className="plan-brief-feedback">
+                      <button
+                        type="button"
+                        className="plan-brief-icon-btn"
+                        aria-label="Helpful: ranking"
+                        aria-pressed={briefFeedback['sku-rank'] === 'up'}
+                        onClick={() => setSectionFeedback('sku-rank', 'up')}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M9 21h8.3a2 2 0 001.95-1.55l1.7-7.4A1.6 1.6 0 0019.4 10H14l.9-4.3A2.1 2.1 0 0012.85 3a1.3 1.3 0 00-1.2.8L9 10.4V21zM3 10.6h3.4V21H3z" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="plan-brief-icon-btn"
+                        aria-label="Not helpful: ranking"
+                        aria-pressed={briefFeedback['sku-rank'] === 'down'}
+                        onClick={() => setSectionFeedback('sku-rank', 'down')}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                          <path d="M15 3H6.7a2 2 0 00-1.95 1.55l-1.7 7.4A1.6 1.6 0 004.6 14H10l-.9 4.3A2.1 2.1 0 0011.15 21a1.3 1.3 0 001.2-.8L15 13.6V3zm2.6 0H21v10.4h-3.4z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="plan-brief-collapsed-dims">{SKU_RANK_META.collapsedDims}</p>
               )}
             </div>
           </div>
