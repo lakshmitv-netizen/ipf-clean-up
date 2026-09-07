@@ -244,42 +244,40 @@
 .alerts-overview {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: var(--slds-g-spacing-2, 8px);
 }
 
-/* SLDS2 expandable section: a flat disclosure row (chevron + title) separated by a
-   full-width rule, with content flowing directly beneath. No grey fill — the section
-   reads by its heading + divider, matching the SLDS 2 `slds-section` pattern. */
+/* SLDS2 Expandable Section (Figma node 98:5676): a grey chevron pill per section
+   (surface-container-2 #f3f3f3, 8px radius, 32px tall), with content stacked below.
+   Title uses SLDS base font at font-scale-2 (16px / weight 400 / #2e2e2e). */
 .alerts-overview-card {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
-}
-
-.alerts-overview-card:first-child {
-  border-top: none;
+  gap: var(--slds-g-spacing-2, 8px);
+  padding-bottom: 4px;
 }
 
 .alerts-overview-card-header {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 12px 4px;
-  background: transparent !important;
+  gap: var(--slds-g-spacing-2, 8px);
+  height: 32px;
+  padding: 0 var(--slds-g-spacing-2, 8px);
+  background: var(--slds-g-color-surface-container-2, #f3f3f3) !important;
   border: none;
-  border-radius: 0;
+  border-radius: var(--slds-g-radius-border-2, 8px);
   cursor: pointer;
   text-align: left;
 }
 
-.alerts-overview-card-header:hover .alerts-overview-card-title {
-  color: var(--slds-g-color-accent-1, #0176d3);
+.alerts-overview-card-header:hover {
+  background: var(--slds-g-color-surface-container-3, #ecebea) !important;
 }
 
 .alerts-overview-card-chevron {
   flex-shrink: 0;
-  color: var(--slds-g-color-neutral-base-30, #444);
+  color: var(--slds-g-color-on-surface-2, #2e2e2e);
   transition: transform 0.15s ease;
 }
 
@@ -288,16 +286,15 @@
 }
 
 .alerts-overview-card-title {
-  font-family: var(--font-family-base);
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 18px;
-  color: var(--slds-g-color-neutral-base-15);
-  transition: color 0.15s ease;
+  font-family: var(--slds-g-font-family-base, var(--font-family-base));
+  font-size: var(--slds-g-font-scale-2, 16px);
+  font-weight: 400;
+  line-height: 22px;
+  color: var(--slds-g-color-on-surface-2, #2e2e2e);
 }
 
 .alerts-overview-card-body {
-  padding: 0 0 12px 0;
+  padding: 0 0 8px 0;
 }
 
 .alerts-overview-list {

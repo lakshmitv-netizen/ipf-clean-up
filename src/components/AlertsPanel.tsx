@@ -638,7 +638,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
   onDismissReviewApprovalCard,
   nextBestActionAlert = null,
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('all');
+  const [activeTab, setActiveTab] = useState<TabType>('brief');
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [focusedCardId, setFocusedCardId] = useState<string | null>(null);
   const [isFilterPopoverOpen, setIsFilterPopoverOpen] = useState(false);
@@ -1026,7 +1026,7 @@ const AlertsPanel: React.FC<AlertsPanelProps> = ({
 
       {/* Tabs */}
       <div className="alerts-panel-tabs">
-        {(['all', 'alerts', 'brief'] as TabType[]).map(tab => (
+        {(['brief', 'all', 'alerts'] as TabType[]).map(tab => (
           <button
             key={tab}
             className={`alerts-panel-tab ${activeTab === tab ? 'active' : ''}`}
