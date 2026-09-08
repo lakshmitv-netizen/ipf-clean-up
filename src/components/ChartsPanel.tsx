@@ -631,7 +631,8 @@ const Donut: React.FC<{
   onSliceHover?: (s: Slice, pct: number, e: React.MouseEvent) => void;
   onSliceLeave?: () => void;
   onSliceClick?: (s: Slice) => void;
-}> = ({ slices, total, hoveredId, interactive, onSliceHover, onSliceLeave, onSliceClick }) => {
+  fmtVal?: (n: number) => string;
+}> = ({ slices, total, hoveredId, interactive, onSliceHover, onSliceLeave, onSliceClick, fmtVal = fmt }) => {
   const cx = 74;
   const cy = 74;
   const r = 54;
@@ -666,7 +667,7 @@ const Donut: React.FC<{
               onMouseLeave={onSliceLeave}
               onClick={() => onSliceClick?.(s)}
             >
-              <title>{`${s.name}: ${fmt(s.value)} (${pct.toFixed(0)}%)`}</title>
+              <title>{`${s.name}: ${fmtVal(s.value)} (${pct.toFixed(0)}%)`}</title>
             </circle>
           );
         })}
@@ -675,7 +676,7 @@ const Donut: React.FC<{
         Total
       </text>
       <text x={cx} y={cy + 11} textAnchor="middle" fontSize="12" fontWeight="700" fill="#181818">
-        {fmt(total)}
+        {fmtVal(total)}
       </text>
     </svg>
   );
@@ -703,6 +704,8 @@ interface PieSectionProps {
   selectedSeriesId?: string | null;
   onSeriesChange?: (id: string) => void;
   loading?: boolean;
+  /** Value formatter (defaults to currency `fmt`); pass a quantity-aware formatter for count measures. */
+  fmtVal?: (n: number) => string;
 }
 const PieSection: React.FC<PieSectionProps> = ({
   title,
@@ -723,6 +726,7 @@ const PieSection: React.FC<PieSectionProps> = ({
   selectedSeriesId,
   onSeriesChange,
   loading,
+  fmtVal = fmt,
 }) => {
   return (
     <section className="charts-section">
@@ -781,10 +785,11 @@ const PieSection: React.FC<PieSectionProps> = ({
               total={total}
               interactive={!!onDrill}
               hoveredId={hoveredSliceId}
+              fmtVal={fmtVal}
               onSliceHover={(s, pct, e) => {
                 setHoveredSliceId(s.id);
                 showTip(e, s.name, [
-                  { label: periodLabel, val: fmt(s.value), color: s.color },
+                  { label: periodLabel, val: fmtVal(s.value), color: s.color },
                   { label: 'Share', val: `${pct.toFixed(0)}%` },
                 ]);
               }}
@@ -810,7 +815,7 @@ const PieSection: React.FC<PieSectionProps> = ({
                     onMouseMove={(e) => {
                       setHoveredSliceId(s.id);
                       showTip(e, s.name, [
-                        { label: periodLabel, val: fmt(s.value), color: s.color },
+                        { label: periodLabel, val: fmtVal(s.value), color: s.color },
                         { label: 'Share', val: `${pct.toFixed(0)}%` },
                       ]);
                     }}
@@ -820,7 +825,7 @@ const PieSection: React.FC<PieSectionProps> = ({
                     <span className="charts-legend-name" title={s.name}>
                       {s.name}
                     </span>
-                    <span className="charts-legend-val">{fmt(s.value)}</span>
+                    <span className="charts-legend-val">{fmtVal(s.value)}</span>
                     <span className="charts-legend-pct">{pct.toFixed(0)}%</span>
                   </li>
                 );
@@ -867,7 +872,8 @@ const WaterfallChart: React.FC<{
   onStepClick?: (stepIndex: number) => void;
   /** Step index (0-based, into `steps`) currently selected — rendered with emphasis. */
   selectedStep?: number | null;
-}> = ({ width, startLabel, startValue, steps, endLabel, endValue, onStepHover, onLeave, onStepClick, selectedStep }) => {
+  fmtVal?: (n: number) => string;
+}> = ({ width, startLabel, startValue, steps, endLabel, endValue, onStepHover, onLeave, onStepClick, selectedStep, fmtVal = fmt }) => {
   const W = width;
   const H = 210;
   const padL = 6;
@@ -939,10 +945,10 @@ const WaterfallChart: React.FC<{
               onMouseLeave={onLeave}
               onClick={clickable ? () => onStepClick?.(stepIndex) : undefined}
             >
-              <title>{`${c.label}: ${c.anchor ? fmt(c.to) : `${c.delta >= 0 ? '+' : ''}${fmt(c.delta)}`}`}</title>
+              <title>{`${c.label}: ${c.anchor ? fmtVal(c.to) : `${c.delta >= 0 ? '+' : ''}${fmtVal(c.delta)}`}`}</title>
             </rect>
             <text x={cx} y={yTop - 4} fontSize="8.5" textAnchor="middle" fontWeight="700" fill={c.anchor ? COL_TOTAL : c.up ? COL_UP : COL_DOWN}>
-              {c.anchor ? fmt(c.to) : `${c.delta >= 0 ? '+' : ''}${fmt(c.delta)}`}
+              {c.anchor ? fmtVal(c.to) : `${c.delta >= 0 ? '+' : ''}${fmtVal(c.delta)}`}
             </text>
             <text x={cx} y={H - 28} fontSize="8" textAnchor="middle" fill="#5c5c5c" transform={`rotate(28 ${cx} ${H - 28})`}>
               {c.label.length > 12 ? `${c.label.slice(0, 11)}…` : c.label}
@@ -961,7 +967,8 @@ const ParetoChart: React.FC<{
   items: { name: string; value: number; color: string }[];
   onHover?: (i: number, e: React.MouseEvent) => void;
   onLeave?: () => void;
-}> = ({ width, items, onHover, onLeave }) => {
+  fmtVal?: (n: number) => string;
+}> = ({ width, items, onHover, onLeave, fmtVal = fmt }) => {
   const W = width;
   const H = 200;
   const padL = 6;
@@ -1007,7 +1014,7 @@ const ParetoChart: React.FC<{
               onMouseMove={(e) => onHover?.(i, e)}
               onMouseLeave={onLeave}
             >
-              <title>{`${d.name}: ${fmt(d.value)} (${((Math.max(d.value, 0) / total) * 100).toFixed(0)}%)`}</title>
+              <title>{`${d.name}: ${fmtVal(d.value)} (${((Math.max(d.value, 0) / total) * 100).toFixed(0)}%)`}</title>
             </rect>
             <text x={cx} y={H - 26} fontSize="8" textAnchor="middle" fill="#5c5c5c" transform={`rotate(28 ${cx} ${H - 26})`}>
               {d.name.length > 12 ? `${d.name.slice(0, 11)}…` : d.name}
@@ -1029,7 +1036,8 @@ const TornadoChart: React.FC<{
   width: number;
   items: { name: string; impact: number; color: string }[];
   swingPct: number;
-}> = ({ width, items, swingPct }) => {
+  fmtVal?: (n: number) => string;
+}> = ({ width, items, swingPct, fmtVal = fmt }) => {
   const W = width;
   const rowH = 26;
   const H = Math.max(items.length * rowH + 26, 60);
@@ -1054,13 +1062,13 @@ const TornadoChart: React.FC<{
             </text>
             {/* down side (−swing) in red on the left, up side (+swing) in green on the right */}
             <rect x={mid - w} y={y + 3} width={w} height={rowH - 12} fill={COL_DOWN} opacity="0.85" rx="1.5">
-              <title>{`${d.name} −${swingPct}%: ${fmt(-d.impact)}`}</title>
+              <title>{`${d.name} −${swingPct}%: ${fmtVal(-d.impact)}`}</title>
             </rect>
             <rect x={mid} y={y + 3} width={w} height={rowH - 12} fill={COL_UP} opacity="0.85" rx="1.5">
-              <title>{`${d.name} +${swingPct}%: +${fmt(d.impact)}`}</title>
+              <title>{`${d.name} +${swingPct}%: +${fmtVal(d.impact)}`}</title>
             </rect>
             <text x={mid + w + 4} y={y + rowH / 2} fontSize="8.5" dominantBaseline="middle" fill="#5c5c5c">
-              ±{fmt(d.impact)}
+              ±{fmtVal(d.impact)}
             </text>
           </g>
         );
@@ -1324,7 +1332,8 @@ const DriverTree: React.FC<{
   period: ValueKey;
   periodLabel: string;
   onDrill?: (id: string) => void;
-}> = ({ root, period, periodLabel, onDrill }) => {
+  fmtVal?: (n: number) => string;
+}> = ({ root, period, periodLabel, onDrill, fmtVal = fmt }) => {
   const rootVal = val(root, period);
   const kids = (root.children ?? [])
     .map((c, i) => ({ row: c, value: val(c, period), color: PIE_COLORS[i % PIE_COLORS.length] }))
@@ -1335,7 +1344,7 @@ const DriverTree: React.FC<{
       <div className="charts-tree-root">
         <div className="charts-tree-node charts-tree-node--root">
           <span className="charts-tree-node-name" title={root.name}>{root.name}</span>
-          <span className="charts-tree-node-val">{fmt(rootVal)}</span>
+          <span className="charts-tree-node-val">{fmtVal(rootVal)}</span>
           <span className="charts-tree-node-sub">{periodLabel} · total</span>
         </div>
       </div>
@@ -1354,7 +1363,7 @@ const DriverTree: React.FC<{
                 title={drillable ? `Drill into ${k.row.name}` : k.row.name}
               >
                 <span className="charts-tree-node-name" title={k.row.name}>{k.row.name}</span>
-                <span className="charts-tree-node-val">{fmt(k.value)}</span>
+                <span className="charts-tree-node-val">{fmtVal(k.value)}</span>
                 <span className="charts-tree-bar"><span className="charts-tree-bar-fill" style={{ width: `${Math.min(pct, 100)}%`, backgroundColor: k.color }} /></span>
                 <span className="charts-tree-node-sub">{pct.toFixed(0)}% of parent{drillable ? ' · drill' : ''}</span>
               </button>
@@ -2348,7 +2357,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
     const out: string[] = [];
     const dir = st.maxDev >= 0 ? 'above' : 'below';
     out.push(
-      `${row.name} totals ${fmt(st.total)} across FY26, averaging ${fmt(st.avg)}/month. It peaks in ${st.highestMonth} (${fmt(st.highest)}) and troughs in ${st.lowestMonth} (${fmt(st.lowest)}).`,
+      `${row.name} totals ${fmtMeasure(st.total, measureName)} across FY26, averaging ${fmtMeasure(st.avg, measureName)}/month. It peaks in ${st.highestMonth} (${fmtMeasure(st.highest, measureName)}) and troughs in ${st.lowestMonth} (${fmtMeasure(st.lowest, measureName)}).`,
     );
     out.push(
       `The largest swing is in ${st.maxDevMonth}, ${Math.abs(st.maxDevPct).toFixed(0)}% ${dir} the monthly average.`,
@@ -2369,13 +2378,13 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
       if (startV > 0) {
         const chgPct = ((endV - startV) / startV) * 100;
         out.push(
-          `From ${periodShort(wfFrom)} to ${periodShort(wfTo)}, ${row.name} ${chgPct >= 0 ? 'grew' : 'declined'} ${Math.abs(chgPct).toFixed(0)}% (${fmt(endV - startV)}).`,
+          `From ${periodShort(wfFrom)} to ${periodShort(wfTo)}, ${row.name} ${chgPct >= 0 ? 'grew' : 'declined'} ${Math.abs(chgPct).toFixed(0)}% (${fmtMeasure(endV - startV, measureName)}).`,
         );
       }
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row?.id, children.length, wfFrom, wfTo]);
+  }, [row?.id, children.length, wfFrom, wfTo, measureName]);
 
   // Expand the currently-shown row on the grid so its children (the pie's slices) are visible.
   const expandCurrentRow = () => {
@@ -2819,7 +2828,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   onClick={() => focusStatPeriod(stats.highestMonth)}
                 >
                   <span className="charts-tile-label">Highest</span>
-                  <span className="charts-tile-val">{fmt(stats.highest)}</span>
+                  <span className="charts-tile-val">{fmtMeasure(stats.highest, measureName)}</span>
                   <span className="charts-tile-sub">{stats.highestMonth}</span>
                 </button>
                 <button
@@ -2829,7 +2838,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   onClick={() => focusStatPeriod(stats.lowestMonth)}
                 >
                   <span className="charts-tile-label">Lowest</span>
-                  <span className="charts-tile-val">{fmt(stats.lowest)}</span>
+                  <span className="charts-tile-val">{fmtMeasure(stats.lowest, measureName)}</span>
                   <span className="charts-tile-sub">{stats.lowestMonth}</span>
                 </button>
                 <button
@@ -2839,8 +2848,8 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   onClick={() => focusStatPeriod('year')}
                 >
                   <span className="charts-tile-label">Monthly avg</span>
-                  <span className="charts-tile-val">{fmt(stats.avg)}</span>
-                  <span className="charts-tile-sub">FY26 · {fmt(stats.total)} total</span>
+                  <span className="charts-tile-val">{fmtMeasure(stats.avg, measureName)}</span>
+                  <span className="charts-tile-sub">FY26 · {fmtMeasure(stats.total, measureName)} total</span>
                 </button>
                 <button
                   type="button"
@@ -2858,7 +2867,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   </span>
                   <span className="charts-tile-sub">
                     {stats.maxDevMonth} · {stats.maxDev >= 0 ? '+' : ''}
-                    {fmt(stats.maxDev)}
+                    {fmtMeasure(stats.maxDev, measureName)}
                   </span>
                 </button>
               </div>
@@ -2873,7 +2882,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                 <span className="charts-section-meta">
                   {hasSubColLines
                     ? `FY26 · monthly · ${trendSeries.length} series`
-                    : `FY26 · monthly · ${fmt(val(row, 'year'))}`}
+                    : `FY26 · monthly · ${fmtMeasure(val(row, 'year'), measureName)}`}
                 </span>
               </div>
 
@@ -2999,6 +3008,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                   selectedSeriesId={activeSeriesId}
                   onSeriesChange={(id) => setActiveSeriesId(id)}
                   loading={pieLoading}
+                  fmtVal={(n) => fmtMeasure(n, measureName)}
                 />
               ) : null
             ) : !hasChildren ? (
@@ -3025,6 +3035,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                 showTip={showTip}
                 hideTip={hideTip}
                 loading={pieLoading}
+                fmtVal={(n) => fmtMeasure(n, measureName)}
               />
             )}
 
@@ -3085,6 +3096,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                         endValue={waterfall.endValue}
                         selectedStep={wfSelMonth ? wfStepMonths.indexOf(wfSelMonth) : null}
                         onStepClick={(i) => setWfSelMonth(wfStepMonths[i] ?? null)}
+                        fmtVal={(n) => fmtMeasure(n, measureName)}
                       />
                       <p className="charts-scale-note">
                         Bridge from the start period to the end period, decomposed by each month’s change along the way. Click a bar to see which children drove that month.
@@ -3117,9 +3129,9 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                                     onKeyDown={onDrill ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(c.id); } } : undefined}
                                     onMouseMove={(e) =>
                                       showTip(e, `${c.name} · ${wfChildBreakdown.monthLabel}`, [
-                                        { label: wfChildBreakdown.prevLabel, val: fmt(c.prev), color: '#8a8a8a' },
-                                        { label: wfChildBreakdown.monthLabel, val: fmt(c.cur), color: BASE_LINE_COLOR },
-                                        { label: 'Change', val: `${pos ? '+' : '−'}${fmt(Math.abs(c.delta))}${pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%)` : ''}` },
+                                        { label: wfChildBreakdown.prevLabel, val: fmtMeasure(c.prev, measureName), color: '#8a8a8a' },
+                                        { label: wfChildBreakdown.monthLabel, val: fmtMeasure(c.cur, measureName), color: BASE_LINE_COLOR },
+                                        { label: 'Change', val: `${pos ? '+' : '−'}${fmtMeasure(Math.abs(c.delta), measureName)}${pct !== null ? ` (${pct >= 0 ? '+' : ''}${pct.toFixed(0)}%)` : ''}` },
                                       ])
                                     }
                                     onMouseLeave={hideTip}
@@ -3133,7 +3145,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                                       />
                                     </span>
                                     <span className={`charts-vdiv-val${pos ? ' is-pos' : ' is-neg'}`}>
-                                      {pos ? '+' : '−'}{fmt(Math.abs(c.delta))}
+                                      {pos ? '+' : '−'}{fmtMeasure(Math.abs(c.delta), measureName)}
                                       {pct !== null && <span className="charts-vdiv-pct"> ({pct >= 0 ? '+' : ''}{pct.toFixed(0)}%)</span>}
                                     </span>
                                   </li>
@@ -3287,7 +3299,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                                       />
                                     </span>
                                     <span className={`charts-vdiv-val${pos ? ' is-pos' : ' is-neg'}`}>
-                                      {pos ? '+' : '−'}{fmt(Math.abs(c.variance))}
+                                      {pos ? '+' : '−'}{fmtMeasure(Math.abs(c.variance), measureName)}
                                       {c.pct !== null && <span className="charts-vdiv-pct"> ({c.pct >= 0 ? '+' : ''}{c.pct.toFixed(0)}%)</span>}
                                     </span>
                                   </li>
@@ -3314,9 +3326,10 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                       <ParetoChart
                         width={chartW}
                         items={paretoItems}
+                        fmtVal={(n) => fmtMeasure(n, measureName)}
                         onHover={(i, e) =>
                           showTip(e, paretoItems[i].name, [
-                            { label: periodShort(paretoPeriod), val: fmt(paretoItems[i].value), color: paretoItems[i].color },
+                            { label: periodShort(paretoPeriod), val: fmtMeasure(paretoItems[i].value, measureName), color: paretoItems[i].color },
                           ])
                         }
                         onLeave={hideTip}
@@ -3334,7 +3347,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
               {analysisTab === 'tree' && (
                 <div className="charts-analysis-body">
                   {children.length > 0 ? (
-                    <DriverTree root={row} period={paretoPeriod} periodLabel={periodShort(paretoPeriod)} onDrill={onDrill} />
+                    <DriverTree root={row} period={paretoPeriod} periodLabel={periodShort(paretoPeriod)} onDrill={onDrill} fmtVal={(n) => fmtMeasure(n, measureName)} />
                   ) : (
                     <p className="charts-note">This is a leaf row — no child drivers to show as a tree.</p>
                   )}
@@ -3345,7 +3358,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                 <div className="charts-analysis-body">
                   {tornadoItems.length > 0 ? (
                     <>
-                      <TornadoChart width={chartW} items={tornadoItems} swingPct={TORNADO_SWING} />
+                      <TornadoChart width={chartW} items={tornadoItems} swingPct={TORNADO_SWING} fmtVal={(n) => fmtMeasure(n, measureName)} />
                       <p className="charts-scale-note">
                         Sensitivity of {row.name}’s FY26 total to a ±{TORNADO_SWING}% move in each child. Longest bars = biggest levers.
                       </p>
@@ -3364,7 +3377,7 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                       values={MONTHS.map((m) => val(row, m.key))}
                       onPointHover={(i, low, e) =>
                         showTip(e, `${MONTHS[i].label} 2026`, [
-                          { label: 'Value', val: fmt(val(row, MONTHS[i].key)), color: BASE_LINE_COLOR },
+                          { label: 'Value', val: fmtMeasure(val(row, MONTHS[i].key), measureName), color: BASE_LINE_COLOR },
                           { label: 'Confidence', val: low ? 'Low' : 'OK', color: low ? '#ba0517' : '#2e844a' },
                         ])
                       }
