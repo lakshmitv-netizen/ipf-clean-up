@@ -4865,67 +4865,65 @@ const ForecastingGridDFDemo: React.FC = () => {
     cellChangeHandlerRef.current(rowId, monthKey as any, newValue, adjustmentNote);
   }, [selectedLayoutState, findRowChildren, lockedCells]);
 
-  // --- Scenario drawer: apply a scenario's driver multipliers to the grid AS EDITS ---
-  // Rather than silently rescaling the numbers, we push the scenario through the normal
-  // cell-change pipeline so it shows up like any manual edit: modified/impacted cell
-  // highlights, per-cell deltas, the "impacted measures" bottom bar, and the ability to
-  // Save (or discard) the changes.
-  //
-  // We edit each visible measure's *year* total once. That single edit disaggregates down
-  // through quarters → months → dimension children (and cross-measure dependencies) via the
-  // grid's own logic, so one edit per measure produces the full impacted-cell cascade. The
-  // brief cascade is masked by an overlay so the user only ever sees the final outcome.
+  // --- Scenario drawer: apply a scenario's driver multipliers to the grid ---
+  // A scenario closes the coverage gap by lifting the *Order* forecast — NOT by re-writing
+  // the signed Sales Agreement, which stays fixed as the committed target. We scale ONLY the
+  // Order measures:
+  //   • Order Quantity ← volume/growth lever (qty multiplier)
+  //   • Order Revenue  ← price/growth lever (rev multiplier)
+  // qty and rev move by DIFFERENT factors — that spread is the realized-price shift that
+  // distinguishes e.g. Margin Guard (price up) from Coverage Play (volume up). The grid's
+  // cross-measure engine ties Order Qty and Order Rev together through a fixed unit price, so
+  // pushing these as normal cell edits makes the second edit clobber the first (and can't
+  // express a price change at all). Instead we scale each Order subtree directly, always from
+  // the untouched baseline (originalData) so re-clicking or switching scenarios recomputes
+  // cleanly rather than compounding. Sales Agreement / LY / Forecast rows are left as-is.
   const scenarioApplyingRef = useRef(false);
   const [isApplyingScenario, setIsApplyingScenario] = useState(false);
   const applyScenarioToGrid = useCallback(
-    (mult: { rev: number; qty: number; growth: number }) => {
-      if (
-        selectedLayoutState !== 'Measures / Dimensions x Time' ||
-        !cellChangeHandlerRef.current ||
-        scenarioApplyingRef.current
-      ) {
+    (mult: { rev: number; qty: number }) => {
+      if (selectedLayoutState !== 'Measures / Dimensions x Time' || scenarioApplyingRef.current) {
         return;
       }
 
-      const factorFor = (name: string): number => {
-        const n = name.toLowerCase();
-        if (n.includes('quantity') || n.includes('qty') || n.includes('units') || n.includes('no.s')) return mult.qty;
-        if (n.includes('revenue') || n.includes('price') || n.includes('cost') || n.includes('$')) return mult.rev;
-        return mult.growth;
+      const factorByMeasure: Record<string, number> = {
+        'measure-order-qty': mult.qty,
+        'measure-order-rev': mult.rev,
       };
 
-      // One edit per visible measure: scale its yearly total; the grid distributes downward.
-      const edits: { rowId: string; newValue: number }[] = [];
-      for (const m of data) {
-        if (visibleMeasureIds.size > 0 && !visibleMeasureIds.has(m.id)) continue;
-        const f = factorFor(m.name);
-        if (Math.abs(f - 1) < 0.001) continue;
-        const cur = (m.values as unknown as Record<string, number>).year;
-        if (typeof cur !== 'number' || cur === 0) continue;
-        const next = Math.round(cur * f);
-        if (next !== cur) edits.push({ rowId: m.id, newValue: next });
-      }
-      if (edits.length === 0) return;
+      // Scale every numeric time value on a row and, recursively, all of its descendants.
+      const scaleRow = <T extends { values: Record<string, unknown>; children?: T[] }>(
+        row: T,
+        factor: number,
+      ): T => ({
+        ...row,
+        values: Object.fromEntries(
+          Object.entries(row.values).map(([k, v]) => [
+            k,
+            typeof v === 'number' ? Math.round(v * factor) : v,
+          ]),
+        ) as T['values'],
+        children: row.children ? row.children.map((c) => scaleRow(c, factor)) : row.children,
+      });
 
-      // Apply sequentially so each edit closes over the latest rolled-up state, but keep the
-      // grid hidden behind an overlay until all edits land so only the outcome is shown.
       scenarioApplyingRef.current = true;
       setIsApplyingScenario(true);
-      const note = 'Scenario adjustment';
-      const run = async () => {
-        for (let i = 0; i < edits.length; i++) {
-          if (i > 0) await new Promise((r) => setTimeout(r, 55));
-          const e = edits[i];
-          cellChangeHandlerRef.current?.(e.rowId, 'year' as any, e.newValue, note);
-        }
-        // Let the final state settle for a frame before revealing.
-        await new Promise((r) => setTimeout(r, 120));
+      setData((prev) =>
+        prev.map((m) => {
+          const factor = factorByMeasure[m.id];
+          if (factor === undefined) return m;
+          if (visibleMeasureIds.size > 0 && !visibleMeasureIds.has(m.id)) return m;
+          // Always scale from the pristine baseline so the result is idempotent.
+          const base = (originalData.find((o) => o.id === m.id) ?? m) as typeof m;
+          return scaleRow(base, factor);
+        }),
+      );
+      window.setTimeout(() => {
         scenarioApplyingRef.current = false;
         setIsApplyingScenario(false);
-      };
-      run();
+      }, 220);
     },
-    [selectedLayoutState, data, visibleMeasureIds],
+    [selectedLayoutState, originalData, visibleMeasureIds],
   );
 
   // Handler for toggling cell lock from the panel
