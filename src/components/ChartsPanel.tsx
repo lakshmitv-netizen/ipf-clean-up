@@ -79,13 +79,24 @@ const SERIES_PIE_COLORS = [
   '#84cc16', '#a16207', '#0891b2', '#be185d', '#4d7c0f',
 ];
 
-/** Compact currency-ish formatter for chart labels. */
-const fmt = (n: number): string => {
+/** Compact number formatter for chart labels, with an optional unit prefix. */
+const fmtScaled = (n: number, prefix = '$'): string => {
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
+  if (abs >= 1_000_000) return `${prefix}${(n / 1_000_000).toFixed(1)}M`;
+  if (abs >= 1_000) return `${prefix}${(n / 1_000).toFixed(0)}K`;
+  return `${prefix}${Math.round(n).toLocaleString()}`;
 };
+
+/** Compact currency-ish formatter for chart labels. */
+const fmt = (n: number): string => fmtScaled(n, '$');
+
+/** True when a measure name denotes a count/quantity rather than a currency amount. */
+const isCountMeasure = (name?: string | null): boolean =>
+  !!name && /\b(quantity|qty|units?|count)\b|\(no/i.test(name);
+
+/** Format a value for a specific measure — drops the `$` for quantity measures. */
+const fmtMeasure = (n: number, name?: string | null): string =>
+  fmtScaled(n, isCountMeasure(name) ? '' : '$');
 
 /** Format a value according to its sub-column unit. */
 const fmtUnit = (n: number, unit: SubColumnUnit): string => {
@@ -3217,8 +3228,8 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                             const r = varianceBand.reference[i];
                             const dpct = r ? ((a - r) / r) * 100 : 0;
                             showTip(e, `${MONTHS[i].label} 2026`, [
-                              { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmt(a), color: BASE_LINE_COLOR },
-                              { label: varianceBand.refName, val: fmt(r), color: '#5867e8' },
+                              { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmtMeasure(a, measureName), color: BASE_LINE_COLOR },
+                              { label: varianceBand.refName, val: fmtMeasure(r, varianceBand.refName), color: '#5867e8' },
                               { label: 'Variance', val: `${dpct >= 0 ? '+' : ''}${dpct.toFixed(1)}%` },
                             ]);
                           }}
@@ -3260,9 +3271,9 @@ const ChartsPanel: React.FC<ChartsPanelProps> = ({
                                     onKeyDown={onDrill ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onDrill(c.id); } } : undefined}
                                     onMouseMove={(e) =>
                                       showTip(e, `${c.name} · ${varChildVariance.monthLabel} 2026`, [
-                                        { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmt(c.actual), color: BASE_LINE_COLOR },
-                                        { label: varianceBand.refName, val: fmt(c.ref), color: '#5867e8' },
-                                        { label: 'Variance', val: `${pos ? '+' : '−'}${fmt(Math.abs(c.variance))}${c.pct !== null ? ` (${c.pct >= 0 ? '+' : ''}${c.pct.toFixed(0)}%)` : ''}` },
+                                        { label: measureName ? `Actual ${measureName}` : 'Actual', val: fmtMeasure(c.actual, measureName), color: BASE_LINE_COLOR },
+                                        { label: varianceBand.refName, val: fmtMeasure(c.ref, varianceBand.refName), color: '#5867e8' },
+                                        { label: 'Variance', val: `${pos ? '+' : '−'}${fmtMeasure(Math.abs(c.variance), measureName)}${c.pct !== null ? ` (${c.pct >= 0 ? '+' : ''}${c.pct.toFixed(0)}%)` : ''}` },
                                       ])
                                     }
                                     onMouseLeave={hideTip}
