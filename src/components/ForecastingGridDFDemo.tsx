@@ -2744,6 +2744,10 @@ const ForecastingGridDFDemo: React.FC = () => {
   const cellChangeHandlerRef = useRef<((rowId: string, monthKey: string, newValue: number, note?: string) => void) | null>(null);
   // Ref to get current cell value from grid's internal state
   const getCurrentCellValueRef = useRef<((rowId: string, monthKey: string) => number) | null>(null);
+  // Ref to seed the grid's edited/impacted maps for a scenario overlay (deltas/arrows/highlights).
+  const applyScenarioOverlayRef = useRef<
+    ((maps: { edited: [string, number][]; impacted: [string, number][] }) => void) | null
+  >(null);
 
   // Tracks whether the first cell edit has already flipped the grid into the design-system
   // "unsaved edit" view (yellow edited/impacted cells + delta %). Runs once so we never fight
@@ -4906,18 +4910,76 @@ const ForecastingGridDFDemo: React.FC = () => {
         children: row.children ? row.children.map((c) => scaleRow(c, factor)) : row.children,
       });
 
+      const targetIds = Object.keys(factorByMeasure).filter(
+        (id) => visibleMeasureIds.size === 0 || visibleMeasureIds.has(id),
+      );
+
       scenarioApplyingRef.current = true;
       setIsApplyingScenario(true);
       setData((prev) =>
         prev.map((m) => {
           const factor = factorByMeasure[m.id];
-          if (factor === undefined) return m;
-          if (visibleMeasureIds.size > 0 && !visibleMeasureIds.has(m.id)) return m;
+          if (factor === undefined || !targetIds.includes(m.id)) return m;
           // Always scale from the pristine baseline so the result is idempotent.
           const base = (originalData.find((o) => o.id === m.id) ?? m) as typeof m;
           return scaleRow(base, factor);
         }),
       );
+
+      // Build the edited/impacted overlay so the change renders like real edits: the whole
+      // Order measure row reads as "edited", its dimension breakdown as "impacted" (delta +
+      // arrow). Originals are rolled up from the baseline leaves so parent deltas match the
+      // grid's own rollup exactly (rather than any stale stored aggregate). Empty maps ⇒ the
+      // overlay is cleared (baseline scenario resets both numbers and highlights).
+      const edited: [string, number][] = [];
+      const impacted: [string, number][] = [];
+      const collectOriginals = (
+        row: { id: string; values: Record<string, unknown>; children?: any[] },
+        factor: number,
+        isMeasureRoot: boolean,
+      ): Record<string, number> => {
+        const childSums: Record<string, number> = {};
+        if (row.children && row.children.length) {
+          for (const c of row.children) {
+            const cs = collectOriginals(c, factor, false);
+            for (const k of Object.keys(cs)) childSums[k] = (childSums[k] ?? 0) + cs[k];
+          }
+        }
+        const ownVals: Record<string, number> = {};
+        for (const [k, v] of Object.entries(row.values)) {
+          if (typeof v === 'number') ownVals[k] = v;
+        }
+        // Parents mirror the grid's display, which rolls up from leaves; leaves use own values.
+        const effective = row.children && row.children.length ? childSums : ownVals;
+        if (Math.abs(factor - 1) >= 0.001) {
+          for (const [k, base] of Object.entries(effective)) {
+            if (Math.round(base * factor) === base) continue;
+            const cellKey = `${row.id}-${k}`;
+            (isMeasureRoot ? edited : impacted).push([cellKey, base]);
+          }
+        }
+        return effective;
+      };
+      for (const id of targetIds) {
+        const base = originalData.find((o) => o.id === id);
+        if (base) collectOriginals(base as any, factorByMeasure[id], true);
+      }
+      // Light up the same "unsaved edit" treatment a manual edit uses (see line ~2804):
+      // yellow edited/impacted highlighting + delta % + arrows, which also stands the seeded
+      // red "below committed agreement" (modifyCells) rules down so the scenario reads cleanly.
+      // A baseline scenario passes empty maps ⇒ overlay clears; leave the flag as-is there.
+      if (edited.length || impacted.length) {
+        setIsDesignSystemRulesEnabled(true);
+        setConditionalFormattingRules((prev) =>
+          prev.map((r) =>
+            r.mode === 'modifyCells' && !r.id.startsWith('agent-highlight-')
+              ? { ...r, isActive: false }
+              : r,
+          ),
+        );
+      }
+      applyScenarioOverlayRef.current?.({ edited, impacted });
+
       window.setTimeout(() => {
         scenarioApplyingRef.current = false;
         setIsApplyingScenario(false);
@@ -6787,6 +6849,9 @@ const ForecastingGridDFDemo: React.FC = () => {
             }}
             onGetCurrentCellValueReady={(handler: (rowId: string, monthKey: string) => number) => {
               getCurrentCellValueRef.current = handler;
+            }}
+            onApplyScenarioOverlayReady={(handler) => {
+              applyScenarioOverlayRef.current = handler;
             }}
             onEditingCellChange={(cellKey) => {
               setEditingCellKey(cellKey);

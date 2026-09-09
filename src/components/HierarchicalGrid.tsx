@@ -366,6 +366,15 @@ interface HierarchicalGridProps {
     ) => void,
   ) => void; // Callback to expose cell change handler for programmatic updates
   onGetCurrentCellValueReady?: (handler: (rowId: string, monthKey: string) => number) => void; // Callback to expose function to get current cell value
+  /**
+   * Expose a handler that seeds the edited/impacted cell maps for a scenario overlay. The
+   * parent scales the data directly (outside the cell-change pipeline) and then calls this so
+   * the changed cells render with the normal edited-highlight + impacted delta/arrow treatment.
+   * Passing empty arrays clears any prior scenario overlay.
+   */
+  onApplyScenarioOverlayReady?: (
+    handler: (maps: { edited: [string, number][]; impacted: [string, number][] }) => void,
+  ) => void;
   onEditingCellChange?: (cellKey: string | null) => void; // Callback when editing cell changes (cellKey format: `${rowId}-${monthKey}`)
   onSavedImpactedCellsReady?: (cells: Set<string>) => void; // Callback to expose saved impacted cells
   showAllPeriods?: boolean; // Whether to show all time periods or filter by date range
@@ -506,6 +515,7 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
   startPeriod = '',
   endPeriod = '',
   onGetCurrentCellValueReady,
+  onApplyScenarioOverlayReady,
   onEditingCellChange,
   onSavedImpactedCellsReady,
   visibleMeasureIds,
@@ -4211,6 +4221,17 @@ const HierarchicalGrid: React.FC<HierarchicalGridProps> = ({
       });
     }
   }, [gridData, onGetCurrentCellValueReady]);
+
+  // Seed the edited/impacted maps for a scenario overlay. The parent has already scaled the
+  // underlying data; here we only mark cells so they render with the standard edited-highlight
+  // (anchor cells) and impacted delta/arrow (everything else). Empty arrays clear the overlay.
+  useEffect(() => {
+    if (!onApplyScenarioOverlayReady) return;
+    onApplyScenarioOverlayReady(({ edited, impacted }) => {
+      setEditedCells(new Map(edited));
+      setImpactedCells(new Map(impacted));
+    });
+  }, [onApplyScenarioOverlayReady]);
 
   // Expose function to scroll to a specific measure
   useEffect(() => {
